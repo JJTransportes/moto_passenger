@@ -20,7 +20,7 @@ class AppModule extends Module {
   @override
   void binds(i) {
     i.add<ILoginUsecase>(LoginUsecase.new);
-    i.add<LoginBloc>(LoginBloc.new);
+    i.addSingleton<LoginBloc>(LoginBloc.new);
   }
 
   @override

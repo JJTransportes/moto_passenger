@@ -78,6 +78,8 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+
     return BlocConsumer<LoginBloc, LoginState>(
       listener: (context, state) {
         if (state is LoginSuccess) {
@@ -92,11 +94,9 @@ class _LoginPageState extends State<LoginPage> {
           backgroundColor: AppColors.white,
           body: SafeArea(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 36,
-                vertical: 36,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 36),
               child: Column(
+                spacing: size.height * 0.1,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   GradientText(
@@ -108,23 +108,23 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   const SizedBox(height: 24),
                   _buildBrandImage(),
-                  const SizedBox(height: 32),
-                  AppTextField(
+                  Column(
+                    spacing: 16,
+                    children: [
+                      AppTextField(
                     label: 'E-mail',
                     hint: 'Informe seu e-mail',
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
                     errorText: _emailError,
-                  ),
-                  const SizedBox(height: 16),
+                      ),
                   AppTextField(
                     label: 'Senha',
                     hint: 'Informe sua senha',
                     controller: _passwordController,
                     obscureText: true,
                     errorText: _passwordError,
-                  ),
-                  const SizedBox(height: 8),
+                      ),
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
@@ -150,10 +150,8 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ],
                   const SizedBox(height: 24),
-                  AppButton(
-                    label: 'Entrar',
-                    loading: isLoading,
-                    onPressed: _submit,
+                      AppButton(label: 'Entrar', loading: isLoading, onPressed: _submit,),
+                    ],
                   ),
                 ],
               ),
@@ -166,13 +164,7 @@ class _LoginPageState extends State<LoginPage> {
 
   Widget _buildBrandImage() {
     if (_brandImagePath != null) {
-      return Image.file(
-        File(_brandImagePath!),
-        width: 224,
-        height: 90,
-        fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => _buildDefaultLogo(),
-      );
+      return Image.file(File(_brandImagePath!), width: 224, height: 90, fit: BoxFit.contain, errorBuilder: (_, __, ___) => _buildDefaultLogo());
     }
     return _buildDefaultLogo();
   }
@@ -183,11 +175,7 @@ class _LoginPageState extends State<LoginPage> {
       width: 224,
       height: 90,
       fit: BoxFit.contain,
-      errorBuilder: (_, __, ___) => const SizedBox(
-        width: 224,
-        height: 90,
-        child: Placeholder(),
-      ),
+      errorBuilder: (_, __, ___) => const SizedBox(width: 224, height: 90, child: Placeholder()),
     );
   }
 }
