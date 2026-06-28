@@ -12,6 +12,9 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
   final LocationService _locationService;
   final IPlacesAutocompleteService _placesService;
 
+  /// Persisted across state changes so route calculation always has an origin.
+  LatLng? _currentPosition;
+
   NewTravelBloc(
     this._repository,
     this._locationService,
@@ -41,14 +44,8 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
     CalculateRoute event,
     Emitter<NewTravelState> emit,
   ) async {
-    final currentState = state;
-    double originLat;
-    double originLng;
-
-    if (currentState is NewTravelLocationLoaded) {
-      originLat = currentState.position.latitude;
-      originLng = currentState.position.longitude;
-    } else {
+    final origin = _currentPosition;
+    if (origin == null) {
       emit(const NewTravelFailure(message: 'Localização não disponível'));
       return;
     }
@@ -57,8 +54,8 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
 
     try {
       final result = await _placesService.getRouteDetails(
-        originLat: originLat,
-        originLng: originLng,
+        originLat: origin.latitude,
+        originLng: origin.longitude,
         destLat: event.latitude,
         destLng: event.longitude,
       );
@@ -128,9 +125,10 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
       }
 
       final position = result.position!;
+      _currentPosition = LatLng(position.latitude, position.longitude);
       emit(
         NewTravelLocationLoaded(
-          position: LatLng(position.latitude, position.longitude),
+          position: _currentPosition!,
         ),
       );
     } catch (e) {
@@ -166,15 +164,18 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
     SelectPlace event,
     Emitter<NewTravelState> emit,
   ) async {
-    final originLat = event.suggestion.latitude;
-    final originLng = event.suggestion.longitude;
+    final origin = _currentPosition;
+    if (origin == null) {
+      emit(const NewTravelFailure(message: 'Localização não disponível'));
+      return;
+    }
 
     emit(const NewTravelRouteCalculating());
 
     try {
       final result = await _placesService.getRouteDetails(
-        originLat: originLat,
-        originLng: originLng,
+        originLat: origin.latitude,
+        originLng: origin.longitude,
         destLat: event.suggestion.latitude,
         destLng: event.suggestion.longitude,
       );

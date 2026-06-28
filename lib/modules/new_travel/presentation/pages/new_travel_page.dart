@@ -265,6 +265,20 @@ class _NewTravelPageState extends State<NewTravelPage> {
   }
 }
 
+/// Formata minutos totais em string legível para exibição.
+/// Ex: 45 → "45 min", 75 → "1h 15min"
+String _formatTravelTime(int totalMinutes) {
+  if (totalMinutes < 60) {
+    return '$totalMinutes min';
+  }
+  final hours = totalMinutes ~/ 60;
+  final minutes = totalMinutes % 60;
+  if (minutes == 0) {
+    return '${hours}h';
+  }
+  return '${hours}h ${minutes}min';
+}
+
 class _RouteBottomSheetContent extends StatelessWidget {
   final TravelRouteEntity route;
   final String distKm;
@@ -308,10 +322,21 @@ class _RouteBottomSheetContent extends StatelessWidget {
                 const SizedBox(height: 8),
                 Row(
                   children: [
+                    const Icon(Icons.straighten, color: Color(0xFF4685C0), size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      '$distKm km',
+                      style: const TextStyle(color: Color(0xFF4E4E4E)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
                     const Icon(Icons.timer_outlined, color: Color(0xFF4685C0), size: 20),
                     const SizedBox(width: 8),
                     Text(
-                      '($distKm km)',
+                      _formatTravelTime(route.timeMinutes),
                       style: const TextStyle(color: Color(0xFF4E4E4E)),
                     ),
                   ],

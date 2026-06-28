@@ -48,7 +48,7 @@ class PlacesAutocompleteService implements IPlacesAutocompleteService {
     required double destLng,
   }) async {
     try {
-      final response = await _dio.get(
+      final response = await _dio.post(
         '/api/routes/details',
         data: [
           {'latitude': originLat, 'longitude': originLng},
@@ -71,7 +71,7 @@ class PlacesAutocompleteService implements IPlacesAutocompleteService {
         distanceMeters: (data['distanceBetweenPointsInMeters'] as num).toInt(),
         timeHours: (data['averageTimeBetweenPointsInHours'] as num).toInt(),
         timeMinutes: (data['averageTimeBetweenPointsInMinutes'] as num).toInt(),
-        encodedPolyline: data['encodedPolyline'] as String,
+        encodedPolyline: (data['encodedPolyline'] as String?) ?? '',
       );
     } on DioException catch (e) {
       throw Exception(e.message ?? 'Erro ao calcular rota');
@@ -110,8 +110,8 @@ class PlaceSuggestion {
   factory PlaceSuggestion.fromMap(Map<String, dynamic> map) {
     return PlaceSuggestion(
       address: map['address'] as String,
-      latitude: map['latitude'] as double,
-      longitude: map['longitude'] as double,
+      latitude: (map['latitude'] as num).toDouble(),
+      longitude: (map['longitude'] as num).toDouble(),
     );
   }
 }
