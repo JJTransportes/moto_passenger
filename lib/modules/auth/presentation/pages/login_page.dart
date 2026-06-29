@@ -151,6 +151,23 @@ class _LoginPageState extends State<LoginPage> {
                   ],
                   const SizedBox(height: 24),
                       AppButton(label: 'Entrar', loading: isLoading, onPressed: _submit,),
+                  const SizedBox(height: 16),
+                  Align(
+                    alignment: Alignment.center,
+                    child: TextButton(
+                      onPressed: isLoading
+                          ? null
+                          : () => Navigator.of(context).pushNamed('/register'),
+                      child: Text(
+                        'Criar conta',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
                     ],
                   ),
                 ],

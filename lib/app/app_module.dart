@@ -8,6 +8,7 @@ import 'package:moto_passenger/modules/auth/presentation/pages/password_recovery
 import 'package:moto_passenger/modules/auth/presentation/pages/password_reset_page.dart';
 import 'package:moto_passenger/modules/common_module.dart';
 import 'package:moto_passenger/modules/new_travel/new_travel_module.dart';
+import 'package:moto_passenger/modules/passenger_registration/passenger_registration_module.dart';
 import 'package:moto_passenger/modules/passenger_home/passenger_home_module.dart';
 import 'package:moto_passenger/screens/splash_screen.dart';
 
@@ -35,6 +36,7 @@ class AppModule extends Module {
     );
     r.child('/recovery', child: (_) => const PasswordRecoveryPage());
     r.child('/reset-password', child: (_) => const PasswordResetPage());
+    r.module('/register', module: PassengerRegistrationModule());
     r.module('/home', module: PassengerHomeModule());
     r.module('/new-travel', module: NewTravelModule());
   }
