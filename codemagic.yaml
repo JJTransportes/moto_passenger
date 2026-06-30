@@ -16,7 +16,7 @@ workflows:
     environment:
       flutter: 3.32.2
       groups:
-      - moto_staging
+      - moto_passenger_staging
       android_signing:
       - moto_passenger_keystore
 
