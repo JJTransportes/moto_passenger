@@ -18,7 +18,7 @@ workflows:
     environment:
       flutter: 3.32.2
       groups:
-      - moto_staging
+      - moto_passenger_staging
       ios_signing:
         distribution_type: app_store
         bundle_identifier: $MOTO_PASSENGER_BUNDLE_ID
