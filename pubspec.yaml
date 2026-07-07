@@ -35,7 +35,6 @@ dev_dependencies:
 
 flutter_launcher_icons:
   android: true
-  ios: true
   image_path_android: "assets/images/moto_passenger_icon.png"
   image_path_ios: "assets/images/moto_passenger_icon.png"
   adaptatvie_icon_background: "#ffffff"
