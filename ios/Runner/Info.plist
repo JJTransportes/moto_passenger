@@ -66,5 +66,13 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
+  <key>NSLocationWhenInUseUsageDescription</key>
+  <string>Este aplicativo utiliza sua localização para oferecer funcionalidades relacionadas ao mapa e melhorar sua experiência.</string>
+  <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+  <string>Este aplicativo utiliza sua localização para oferecer funcionalidades relacionadas ao mapa, mesmo quando necessário em segundo plano.</string>
 </dict>
 </plist>
