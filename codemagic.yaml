@@ -30,13 +30,9 @@ workflows:
     - name: Get Flutter packages
       script: |
         flutter pub get
-    - name: Clean CocoaPods
+    - name: Install pods
       script: |
-        rm -rf ios/Pods
-        rm -f ios/Podfile.lock
-        cd ios
-        pod repo update
-        pod install
+        find . -name "Podfile" -execdir pod install \;
     - name: Config definitions
       script: |
         cat > .env << EOF
@@ -46,7 +42,7 @@ workflows:
       script: |
         flutter build ipa --release \
           --build-name=1.0.0 \
-          --build-number=3 \
+          --build-number=2 \
           --export-options-plist=/Users/builder/export_options.plist
     artifacts:
     - build/ios/ipa/*.ipa
