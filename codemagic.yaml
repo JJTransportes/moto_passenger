@@ -30,9 +30,13 @@ workflows:
     - name: Get Flutter packages
       script: |
         flutter pub get
-    - name: Install pods
+    - name: Clean CocoaPods
       script: |
-        find . -name "Podfile" -execdir pod install \;
+        rm -rf ios/Pods
+        rm -f ios/Podfile.lock
+        cd ios
+        pod repo update
+        pod install
     - name: Config definitions
       script: |
         cat > .env << EOF
