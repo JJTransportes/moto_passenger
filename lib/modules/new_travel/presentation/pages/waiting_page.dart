@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
+import 'package:moto_passenger/core/auth/auth_storage.dart';
+import 'package:moto_passenger/core/config/app_config.dart';
 import 'package:moto_passenger/core/network/signalr_service.dart';
 import 'package:moto_passenger/core/theme/app_theme.dart';
 
@@ -24,9 +26,7 @@ class _WaitingPageState extends State<WaitingPage> {
   void initState() {
     super.initState();
 
-    // Listen for OrderAccepted event
-    final signalR = Modular.get<SignalRService>();
-    _acceptedSub = signalR.onOrderAccepted.listen(_onOrderAccepted);
+    _initSignalR();
 
     // Update elapsed time every second
     _elapsedTimer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -36,6 +36,28 @@ class _WaitingPageState extends State<WaitingPage> {
         });
       }
     });
+  }
+
+  Future<void> _initSignalR() async {
+    final token = await AuthStorage().getToken();
+    if (token == null) return;
+
+    final signalR = Modular.get<SignalRService>();
+    final baseUrl = AppConfig.getBaseUrl();
+
+    try {
+      // Connect to travel-orders hub to receive OrderAccepted events
+      await signalR.connect(
+        'travel-orders',
+        '$baseUrl/hubs/travel-orders',
+        token,
+      );
+    } catch (_) {
+      // Non-critical; polling in TravelTrackingPage will be the fallback
+    }
+
+    // Listen for OrderAccepted event
+    _acceptedSub = signalR.onOrderAccepted.listen(_onOrderAccepted);
   }
 
   void _onOrderAccepted(Map<String, dynamic> event) {
@@ -57,6 +79,7 @@ class _WaitingPageState extends State<WaitingPage> {
   void dispose() {
     _acceptedSub?.cancel();
     _elapsedTimer?.cancel();
+    Modular.get<SignalRService>().disconnect('travel-orders');
     super.dispose();
   }
 
