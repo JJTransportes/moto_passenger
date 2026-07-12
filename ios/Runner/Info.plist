@@ -41,6 +41,10 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>O Moto Passenger precisa de acesso à câmera para tirar sua foto de perfil.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>O Moto Passenger precisa de acesso à galeria para escolher sua foto de perfil.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>

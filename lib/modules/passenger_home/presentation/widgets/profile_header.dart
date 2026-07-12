@@ -4,11 +4,13 @@ import 'package:moto_passenger/core/theme/app_theme.dart';
 class ProfileHeader extends StatelessWidget {
   final String fullName;
   final VoidCallback? onSignOut;
+  final VoidCallback? onSettings;
 
   const ProfileHeader({
     super.key,
     required this.fullName,
     this.onSignOut,
+    this.onSettings,
   });
 
   @override
@@ -39,6 +41,7 @@ class ProfileHeader extends StatelessWidget {
         const Spacer(),
         PopupMenuButton<String>(
           onSelected: (value) {
+            if (value == 'settings') onSettings?.call();
             if (value == 'signout') onSignOut?.call();
           },
           itemBuilder: (_) => const [
