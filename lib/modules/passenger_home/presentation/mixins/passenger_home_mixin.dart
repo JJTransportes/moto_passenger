@@ -30,6 +30,7 @@ mixin PassengerHomeMixin on State<PassengerHomePage> {
           ProfileHeader(
             fullName: profile.fullName,
             onSignOut: () => _handleSignOut(context),
+            onSettings: () => Modular.to.pushNamed('/profile'),
           ),
           const SizedBox(height: 24),
           if (currentTravel != null) ...[
@@ -67,6 +68,7 @@ mixin PassengerHomeMixin on State<PassengerHomePage> {
             ProfileHeader(
               fullName: '',
               onSignOut: () => _handleSignOut(context),
+              onSettings: () => Modular.to.pushNamed('/profile'),
             ),
             const Expanded(
               child: Center(
@@ -115,6 +117,7 @@ mixin PassengerHomeMixin on State<PassengerHomePage> {
           ProfileHeader(
             fullName: '',
             onSignOut: () => _handleSignOut(context),
+            onSettings: () => Modular.to.pushNamed('/profile'),
           ),
           const Expanded(
             child: Center(child: CircularProgressIndicator()),
