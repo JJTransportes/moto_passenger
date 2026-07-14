@@ -27,6 +27,12 @@ workflows:
     - name: Get Flutter packages
       script: flutter pub get
 
+    - name: Set application secrets
+      script: |
+        cat <<EOF > ios/Flutter/Secrets.xcconfig
+        IOS_MAPS_API_KEY=$IOS_MAPS_API_KEY
+        EOF
+
     - name: Config definitions
       script: |
         cat > .env << EOF
