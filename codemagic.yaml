@@ -2,13 +2,13 @@ workflows:
   android_staging:
     name: Moto - Passenger Staging
     max_build_duration: 30
-    instance_type: mac_mini_m1
+    instance_type: mac_mini_m2
 
     triggering:
       events:
       - push
       branch_patterns:
-      - pattern: "android_staging"
+      - pattern: "android"
       - include: true
       - source: true
       cancel_previous_builds: true
@@ -26,12 +26,6 @@ workflows:
 
     - name: Get Flutter packages
       script: flutter pub get
-
-    - name: Set application secrets
-      script: |
-        cat <<EOF > ios/Flutter/Secrets.xcconfig
-        IOS_MAPS_API_KEY=$IOS_MAPS_API_KEY
-        EOF
 
     - name: Config definitions
       script: |
@@ -61,7 +55,7 @@ workflows:
 
   ios_staging:
     name: Moto iOS Staging
-    instance_type: mac_mini_m1
+    instance_type: mac_mini_m2
     max_build_duration: 30
     integrations:
       app_store_connect: Moto Driver
@@ -70,7 +64,7 @@ workflows:
       events:
       - push
       branch_patterns:
-      - pattern: "ios_staging"
+      - pattern: "ios"
       - include: true
       - source: true
       cancel_previous_builds: true
@@ -90,20 +84,30 @@ workflows:
     - name: Get Flutter packages
       script: |
         flutter pub get
+
     - name: Install pods
       script: |
         find . -name "Podfile" -execdir pod install \;
+
+    - name: Set application secrets
+      script: |
+        cat <<EOF > ios/Flutter/Secrets.xcconfig
+        IOS_MAPS_API_KEY=$IOS_MAPS_API_KEY
+        EOF
+
     - name: Config definitions
       script: |
         cat > .env << EOF
         API_BASE_URL=$API_BASE_URL
         EOF
+
     - name: Flutter build ipa
       script: |
         flutter build ipa --release \
           --build-name=1.0.0 \
           --build-number=6 \
           --export-options-plist=/Users/builder/export_options.plist
+
     artifacts:
     - build/ios/ipa/*.ipa
     - /tmp/xcodebuild_logs/*.log
