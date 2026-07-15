@@ -3,4 +3,6 @@ import 'package:moto_passenger/modules/auth/domain/entities/user_entity.dart';
 
 abstract class IAuthRepository {
   Future<Result<UserEntity>> signIn(String email, String password);
+
+  Future<Result<UserEntity>> refreshToken(String refreshToken);
 }
