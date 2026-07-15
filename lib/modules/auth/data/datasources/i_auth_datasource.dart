@@ -6,4 +6,10 @@ abstract class IAuthDatasource {
   /// Returns raw [SignInResponseModel] on success.
   /// Throws a typed exception (e.g. [UnauthorizedException], [NetworkException]) on failure.
   Future<SignInResponseModel> signIn(String email, String password);
+
+  /// Exchanges a [refreshToken] for a new access token and refresh token (rotation).
+  ///
+  /// Returns raw [SignInResponseModel] on success.
+  /// Throws [UnauthorizedException] if the refresh token is expired or invalid.
+  Future<SignInResponseModel> refreshToken(String refreshToken);
 }

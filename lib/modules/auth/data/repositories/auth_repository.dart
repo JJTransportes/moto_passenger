@@ -20,4 +20,14 @@ class AuthRepository implements IAuthRepository {
       return Failure(e);
     }
   }
+
+  @override
+  AsyncResult<UserEntity> refreshToken(String refreshToken) async {
+    try {
+      final model = await _datasource.refreshToken(refreshToken);
+      return Success(model.toEntity());
+    } on Exception catch (e) {
+      return Failure(e);
+    }
+  }
 }

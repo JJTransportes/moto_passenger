@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class LocationResult {
   final Position? position;
@@ -40,6 +43,11 @@ class LocationService {
   }
 
   static Future<void> requestPermissionIfNeeded() async {
+    if (Platform.isIOS) {
+      await Permission.location.request();
+      return;
+    }
+
     final permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       await Geolocator.requestPermission();
