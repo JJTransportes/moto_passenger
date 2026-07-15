@@ -9,8 +9,9 @@ workflows:
       - push
       branch_patterns:
       - pattern: "android_staging"
-      - include: false
-      - source: false
+      - include: true
+      - source: true
+      cancel_previous_builds: true
 
     environment:
       flutter: 3.32.2
@@ -64,9 +65,8 @@ workflows:
       - push
       branch_patterns:
       - pattern: "ios_staging"
-      - include: true
-      - source: true
-      cancel_previous_builds: true
+      - include: false
+      - source: false
 
     environment:
       flutter: 3.32.2
