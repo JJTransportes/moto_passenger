@@ -23,6 +23,22 @@ class AuthDatasource implements IAuthDatasource {
     }
   }
 
+  @override
+  Future<SignInResponseModel> refreshToken(String refreshToken) async {
+    try {
+      final response = await _dio.post(
+        '/api/auth/refresh',
+        data: {'refreshToken': refreshToken},
+        options: Options(extra: {'noAuth': true}),
+      );
+      return SignInResponseModel.fromJson(
+        response.data as Map<String, dynamic>,
+      );
+    } on DioException catch (e) {
+      throw _mapDioException(e);
+    }
+  }
+
   Exception _mapDioException(DioException e) {
     switch (e.response?.statusCode) {
       case 400:
@@ -30,7 +46,7 @@ class AuthDatasource implements IAuthDatasource {
           'Dados inválidos. Verifique as informações.',
         );
       case 401:
-        return const UnauthorizedException('E-mail ou senha inválidos');
+        return const UnauthorizedException();
       case 404:
         return const NotFoundException('Usuário não encontrado');
       case 429:

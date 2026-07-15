@@ -2,11 +2,14 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:moto_passenger/core/auth/auth_storage.dart';
+import 'package:moto_passenger/core/auth/sign_out_service.dart';
 import 'package:moto_passenger/core/brand/i_brand_cache_service.dart';
 import 'package:moto_passenger/core/config/app_config.dart';
+import 'package:moto_passenger/core/errors/exceptions.dart';
 import 'package:moto_passenger/core/local_db/repositories/auth_local_repository.dart';
 import 'package:moto_passenger/core/local_db/repositories/travel_local_repository.dart';
 import 'package:moto_passenger/core/theme/app_theme.dart';
+import 'package:moto_passenger/modules/auth/data/datasources/i_auth_datasource.dart';
 
 class SplashScreen extends StatefulWidget {
   final Duration delay;
@@ -38,6 +41,22 @@ class _SplashScreenState extends State<SplashScreen> {
     final authLocal = Modular.get<AuthLocalRepository>();
     final localAuth = await authLocal.getAuth();
 
+    // If we have a refresh token, try to renew the session
+    if (localAuth != null && localAuth.refreshToken.isNotEmpty) {
+      final refreshed = await _tryRefreshToken(localAuth.refreshToken);
+      if (!mounted) return;
+      if (refreshed) {
+        final restored = await _checkActiveTravel();
+        if (!mounted) return;
+        if (!restored) Modular.to.navigate('/home');
+        return;
+      }
+      // Refresh failed (token expired) — sign out and go to login
+      await Modular.get<SignOutService>().signOut();
+      return;
+    }
+
+    // Fallback: access token from local cache (no refresh token available)
     if (localAuth != null && localAuth.accessToken.isNotEmpty) {
       if (!mounted) return;
       final restored = await _checkActiveTravel();
@@ -57,6 +76,35 @@ class _SplashScreenState extends State<SplashScreen> {
       if (!restored) Modular.to.navigate('/home');
     } else {
       Modular.to.navigate('/login');
+    }
+  }
+
+  /// Tries to refresh the access token using the [refreshToken].
+  /// Returns true on success, false on failure.
+  Future<bool> _tryRefreshToken(String refreshToken) async {
+    try {
+      final authDatasource = Modular.get<IAuthDatasource>();
+      final result = await authDatasource.refreshToken(refreshToken);
+
+      final storage = Modular.get<AuthStorage>();
+      final authLocal = Modular.get<AuthLocalRepository>();
+
+      await storage.saveTokens(
+        result.accessToken,
+        result.refreshToken!,
+        result.userId,
+      );
+      await authLocal.updateTokens(
+        result.accessToken,
+        result.refreshToken!,
+      );
+      return true;
+    } on UnauthorizedException {
+      // Refresh token expired or revoked — not recoverable
+      return false;
+    } catch (_) {
+      // Network or other error — fall through to access token fallback
+      return false;
     }
   }
 

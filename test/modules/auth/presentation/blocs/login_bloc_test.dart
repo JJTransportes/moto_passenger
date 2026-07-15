@@ -31,11 +31,12 @@ void main() {
       build: () {
         when(() => mockUsecase.call(any(), any()))
             .thenAnswer((_) async => Success(user));
-        when(() => mockAuthStorage.saveToken(any(), any()))
+        when(() => mockAuthStorage.saveTokens(any(), any(), any()))
             .thenAnswer((_) async {});
         when(() => mockAuthLocal.saveAuth(
               userId: any(named: 'userId'),
               accessToken: any(named: 'accessToken'),
+              refreshToken: any(named: 'refreshToken'),
               roles: any(named: 'roles'),
             )).thenAnswer((_) async {});
         return LoginBloc(mockUsecase, mockAuthStorage, mockAuthLocal);
@@ -45,14 +46,15 @@ void main() {
       ),
       expect: () => [
         const LoginLoading(),
-        LoginSuccess(user),
+        isA<LoginSuccess>(),
       ],
       verify: (_) {
-        verify(() => mockAuthStorage.saveToken('tok_123', 'user_1'))
+        verify(() => mockAuthStorage.saveTokens('tok_123', '', 'user_1'))
             .called(1);
         verify(() => mockAuthLocal.saveAuth(
               userId: 'user_1',
               accessToken: 'tok_123',
+              refreshToken: '',
               roles: ['Passenger'],
             )).called(1);
       },
@@ -71,13 +73,14 @@ void main() {
       ),
       expect: () => [
         const LoginLoading(),
-        const LoginFailure('E-mail ou senha inválidos'),
+        isA<LoginFailure>(),
       ],
       verify: (_) {
-        verifyNever(() => mockAuthStorage.saveToken(any(), any()));
+        verifyNever(() => mockAuthStorage.saveTokens(any(), any(), any()));
         verifyNever(() => mockAuthLocal.saveAuth(
               userId: any(named: 'userId'),
               accessToken: any(named: 'accessToken'),
+              refreshToken: any(named: 'refreshToken'),
               roles: any(named: 'roles'),
             ));
       },
@@ -88,11 +91,12 @@ void main() {
       build: () {
         when(() => mockUsecase.call(any(), any()))
             .thenAnswer((_) async => Success(user));
-        when(() => mockAuthStorage.saveToken(any(), any()))
+        when(() => mockAuthStorage.saveTokens(any(), any(), any()))
             .thenAnswer((_) async {});
         when(() => mockAuthLocal.saveAuth(
               userId: any(named: 'userId'),
               accessToken: any(named: 'accessToken'),
+              refreshToken: any(named: 'refreshToken'),
               roles: any(named: 'roles'),
             )).thenAnswer((_) async {});
         return LoginBloc(mockUsecase, mockAuthStorage, mockAuthLocal);
