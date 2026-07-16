@@ -48,7 +48,7 @@ void main() {
       expect(result, isA<Result<UserEntity>>());
       result.fold(
         (_) => fail('Expected failure'),
-        (error) => expect(error.toString(), 'E-mail ou senha inválidos'),
+        (error) => expect(error.toString(), 'Exception: E-mail ou senha inválidos'),
       );
     });
   });

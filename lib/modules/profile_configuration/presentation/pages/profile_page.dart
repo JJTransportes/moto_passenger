@@ -5,6 +5,7 @@ import 'package:flutter_modular/flutter_modular.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:moto_passenger/core/auth/auth_storage.dart';
+import 'package:moto_passenger/core/config/app_config.dart';
 import 'package:moto_passenger/core/theme/app_theme.dart';
 import 'package:moto_passenger/modules/profile_configuration/domain/entities/profile_entity.dart';
 import 'package:moto_passenger/modules/profile_configuration/domain/entities/update_profile_request.dart';
@@ -25,6 +26,8 @@ class _ProfilePageState extends State<ProfilePage> {
   final _phoneController = TextEditingController();
   final _imagePicker = ImagePicker();
 
+  String? _userId;
+  String? _token;
   bool _hasUnsavedChanges = false;
   String? _fullNameError;
   String? _emailError;
@@ -40,7 +43,10 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> _loadProfile() async {
     final authStorage = Modular.get<AuthStorage>();
     final userId = await authStorage.getUserId();
+    final token = await authStorage.getToken();
     if (userId != null && mounted) {
+      _userId = userId;
+      _token = token;
       context.read<ProfileBloc>().add(LoadProfile(userId));
     }
   }
@@ -208,7 +214,10 @@ class _ProfilePageState extends State<ProfilePage> {
           _pendingPhoto = file;
         });
         // Auto-upload after selection
-        context.read<ProfileBloc>().add(UploadPhoto(file));
+        final uid = _userId;
+        if (uid != null) {
+          context.read<ProfileBloc>().add(UploadPhoto(uid, file));
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -404,6 +413,17 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  String _resolveImageUrl(String url) {
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    return '${AppConfig.getBaseUrl()}$url';
+  }
+
+  Map<String, String>? get _authHeaders {
+    final token = _token;
+    if (token == null) return null;
+    return {'Authorization': 'Bearer $token'};
+  }
+
   Widget _buildAvatar(ProfileState state) {
     final isLoading = state is ProfileLoading;
     final isUploading = state is ProfilePhotoUploading;
@@ -435,7 +455,12 @@ class _ProfilePageState extends State<ProfilePage> {
             radius: 50,
             backgroundColor: AppColors.primary.withAlpha(30),
             backgroundImage:
-                photoUrl != null ? NetworkImage(photoUrl) : null,
+                photoUrl != null
+                    ? NetworkImage(
+                        _resolveImageUrl(photoUrl),
+                        headers: _authHeaders,
+                      )
+                    : null,
             child: photoUrl == null
                 ? Text(
                     _getInitials(),

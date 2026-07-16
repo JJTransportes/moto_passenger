@@ -149,4 +149,105 @@ void main() {
       );
     });
   });
+
+  group('refreshToken', () {
+    const refreshResponse = {
+      'accessToken': 'new_tok_456',
+      'refreshToken': 'new_ref_789',
+      'expiresAt': '2026-07-16T12:00:00Z',
+      'refreshExpiresAt': '2026-08-16T12:00:00Z',
+      'userId': 'user_1',
+      'roles': ['Passenger'],
+    };
+
+    test('returns SignInResponseModel on success', () async {
+      when(() => mockDio.post(
+            any(),
+            data: any(named: 'data'),
+            options: any(named: 'options'),
+          )).thenAnswer(
+        (_) async => Response(
+          requestOptions: RequestOptions(path: ''),
+          data: refreshResponse,
+          statusCode: 200,
+        ),
+      );
+
+      final result = await datasource.refreshToken('old_ref_123');
+
+      expect(result, isA<SignInResponseModel>());
+      expect(result.accessToken, 'new_tok_456');
+      expect(result.refreshToken, 'new_ref_789');
+      expect(result.userId, 'user_1');
+      expect(result.refreshExpiresAt, DateTime.utc(2026, 8, 16, 12, 0));
+
+      final captured = verify(() => mockDio.post(
+            captureAny(),
+            data: captureAny(named: 'data'),
+            options: captureAny(named: 'options'),
+          )).captured;
+
+      expect(captured[0], '/api/auth/refresh');
+      expect(captured[1], {'refreshToken': 'old_ref_123'});
+      final options = captured[2] as Options;
+      expect(options.extra?['noAuth'], isTrue);
+    });
+
+    test('throws UnauthorizedException on 401', () async {
+      when(() => mockDio.post(
+            any(),
+            data: any(named: 'data'),
+            options: any(named: 'options'),
+          )).thenThrow(
+        DioException(
+          requestOptions: RequestOptions(path: ''),
+          response: Response(
+            requestOptions: RequestOptions(path: ''),
+            statusCode: 401,
+          ),
+        ),
+      );
+
+      expect(
+        () => datasource.refreshToken('expired_ref'),
+        throwsA(isA<UnauthorizedException>()),
+      );
+    });
+
+    test('throws NetworkException on connection timeout', () async {
+      when(() => mockDio.post(
+            any(),
+            data: any(named: 'data'),
+            options: any(named: 'options'),
+          )).thenThrow(
+        DioException(
+          requestOptions: RequestOptions(path: ''),
+          type: DioExceptionType.connectionTimeout,
+        ),
+      );
+
+      expect(
+        () => datasource.refreshToken('old_ref'),
+        throwsA(isA<NetworkException>()),
+      );
+    });
+
+    test('throws NetworkException on connection error', () async {
+      when(() => mockDio.post(
+            any(),
+            data: any(named: 'data'),
+            options: any(named: 'options'),
+          )).thenThrow(
+        DioException(
+          requestOptions: RequestOptions(path: ''),
+          type: DioExceptionType.connectionError,
+        ),
+      );
+
+      expect(
+        () => datasource.refreshToken('old_ref'),
+        throwsA(isA<NetworkException>()),
+      );
+    });
+  });
 }
