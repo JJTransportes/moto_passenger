@@ -83,7 +83,7 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
 
     emit(ProfilePhotoUploading(profile));
 
-    final result = await _uploadPhotoUsecase.call(profile.id, event.imageFile);
+    final result = await _uploadPhotoUsecase.call(event.userId, event.imageFile);
 
     result.fold(
       (photoUrl) => emit(

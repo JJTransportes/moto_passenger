@@ -66,7 +66,7 @@ class _SplashScreenState extends State<SplashScreen> {
     }
 
     // Fallback to secure storage
-    final storage = AuthStorage();
+    final storage = Modular.get<AuthStorage>();
     final token = await storage.getToken();
 
     if (!mounted) return;
