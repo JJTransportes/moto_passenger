@@ -15,8 +15,9 @@ final class SaveProfile extends ProfileEvent {
 }
 
 final class UploadPhoto extends ProfileEvent {
+  final String userId;
   final File imageFile;
-  UploadPhoto(this.imageFile);
+  UploadPhoto(this.userId, this.imageFile);
 }
 
 final class RemovePhoto extends ProfileEvent {

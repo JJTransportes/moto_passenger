@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter_modular/flutter_modular.dart';
 import 'package:moto_passenger/core/auth/auth_storage.dart';
 import 'package:moto_passenger/core/config/app_config.dart';
 
@@ -8,7 +9,7 @@ class AuthInterceptor extends Interceptor {
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
-    final storage = AuthStorage();
+    final storage = Modular.get<AuthStorage>();
     final token = await storage.getToken();
     if (token != null) {
       options.headers['Authorization'] = 'Bearer $token';

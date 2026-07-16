@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart' hide ReadContext;
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:google_fonts/google_fonts.dart';
-
 import 'package:moto_passenger/core/theme/app_theme.dart';
 import 'package:moto_passenger/modules/passenger_registration/domain/entities/department_entity.dart';
 import 'package:moto_passenger/modules/passenger_registration/domain/entities/public_partition_entity.dart';
@@ -103,8 +102,7 @@ class _RegisterPageState extends State<RegisterPage> {
     if (picked != null) {
       setState(() {
         _birthdate = picked;
-        _birthdateController.text =
-            '${picked.day.toString().padLeft(2, '0')}/${picked.month.toString().padLeft(2, '0')}/${picked.year}';
+        _birthdateController.text = '${picked.day.toString().padLeft(2, '0')}/${picked.month.toString().padLeft(2, '0')}/${picked.year}';
         _birthdateError = null;
       });
     }
@@ -174,20 +172,18 @@ class _RegisterPageState extends State<RegisterPage> {
   void _submit() {
     if (!_validate()) return;
     context.read<RegisterBloc>().add(
-          RegisterSubmitted(
-            fullName: _fullNameController.text.trim(),
-            cpf: _cpfController.text.trim(),
-            rg: _rgController.text.trim(),
-            registration: _registrationController.text.trim().isEmpty
-                ? null
-                : _registrationController.text.trim(),
-            birthdate: _birthdate!,
-            email: _emailController.text.trim(),
-            initialPassword: _passwordController.text,
-            department: _selectedDepartmentName,
-            publicPartitionId: _selectedPartitionId!,
-          ),
-        );
+      RegisterSubmitted(
+        fullName: _fullNameController.text.trim(),
+        cpf: _cpfController.text.trim(),
+        rg: _rgController.text.trim(),
+        registration: _registrationController.text.trim().isEmpty ? null : _registrationController.text.trim(),
+        birthdate: _birthdate!,
+        email: _emailController.text.trim(),
+        initialPassword: _passwordController.text,
+        department: _selectedDepartmentName,
+        publicPartitionId: _selectedPartitionId!,
+      ),
+    );
   }
 
   @override
@@ -200,8 +196,7 @@ class _RegisterPageState extends State<RegisterPage> {
       },
       builder: (context, state) {
         final isSubmitting = state is RegisterSubmitting;
-        final errorMessage =
-            state is RegisterFailure ? state.message : null;
+        final errorMessage = state is RegisterFailure ? state.message : null;
 
         if (state is PartitionsLoaded) {
           _partitions = state.partitions;
@@ -211,8 +206,7 @@ class _RegisterPageState extends State<RegisterPage> {
           backgroundColor: AppColors.white,
           body: SafeArea(
             child: SingleChildScrollView(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 36, vertical: 36),
+              padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 36),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
@@ -244,8 +238,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   ),
                   const SizedBox(height: 16),
                   TextButton(
-                    onPressed:
-                        isSubmitting ? null : () => Modular.to.pop(),
+                    onPressed: isSubmitting ? null : () => Modular.to.pop(),
                     child: Text(
                       'Já tem conta? Entrar',
                       style: GoogleFonts.robotoFlex(
@@ -317,7 +310,7 @@ class _RegisterPageState extends State<RegisterPage> {
           errorText: _rgError,
         ),
         AppTextField(
-          label: 'Matrícula (opcional)',
+          label: 'Matrícula',
           hint: 'Informe sua matrícula',
           controller: _registrationController,
         ),
@@ -359,9 +352,7 @@ class _RegisterPageState extends State<RegisterPage> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(4),
             border: Border.all(
-              color: _partitionError != null
-                  ? Colors.red
-                  : AppColors.primary,
+              color: _partitionError != null ? Colors.red : AppColors.primary,
             ),
           ),
           child: DropdownButtonHideUnderline(
@@ -414,7 +405,7 @@ class _RegisterPageState extends State<RegisterPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Secretaria (opcional)',
+          'Secretaria',
           style: GoogleFonts.robotoFlex(
             fontSize: 10,
             fontWeight: FontWeight.w700,
@@ -433,7 +424,7 @@ class _RegisterPageState extends State<RegisterPage> {
             child: DropdownButton<Department>(
               value: _selectedDepartment,
               hint: Text(
-                'Selecione uma secretaria (opcional)',
+                'Selecione uma secretaria',
                 style: GoogleFonts.robotoFlex(
                   fontSize: 10,
                   fontWeight: FontWeight.w300,
@@ -514,8 +505,7 @@ class _RegisterPageState extends State<RegisterPage> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(4),
-              borderSide:
-                  const BorderSide(color: AppColors.primary, width: 2),
+              borderSide: const BorderSide(color: AppColors.primary, width: 2),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(4),
