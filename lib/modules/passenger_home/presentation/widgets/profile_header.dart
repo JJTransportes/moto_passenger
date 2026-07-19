@@ -5,27 +5,32 @@ class ProfileHeader extends StatelessWidget {
   final String fullName;
   final VoidCallback? onSignOut;
   final VoidCallback? onSettings;
+  final VoidCallback? onAvatarTap;
 
   const ProfileHeader({
     super.key,
     required this.fullName,
     this.onSignOut,
     this.onSettings,
+    this.onAvatarTap,
   });
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        CircleAvatar(
-          backgroundColor: AppColors.primary,
-          radius: 17,
-          child: Text(
-            fullName.isNotEmpty ? fullName[0].toUpperCase() : '?',
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
+        GestureDetector(
+          onTap: onAvatarTap,
+          child: CircleAvatar(
+            backgroundColor: AppColors.primary,
+            radius: 17,
+            child: Text(
+              fullName.isNotEmpty ? fullName[0].toUpperCase() : '?',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
             ),
           ),
         ),
