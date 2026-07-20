@@ -32,7 +32,7 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
   StreamSubscription? _travelStartedSub;
   StreamSubscription? _travelCompletedSub;
   StreamSubscription? _travelCancelledSub;
-  StreamSubscription? _noDriversSub;
+  StreamSubscription? _orderCancelledSub;
   StreamSubscription? _driverLocationSub;
   StreamSubscription? _distanceUpdateSub;
   bool _signalRConnected = false;
@@ -132,7 +132,7 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
     _travelStartedSub?.cancel();
     _travelCompletedSub?.cancel();
     _travelCancelledSub?.cancel();
-    _noDriversSub?.cancel();
+    _orderCancelledSub?.cancel();
     _driverLocationSub?.cancel();
     _distanceUpdateSub?.cancel();
     _mapController?.dispose();
@@ -465,14 +465,9 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
       _travelCancelledSub = signalR.onTravelCancelled.listen((data) {
         if (data['travelId'] == widget.travelId) bloc.add(TravelCancelled(data));
       });
-      _noDriversSub = signalR.onNoDriversAvailable.listen((data) {
-        if (data['travelId'] == widget.travelId) {
-          final message = data['message'] as String? ?? 'Aguardando motorista...';
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(message), duration: const Duration(seconds: 5), behavior: SnackBarBehavior.floating),
-            );
-          }
+      _orderCancelledSub = signalR.onOrderCancelled.listen((data) {
+        if (data['orderId'] == widget.orderId || data['travelId'] == widget.travelId) {
+          bloc.add(TravelCancelled(data));
         }
       });
       _driverLocationSub = signalR.onDriverLocationUpdated.listen((data) {
