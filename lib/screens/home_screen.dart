@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:geolocator/geolocator.dart';
@@ -22,6 +23,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _connectAndReport();
+    _checkActiveTravel();
   }
 
   @override
@@ -47,6 +49,22 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     _startLocationReporting(signalR);
+  }
+
+  Future<void> _checkActiveTravel() async {
+    try {
+      final dio = Modular.get<Dio>();
+      final response = await dio.get('/api/travels/active');
+      final data = response.data;
+      if (data != null && data['travelId'] != null && mounted) {
+        Modular.to.pushNamed(
+          '/new-travel/tracking',
+          arguments: {'travelId': data['travelId'] as String},
+        );
+      }
+    } catch (_) {
+      // Não crítico — permanece na Home
+    }
   }
 
   void _startLocationReporting(SignalRService signalR) {

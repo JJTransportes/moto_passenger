@@ -40,6 +40,17 @@ class PassengerHomeDatasource implements IPassengerHomeDatasource {
     }
   }
 
+  @override
+  Future<Map<String, dynamic>?> getActiveTravel() async {
+    try {
+      final response = await _dio.get('/api/travels/active');
+      return response.data as Map<String, dynamic>?;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return null;
+      throw _mapException(e);
+    }
+  }
+
   Exception _mapException(DioException e) {
     switch (e.response?.statusCode) {
       case 401:
