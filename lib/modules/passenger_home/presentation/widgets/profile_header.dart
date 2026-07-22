@@ -15,6 +15,13 @@ class ProfileHeader extends StatelessWidget {
     this.onAvatarTap,
   });
 
+  String get _firstName {
+    final trimmed = fullName.trim();
+    if (trimmed.isEmpty) return '';
+    final parts = trimmed.split(' ');
+    return parts.first;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -36,7 +43,7 @@ class ProfileHeader extends StatelessWidget {
         ),
         const SizedBox(width: 12),
         Text(
-          'Olá, $fullName',
+          'Olá, $_firstName',
           style: const TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w600,
