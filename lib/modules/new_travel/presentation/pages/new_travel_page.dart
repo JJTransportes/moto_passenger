@@ -54,6 +54,11 @@ class _NewTravelPageState extends State<NewTravelPage> {
                 'orderId': orderId,
               },
             );
+          case NewTravelNoDriversAvailable(:final message):
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            }
+            _showNoDriversDialog(message);
           case NewTravelFailure(:final message):
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -260,6 +265,27 @@ class _NewTravelPageState extends State<NewTravelPage> {
           route: route,
           distKm: distKm,
         ),
+      ),
+    );
+  }
+
+  Future<void> _showNoDriversDialog(String message) async {
+    if (!mounted) return;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Nenhum motorista disponível'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+            },
+            child: const Text('OK'),
+          ),
+        ],
       ),
     );
   }
