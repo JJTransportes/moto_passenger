@@ -2,6 +2,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:moto_passenger/core/location/location_service.dart';
 import 'package:moto_passenger/core/maps/i_places_autocomplete_service.dart';
+import 'package:moto_passenger/modules/new_travel/data/datasources/new_travel_datasource.dart';
 import 'package:moto_passenger/modules/new_travel/data/repositories/new_travel_repository.dart';
 import 'package:moto_passenger/modules/new_travel/domain/entities/travel_route_entity.dart';
 import 'package:moto_passenger/modules/new_travel/presentation/blocs/new_travel_event.dart';
@@ -100,6 +101,11 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
           orderId: result['orderId'] as String,
         ),
       );
+    } on NoDriversAvailableException catch (e) {
+      emit(NewTravelNoDriversAvailable(
+        partitionAcronym: e.partitionAcronym,
+        message: e.message,
+      ));
     } catch (e) {
       emit(NewTravelFailure(message: e.toString()));
     }

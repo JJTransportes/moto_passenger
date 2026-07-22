@@ -67,6 +67,16 @@ class NewTravelCreated extends NewTravelState {
   });
 }
 
+class NewTravelNoDriversAvailable extends NewTravelState {
+  final String partitionAcronym;
+  final String message;
+
+  const NewTravelNoDriversAvailable({
+    required this.partitionAcronym,
+    required this.message,
+  });
+}
+
 class NewTravelFailure extends NewTravelState {
   final String message;
 
