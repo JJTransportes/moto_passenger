@@ -74,8 +74,7 @@ class _HomeScreenState extends State<HomeScreen> {
       (_) async {
         try {
           final hasPermission = await Geolocator.checkPermission();
-          if (hasPermission == LocationPermission.denied ||
-              hasPermission == LocationPermission.deniedForever) {
+          if (hasPermission == LocationPermission.denied || hasPermission == LocationPermission.deniedForever) {
             return;
           }
           final position = await Geolocator.getCurrentPosition(
