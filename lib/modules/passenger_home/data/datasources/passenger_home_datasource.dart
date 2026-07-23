@@ -1,8 +1,8 @@
 import 'package:dio/dio.dart';
+import 'package:moto_passenger/core/errors/exceptions.dart';
 import 'package:moto_passenger/modules/passenger_home/data/datasources/i_passenger_home_datasource.dart';
 import 'package:moto_passenger/modules/passenger_home/data/models/passenger_profile_model.dart';
 import 'package:moto_passenger/modules/passenger_home/data/models/travel_summary_model.dart';
-import 'package:moto_passenger/core/errors/exceptions.dart';
 
 class PassengerHomeDatasource implements IPassengerHomeDatasource {
   final Dio _dio;
@@ -44,10 +44,11 @@ class PassengerHomeDatasource implements IPassengerHomeDatasource {
   Future<Map<String, dynamic>?> getActiveTravel() async {
     try {
       final response = await _dio.get('/api/travels/active');
+      if (response.statusCode == 204) return null; // No Content = sem viagem
       return response.data as Map<String, dynamic>?;
     } on DioException catch (e) {
       if (e.response?.statusCode == 404) return null;
-      throw _mapException(e);
+      rethrow;
     }
   }
 

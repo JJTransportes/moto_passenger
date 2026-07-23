@@ -59,25 +59,13 @@ class _WaitingPageState extends State<WaitingPage> {
 
     // Listen for OrderAccepted and OrderCancelled events
     _acceptedSub = signalR.onOrderAccepted.listen(_onOrderAccepted);
+
+    // Listen for OrderCancelled event
     _cancelledSub = signalR.onOrderCancelled.listen(_onOrderCancelled);
   }
 
-  void _onOrderAccepted(Map<String, dynamic> event) {
-    if (event['orderId'] == widget.orderId) {
-      final travelId = event['travelId'] as String?;
-      if (travelId != null && mounted) {
-        Navigator.of(context).pushReplacementNamed(
-          '/new-travel/tracking',
-          arguments: {
-            'travelId': travelId,
-            'orderId': widget.orderId,
-          },
-        );
-      }
-    }
-  }
-
   void _onOrderCancelled(Map<String, dynamic> event) {
+    // OrderCancelled payload: { orderId, reason } — no travelId
     if (event['orderId'] != widget.orderId) return;
 
     final reason = event['reason'] as String?;
@@ -87,11 +75,12 @@ class _WaitingPageState extends State<WaitingPage> {
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(reason ?? 'Pedido cancelado'),
+          content: Text(reason != null ? 'Pedido cancelado: $reason' : 'Pedido cancelado'),
+          duration: const Duration(seconds: 3),
           behavior: SnackBarBehavior.floating,
         ),
       );
-      Modular.to.pop();
+      Navigator.of(context).pop();
     }
   }
 
@@ -109,7 +98,7 @@ class _WaitingPageState extends State<WaitingPage> {
           TextButton(
             onPressed: () {
               Navigator.of(ctx).pop();
-              Modular.to.pop();
+              Navigator.of(context).pop(); // volta para NewTravelPage
             },
             child: const Text('Tentar Novamente'),
           ),
@@ -123,6 +112,21 @@ class _WaitingPageState extends State<WaitingPage> {
         ],
       ),
     );
+  }
+
+  void _onOrderAccepted(Map<String, dynamic> event) {
+    if (event['orderId'] == widget.orderId) {
+      final travelId = event['travelId'] as String?;
+      if (travelId != null && mounted) {
+        Navigator.of(context).pushReplacementNamed(
+          '/new-travel/tracking',
+          arguments: {
+            'travelId': travelId,
+            'orderId': widget.orderId,
+          },
+        );
+      }
+    }
   }
 
   @override
@@ -141,8 +145,7 @@ class _WaitingPageState extends State<WaitingPage> {
     return Scaffold(
       backgroundColor: AppColors.white,
       appBar: AppBar(
-        title: const Text('Aguardando Motorista',
-            style: TextStyle(color: Color(0xFF4E4E4E))),
+        title: const Text('Aguardando Motorista', style: TextStyle(color: Color(0xFF4E4E4E))),
         backgroundColor: AppColors.white,
         elevation: 0,
         leading: IconButton(
@@ -197,8 +200,7 @@ class _WaitingPageState extends State<WaitingPage> {
                   child: OutlinedButton(
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 14),
-                      side:
-                          const BorderSide(color: Colors.red),
+                      side: const BorderSide(color: Colors.red),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),

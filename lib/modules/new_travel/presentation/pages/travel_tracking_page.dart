@@ -56,8 +56,7 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
         ),
       ),
       body: BlocListener<TravelTrackingBloc, TravelTrackingState>(
-        listenWhen: (previous, current) =>
-            current is TravelTrackingAccepted || current is TravelTrackingInProgress,
+        listenWhen: (previous, current) => current is TravelTrackingAccepted || current is TravelTrackingInProgress,
         listener: (context, state) {
           final lat = switch (state) {
             TravelTrackingAccepted(:final driverLatitude) => driverLatitude,
@@ -70,9 +69,7 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
             _ => null,
           };
 
-          if (lat != null && lng != null &&
-              !_isUserInteracting && _mapController != null &&
-              (lat != _lastDriverLat || lng != _lastDriverLng)) {
+          if (lat != null && lng != null && !_isUserInteracting && _mapController != null && (lat != _lastDriverLat || lng != _lastDriverLng)) {
             _lastDriverLat = lat;
             _lastDriverLng = lng;
             _mapController!.animateCamera(
@@ -97,8 +94,10 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
               ) =>
                 _buildAcceptedState(
                   driver,
-                  driverLat: lat, driverLng: lng,
-                  destLat: destLat, destLng: destLng,
+                  driverLat: lat,
+                  driverLng: lng,
+                  destLat: destLat,
+                  destLng: destLng,
                   distanceToDestinationMeters: dist,
                   remainingTimeMinutes: time,
                 ),
@@ -111,8 +110,10 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
                 remainingTimeMinutes: final time,
               ) =>
                 _buildInProgressState(
-                  driverLat: lat, driverLng: lng,
-                  destLat: destLat, destLng: destLng,
+                  driverLat: lat,
+                  driverLng: lng,
+                  destLat: destLat,
+                  destLng: destLng,
                   distanceToDestinationMeters: dist,
                   remainingTimeMinutes: time,
                 ),
@@ -161,20 +162,24 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
 
     final markers = <Marker>{};
     if (driverLat != null && driverLng != null) {
-      markers.add(Marker(
-        markerId: const MarkerId('driver'),
-        position: LatLng(driverLat, driverLng),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
-        infoWindow: const InfoWindow(title: 'Motorista'),
-      ));
+      markers.add(
+        Marker(
+          markerId: const MarkerId('driver'),
+          position: LatLng(driverLat, driverLng),
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
+          infoWindow: const InfoWindow(title: 'Motorista'),
+        ),
+      );
     }
     if (destLat != null && destLng != null) {
-      markers.add(Marker(
-        markerId: const MarkerId('destination'),
-        position: LatLng(destLat, destLng),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-        infoWindow: const InfoWindow(title: 'Destino'),
-      ));
+      markers.add(
+        Marker(
+          markerId: const MarkerId('destination'),
+          position: LatLng(destLat, destLng),
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+          infoWindow: const InfoWindow(title: 'Destino'),
+        ),
+      );
     }
 
     return Stack(
@@ -229,21 +234,25 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
             ),
             if (driver != null) ...[
               const SizedBox(height: 8),
-              Row(children: [
-                const Icon(Icons.person, color: Color(0xFF4685C0)),
-                const SizedBox(width: 8),
-                Text(driver.fullName, style: const TextStyle(fontSize: 14)),
-              ]),
+              Row(
+                children: [
+                  const Icon(Icons.person, color: Color(0xFF4685C0)),
+                  const SizedBox(width: 8),
+                  Text(driver.fullName, style: const TextStyle(fontSize: 14)),
+                ],
+              ),
               if (driver.vehicleModel != null) ...[
                 const SizedBox(height: 4),
-                Row(children: [
-                  const Icon(Icons.directions_car, color: Color(0xFF4685C0)),
-                  const SizedBox(width: 8),
-                  Text(
-                    '${driver.vehicleModel}${driver.vehiclePlate != null ? " - ${driver.vehiclePlate}" : ""}',
-                    style: const TextStyle(fontSize: 14, color: Color(0xFF4E4E4E)),
-                  ),
-                ]),
+                Row(
+                  children: [
+                    const Icon(Icons.directions_car, color: Color(0xFF4685C0)),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${driver.vehicleModel}${driver.vehiclePlate != null ? " - ${driver.vehiclePlate}" : ""}',
+                      style: const TextStyle(fontSize: 14, color: Color(0xFF4E4E4E)),
+                    ),
+                  ],
+                ),
               ],
             ],
             if (distanceToDestinationMeters != null || remainingTimeMinutes != null) ...[
@@ -296,7 +305,11 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
             const Text('Viagem cancelada', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             if (reason != null) ...[
               const SizedBox(height: 8),
-              Text(reason, textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFF4E4E4E))),
+              Text(
+                reason,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Color(0xFF4E4E4E)),
+              ),
             ],
             const SizedBox(height: 32),
             ElevatedButton(
@@ -466,7 +479,9 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
         if (data['travelId'] == widget.travelId) bloc.add(TravelCancelled(data));
       });
       _orderCancelledSub = signalR.onOrderCancelled.listen((data) {
-        if (data['orderId'] == widget.orderId || data['travelId'] == widget.travelId) {
+        // OrderCancelled payload: { orderId, reason } — no travelId
+        // Only process if orderId matches (requires widget.orderId)
+        if (data['orderId'] == widget.orderId) {
           bloc.add(TravelCancelled(data));
         }
       });

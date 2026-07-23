@@ -37,12 +37,19 @@ class TravelTrackingRepository implements ITravelTrackingRepository {
         status = TravelStatus.pending;
     }
 
-    // Extract destination coordinates from first route
+    // Extract destination coordinates from the correct route.
+    // After travel-flow-refinement: routes[1] = passenger→destination (trip, sequenceIndex=1).
+    // Before: routes[0] = passenger→destination (single route, sequenceIndex=0).
+    // Try sequenceIndex==1 first, fallback to routes[0] for backward compatibility.
     final routes = data['routes'] as List?;
     double? destLat, destLng;
     if (routes != null && routes.isNotEmpty) {
-      destLat = (routes[0]['destinationLatitude'] as num?)?.toDouble();
-      destLng = (routes[0]['destinationLongitude'] as num?)?.toDouble();
+      final destRoute = routes.cast<Map<String, dynamic>>().firstWhere(
+        (r) => r['sequenceIndex'] == 1,
+        orElse: () => routes.first as Map<String, dynamic>,
+      );
+      destLat = (destRoute['destinationLatitude'] as num?)?.toDouble();
+      destLng = (destRoute['destinationLongitude'] as num?)?.toDouble();
     }
 
     return TravelTrackingEntity(
