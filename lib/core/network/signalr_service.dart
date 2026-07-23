@@ -6,7 +6,7 @@ class SignalRService {
 
   final _newOrderController = StreamController<Map<String, dynamic>>.broadcast();
   final _orderAcceptedController = StreamController<Map<String, dynamic>>.broadcast();
-  final _noDriversAvailableController = StreamController<Map<String, dynamic>>.broadcast();
+  final _orderCancelledController = StreamController<Map<String, dynamic>>.broadcast();
   final _travelStartedController = StreamController<Map<String, dynamic>>.broadcast();
   final _travelCompletedController = StreamController<Map<String, dynamic>>.broadcast();
   final _travelCancelledController = StreamController<Map<String, dynamic>>.broadcast();
@@ -18,7 +18,7 @@ class SignalRService {
 
   Stream<Map<String, dynamic>> get onNewOrder => _newOrderController.stream;
   Stream<Map<String, dynamic>> get onOrderAccepted => _orderAcceptedController.stream;
-  Stream<Map<String, dynamic>> get onNoDriversAvailable => _noDriversAvailableController.stream;
+  Stream<Map<String, dynamic>> get onOrderCancelled => _orderCancelledController.stream;
   Stream<Map<String, dynamic>> get onTravelStarted => _travelStartedController.stream;
   Stream<Map<String, dynamic>> get onTravelCompleted => _travelCompletedController.stream;
   Stream<Map<String, dynamic>> get onTravelCancelled => _travelCancelledController.stream;
@@ -89,9 +89,9 @@ class SignalRService {
             _orderAcceptedController.add(args.first as Map<String, dynamic>);
           }
         });
-        connection.on('NoDriversAvailable', (args) {
+        connection.on('OrderCancelled', (args) {
           if (args != null && args.isNotEmpty) {
-            _noDriversAvailableController.add(args.first as Map<String, dynamic>);
+            _orderCancelledController.add(args.first as Map<String, dynamic>);
           }
         });
         break;
@@ -144,7 +144,7 @@ class SignalRService {
     disconnectAll();
     _newOrderController.close();
     _orderAcceptedController.close();
-    _noDriversAvailableController.close();
+    _orderCancelledController.close();
     _travelStartedController.close();
     _travelCompletedController.close();
     _travelCancelledController.close();

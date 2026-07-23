@@ -8,4 +8,5 @@ abstract class IPassengerHomeDatasource {
     int page = 1,
     int pageSize = 5,
   });
+  Future<Map<String, dynamic>?> getActiveTravel();
 }

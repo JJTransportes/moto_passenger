@@ -1,4 +1,3 @@
-import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:moto_passenger/core/auth/auth_storage.dart';
@@ -10,8 +9,11 @@ import 'package:moto_passenger/modules/auth/data/datasources/i_auth_datasource.d
 import 'package:moto_passenger/modules/auth/data/models/sign_in_response_model.dart';
 
 class MockAuthLocalRepository extends Mock implements AuthLocalRepository {}
+
 class MockAuthDatasource extends Mock implements IAuthDatasource {}
+
 class MockAuthStorage extends Mock implements AuthStorage {}
+
 class MockSignOutService extends Mock implements SignOutService {}
 
 void main() {
@@ -39,10 +41,8 @@ void main() {
           roles: ['Passenger'],
         ),
       );
-      when(() => storage.saveTokens(any(), any(), any()))
-          .thenAnswer((_) async {});
-      when(() => authLocal.updateTokens(any(), any()))
-          .thenAnswer((_) async {});
+      when(() => storage.saveTokens(any(), any(), any())).thenAnswer((_) async {});
+      when(() => authLocal.updateTokens(any(), any())).thenAnswer((_) async {});
 
       // Simulate _tryRefreshToken
       bool success = false;
@@ -65,8 +65,7 @@ void main() {
       final storage = MockAuthStorage();
       final authLocal = MockAuthLocalRepository();
 
-      when(() => datasource.refreshToken('expired_refresh'))
-          .thenThrow(const UnauthorizedException());
+      when(() => datasource.refreshToken('expired_refresh')).thenThrow(const UnauthorizedException());
 
       // Simulate _tryRefreshToken
       bool success = true;
@@ -91,8 +90,7 @@ void main() {
       final storage = MockAuthStorage();
       final authLocal = MockAuthLocalRepository();
 
-      when(() => datasource.refreshToken('stale_refresh'))
-          .thenThrow(const NetworkException());
+      when(() => datasource.refreshToken('stale_refresh')).thenThrow(const NetworkException());
 
       // Simulate _tryRefreshToken
       bool success = true;
@@ -115,8 +113,7 @@ void main() {
       final storage = MockAuthStorage();
       final authLocal = MockAuthLocalRepository();
 
-      when(() => datasource.refreshToken('broken'))
-          .thenThrow(Exception('Unexpected error'));
+      when(() => datasource.refreshToken('broken')).thenThrow(Exception('Unexpected error'));
 
       // Simulate _tryRefreshToken
       bool success = true;

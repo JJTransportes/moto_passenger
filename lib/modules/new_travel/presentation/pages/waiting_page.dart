@@ -18,6 +18,7 @@ class WaitingPage extends StatefulWidget {
 
 class _WaitingPageState extends State<WaitingPage> {
   StreamSubscription? _acceptedSub;
+  StreamSubscription? _cancelledSub;
   final _startTime = DateTime.now();
   Timer? _elapsedTimer;
   Duration _elapsed = Duration.zero;
@@ -56,8 +57,61 @@ class _WaitingPageState extends State<WaitingPage> {
       // Non-critical; polling in TravelTrackingPage will be the fallback
     }
 
-    // Listen for OrderAccepted event
+    // Listen for OrderAccepted and OrderCancelled events
     _acceptedSub = signalR.onOrderAccepted.listen(_onOrderAccepted);
+
+    // Listen for OrderCancelled event
+    _cancelledSub = signalR.onOrderCancelled.listen(_onOrderCancelled);
+  }
+
+  void _onOrderCancelled(Map<String, dynamic> event) {
+    // OrderCancelled payload: { orderId, reason } — no travelId
+    if (event['orderId'] != widget.orderId) return;
+
+    final reason = event['reason'] as String?;
+
+    if (reason == 'no_drivers_available' && mounted) {
+      _showNoDriversDialog();
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(reason != null ? 'Pedido cancelado: $reason' : 'Pedido cancelado'),
+          duration: const Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      Navigator.of(context).pop();
+    }
+  }
+
+  void _showNoDriversDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Nenhum motorista disponível'),
+        content: const Text(
+          'No momento não há motoristas disponíveis para atender sua viagem. '
+          'Tente novamente em alguns instantes.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              Navigator.of(context).pop(); // volta para NewTravelPage
+            },
+            child: const Text('Tentar Novamente'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              Modular.to.navigate('/home');
+            },
+            child: const Text('Ir para Home'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _onOrderAccepted(Map<String, dynamic> event) {
@@ -78,6 +132,7 @@ class _WaitingPageState extends State<WaitingPage> {
   @override
   void dispose() {
     _acceptedSub?.cancel();
+    _cancelledSub?.cancel();
     _elapsedTimer?.cancel();
     Modular.get<SignalRService>().disconnect('travel-orders');
     super.dispose();
@@ -90,8 +145,7 @@ class _WaitingPageState extends State<WaitingPage> {
     return Scaffold(
       backgroundColor: AppColors.white,
       appBar: AppBar(
-        title: const Text('Aguardando Motorista',
-            style: TextStyle(color: Color(0xFF4E4E4E))),
+        title: const Text('Aguardando Motorista', style: TextStyle(color: Color(0xFF4E4E4E))),
         backgroundColor: AppColors.white,
         elevation: 0,
         leading: IconButton(
@@ -146,8 +200,7 @@ class _WaitingPageState extends State<WaitingPage> {
                   child: OutlinedButton(
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 14),
-                      side:
-                          const BorderSide(color: Colors.red),
+                      side: const BorderSide(color: Colors.red),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),

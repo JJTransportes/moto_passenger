@@ -51,6 +51,10 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
+  Future<void> _handleDeleteAccount() async {
+    await Modular.to.pushNamed('/delete-account');
+  }
+
   @override
   void dispose() {
     _fullNameController.dispose();
@@ -287,129 +291,131 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: !_hasUnsavedChanges && _pendingPhoto == null,
-      onPopInvokedWithResult: (didPop, _) async {
-        if (didPop) return;
-        final shouldPop = await _onWillPop();
-        if (shouldPop && mounted) {
-          Navigator.of(context).pop();
-        }
-      },
-      child: Scaffold(
-        backgroundColor: AppColors.white,
-        appBar: AppBar(
-          title: Text(
-            'Meu Perfil',
-            style: GoogleFonts.robotoFlex(
-              fontWeight: FontWeight.w700,
-              color: AppColors.primary,
-            ),
-          ),
+        canPop: !_hasUnsavedChanges && _pendingPhoto == null,
+        onPopInvokedWithResult: (didPop, _) async {
+          if (didPop) return;
+          final shouldPop = await _onWillPop();
+          if (shouldPop && mounted) {
+            Navigator.of(context).pop();
+          }
+        },
+        child: Scaffold(
           backgroundColor: AppColors.white,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: AppColors.primary),
-            onPressed: () async {
-              if (_hasUnsavedChanges || _pendingPhoto != null) {
-                final shouldPop = await _onWillPop();
-                if (shouldPop && mounted) {
+          appBar: AppBar(
+            title: Text(
+              'Meu Perfil',
+              style: GoogleFonts.robotoFlex(
+                fontWeight: FontWeight.w700,
+                color: AppColors.primary,
+              ),
+            ),
+            backgroundColor: AppColors.white,
+            elevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back, color: AppColors.primary),
+              onPressed: () async {
+                if (_hasUnsavedChanges || _pendingPhoto != null) {
+                  final shouldPop = await _onWillPop();
+                  if (shouldPop && mounted) {
+                    Navigator.of(context).pop();
+                  }
+                } else {
                   Navigator.of(context).pop();
                 }
-              } else {
-                Navigator.of(context).pop();
-              }
-            },
+              },
+            ),
           ),
-        ),
-        body: BlocConsumer<ProfileBloc, ProfileState>(
-          listener: (context, state) {
-            switch (state) {
-              case ProfileSaveSuccess():
-                setState(() {
-                  _hasUnsavedChanges = false;
-                  _pendingPhoto = null;
-                });
-                _populateControllers(state.profile);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Perfil atualizado com sucesso'),
-                    backgroundColor: Colors.green,
-                    duration: Duration(seconds: 2),
-                  ),
-                );
-              case ProfileSaveError(:final message):
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(message),
-                    backgroundColor: Colors.red,
-                    duration: const Duration(seconds: 3),
-                  ),
-                );
-              case ProfilePhotoUpdated():
-                setState(() {
-                  _pendingPhoto = null;
-                });
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Foto atualizada'),
-                    backgroundColor: Colors.green,
-                    duration: Duration(seconds: 2),
-                  ),
-                );
-              case ProfilePhotoRemoved():
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Foto removida'),
-                    backgroundColor: Colors.green,
-                    duration: Duration(seconds: 2),
-                  ),
-                );
-              case ProfilePhotoError(:final message):
-                setState(() {
-                  _pendingPhoto = null;
-                });
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(message),
-                    backgroundColor: Colors.red,
-                    duration: const Duration(seconds: 3),
-                  ),
-                );
-              case ProfileError(:final message):
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(message),
-                    backgroundColor: Colors.red,
-                    duration: const Duration(seconds: 3),
-                    action: SnackBarAction(
-                      label: 'Tentar novamente',
-                      textColor: Colors.white,
-                      onPressed: _loadProfile,
+          body: BlocConsumer<ProfileBloc, ProfileState>(
+              listener: (context, state) {
+                switch (state) {
+                  case ProfileSaveSuccess():
+                    setState(() {
+                      _hasUnsavedChanges = false;
+                      _pendingPhoto = null;
+                    });
+                    _populateControllers(state.profile);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Perfil atualizado com sucesso'),
+                        backgroundColor: Colors.green,
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  case ProfileSaveError(:final message):
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(message),
+                        backgroundColor: Colors.red,
+                        duration: const Duration(seconds: 3),
+                      ),
+                    );
+                  case ProfilePhotoUpdated():
+                    setState(() {
+                      _pendingPhoto = null;
+                    });
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Foto atualizada'),
+                        backgroundColor: Colors.green,
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  case ProfilePhotoRemoved():
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Foto removida'),
+                        backgroundColor: Colors.green,
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  case ProfilePhotoError(:final message):
+                    setState(() {
+                      _pendingPhoto = null;
+                    });
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(message),
+                        backgroundColor: Colors.red,
+                        duration: const Duration(seconds: 3),
+                      ),
+                    );
+                  case ProfileError(:final message):
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(message),
+                        backgroundColor: Colors.red,
+                        duration: const Duration(seconds: 3),
+                        action: SnackBarAction(
+                          label: 'Tentar novamente',
+                          textColor: Colors.white,
+                          onPressed: _loadProfile,
+                        ),
+                      ),
+                    );
+                  default:
+                    break;
+                }
+              },
+              builder: (context, state) {
+                return SafeArea(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 24),
+                    child: Column(
+                      children: [
+                        _buildAvatar(state),
+                        const SizedBox(height: 32),
+                        _buildForm(state),
+                        const SizedBox(height: 24),
+                        _buildSaveButton(state),
+                        const SizedBox(height: 32),
+                        _buildDeleteAccountSection(),
+                      ],
                     ),
                   ),
                 );
-              default:
-                break;
-            }
-          },
-          builder: (context, state) {
-            return SafeArea(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 24),
-                child: Column(
-                  children: [
-                    _buildAvatar(state),
-                    const SizedBox(height: 32),
-                    _buildForm(state),
-                    const SizedBox(height: 24),
-                    _buildSaveButton(state),
-                  ],
-                ),
-              ),
-            );
-          },
+              },
+          ),
         ),
-      ),
     );
   }
 
@@ -745,6 +751,49 @@ class _ProfilePageState extends State<ProfilePage> {
             style: GoogleFonts.robotoFlex(
               fontSize: 12,
               color: AppColors.primary,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDeleteAccountSection() {
+    return Column(
+      children: [
+        const Divider(height: 1, thickness: 1),
+        const SizedBox(height: 20),
+        const Text(
+          'Zona de Perigo',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: Colors.red,
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Ao excluir sua conta, todos os seus dados serão perdidos '
+          'e você não poderá mais acessar o aplicativo.',
+          style: TextStyle(
+            fontSize: 12,
+            color: Color(0xFF6B6B6B),
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: _handleDeleteAccount,
+            icon: const Icon(Icons.delete_forever, color: Colors.red),
+            label: const Text(
+              'Excluir minha conta',
+              style: TextStyle(color: Colors.red),
+            ),
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: Colors.red),
+              padding: const EdgeInsets.symmetric(vertical: 14),
             ),
           ),
         ),
