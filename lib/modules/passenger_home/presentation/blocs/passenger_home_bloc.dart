@@ -64,6 +64,7 @@ class PassengerHomeBloc extends Bloc<PassengerHomeEvent, PassengerHomeState> {
       userId: profile.id,
       fullName: profile.fullName,
       email: profile.email,
+      photoUrl: profile.photoUrl,
     );
 
     final activeResult = await _getActiveTravel();
@@ -108,6 +109,7 @@ class PassengerHomeBloc extends Bloc<PassengerHomeEvent, PassengerHomeState> {
       userId: profile.id,
       fullName: profile.fullName,
       email: profile.email,
+      photoUrl: profile.photoUrl,
     );
 
     final activeResult = await _getActiveTravel();
