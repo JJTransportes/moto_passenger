@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:moto_passenger/core/theme/app_theme.dart';
+import 'package:moto_passenger/widgets/profile_image_display.dart';
 
 class ProfileHeader extends StatelessWidget {
   final String fullName;
+  final String? photoUrl;
   final VoidCallback? onSignOut;
   final VoidCallback? onSettings;
   final VoidCallback? onAvatarTap;
@@ -10,6 +11,7 @@ class ProfileHeader extends StatelessWidget {
   const ProfileHeader({
     super.key,
     required this.fullName,
+    this.photoUrl,
     this.onSignOut,
     this.onSettings,
     this.onAvatarTap,
@@ -28,17 +30,10 @@ class ProfileHeader extends StatelessWidget {
       children: [
         GestureDetector(
           onTap: onAvatarTap,
-          child: CircleAvatar(
-            backgroundColor: AppColors.primary,
+          child: ProfileImageDisplay(
+            photoUrl: photoUrl,
+            name: fullName,
             radius: 17,
-            child: Text(
-              fullName.isNotEmpty ? fullName[0].toUpperCase() : '?',
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
-            ),
           ),
         ),
         const SizedBox(width: 12),
