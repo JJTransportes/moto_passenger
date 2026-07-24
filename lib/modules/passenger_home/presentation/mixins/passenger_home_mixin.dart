@@ -29,6 +29,7 @@ mixin PassengerHomeMixin on State<PassengerHomePage> {
         children: [
           ProfileHeader(
             fullName: profile.fullName,
+            photoUrl: profile.photoUrl,
             onSignOut: () => _handleSignOut(context),
             onSettings: () => Modular.to.pushNamed('/profile'),
             onAvatarTap: () => Modular.to.pushNamed('/profile'),
