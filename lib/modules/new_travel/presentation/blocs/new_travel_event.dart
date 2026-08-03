@@ -43,3 +43,13 @@ class ConfirmTravel extends NewTravelEvent {
     required this.destinationLng,
   });
 }
+
+class CheckPendingOrder extends NewTravelEvent {
+  const CheckPendingOrder();
+}
+
+class CancelPendingOrder extends NewTravelEvent {
+  final String orderId;
+
+  const CancelPendingOrder({required this.orderId});
+}
