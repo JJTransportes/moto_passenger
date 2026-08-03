@@ -1,10 +1,7 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart' hide ReadContext;
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:moto_passenger/core/brand/i_brand_cache_service.dart';
 import 'package:moto_passenger/core/theme/app_theme.dart';
 import 'package:moto_passenger/modules/auth/presentation/blocs/login_bloc.dart';
 import 'package:moto_passenger/widgets/app_button.dart';
@@ -24,22 +21,6 @@ class _LoginPageState extends State<LoginPage> {
 
   String? _emailError;
   String? _passwordError;
-  String? _brandImagePath;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadBrandImage();
-  }
-
-  Future<void> _loadBrandImage() async {
-    final path = await Modular.get<IBrandCacheService>().getBrandImagePath();
-    if (mounted) {
-      setState(() {
-        _brandImagePath = path;
-      });
-    }
-  }
 
   @override
   void dispose() {
@@ -83,7 +64,7 @@ class _LoginPageState extends State<LoginPage> {
     return BlocConsumer<LoginBloc, LoginState>(
       listener: (context, state) {
         if (state is LoginSuccess) {
-          Navigator.of(context).pushReplacementNamed('/home');
+          Navigator.of(context).pushReplacementNamed('/usage-terms-guard');
         }
       },
       builder: (context, state) {
@@ -107,7 +88,7 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  _buildBrandImage(),
+                  _buildLogo(),
                   Column(
                     spacing: 16,
                     children: [
@@ -179,16 +160,9 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  Widget _buildBrandImage() {
-    if (_brandImagePath != null) {
-      return Image.file(File(_brandImagePath!), width: 224, height: 90, fit: BoxFit.contain, errorBuilder: (_, __, ___) => _buildDefaultLogo());
-    }
-    return _buildDefaultLogo();
-  }
-
-  Widget _buildDefaultLogo() {
+  Widget _buildLogo() {
     return Image.asset(
-      'assets/images/logo.jpeg',
+      'assets/images/moto_passenger_logo.png',
       width: 224,
       height: 90,
       fit: BoxFit.contain,
