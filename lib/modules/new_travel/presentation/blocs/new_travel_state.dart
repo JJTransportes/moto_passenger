@@ -82,3 +82,31 @@ class NewTravelFailure extends NewTravelState {
 
   const NewTravelFailure({required this.message});
 }
+
+class NewTravelCheckingPending extends NewTravelState {
+  const NewTravelCheckingPending();
+}
+
+class NewTravelPendingOrder extends NewTravelState {
+  final String orderId;
+  final String travelId;
+  final DateTime createdAt;
+  final String? destinationAddress;
+
+  const NewTravelPendingOrder({
+    required this.orderId,
+    required this.travelId,
+    required this.createdAt,
+    this.destinationAddress,
+  });
+}
+
+class NewTravelActiveOrder extends NewTravelState {
+  final String travelId;
+  final String status;
+
+  const NewTravelActiveOrder({
+    required this.travelId,
+    required this.status,
+  });
+}

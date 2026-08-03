@@ -29,6 +29,14 @@ class _NewTravelPageState extends State<NewTravelPage> {
     return BlocConsumer<NewTravelBloc, NewTravelState>(
       listener: (context, state) {
         switch (state) {
+          case NewTravelPendingOrder(:final orderId):
+            _showPendingOrderModal(orderId);
+          case NewTravelActiveOrder(:final travelId):
+            // Redirect to tracking for active travels
+            Navigator.of(context).pushReplacementNamed(
+              '/new-travel/tracking',
+              arguments: {'travelId': travelId},
+            );
           case NewTravelLocationLoaded(:final position):
             _onLocationLoaded(position);
           case NewTravelLocationError(:final message, :final status):
@@ -105,11 +113,12 @@ class _NewTravelPageState extends State<NewTravelPage> {
   @override
   void initState() {
     super.initState();
-    BlocProvider.of<NewTravelBloc>(context).add(const GetCurrentLocation());
+    // Check for pending orders first, then proceed to normal flow
+    BlocProvider.of<NewTravelBloc>(context).add(const CheckPendingOrder());
   }
 
   Widget _buildMap(NewTravelState state) {
-    if (state is NewTravelLocationLoading) {
+    if (state is NewTravelCheckingPending || state is NewTravelLocationLoading) {
       return Container(
         color: Colors.grey.shade200,
         child: const Center(child: CircularProgressIndicator()),
@@ -286,6 +295,116 @@ class _NewTravelPageState extends State<NewTravelPage> {
             child: const Text('OK'),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showPendingOrderModal(String orderId) {
+    if (!mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      isDismissible: false,
+      enableDrag: false,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.access_time, color: Colors.orange, size: 28),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Você já tem um pedido pendente',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF4E4E4E),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Existe um pedido de viagem aguardando motorista. '
+              'O que você deseja fazer?',
+              style: TextStyle(
+                fontSize: 14,
+                color: Color(0xFF4E4E4E),
+              ),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF4685C0),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  Modular.to.pop();
+                  Modular.to.pushNamed(
+                    '/new-travel/waiting',
+                    arguments: {'orderId': orderId},
+                  );
+                },
+                child: const Text(
+                  'Aguardar motorista',
+                  style: TextStyle(color: Colors.white, fontSize: 16),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  side: const BorderSide(color: Colors.red),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  BlocProvider.of<NewTravelBloc>(context).add(
+                    CancelPendingOrder(orderId: orderId),
+                  );
+                },
+                child: const Text(
+                  'Cancelar e criar novo',
+                  style: TextStyle(color: Colors.red, fontSize: 16),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  Modular.to.pop();
+                },
+                child: const Text(
+                  'Voltar',
+                  style: TextStyle(color: Color(0xFF4E4E4E), fontSize: 16),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
       ),
     );
   }

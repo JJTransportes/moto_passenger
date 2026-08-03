@@ -35,7 +35,6 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
   StreamSubscription? _orderCancelledSub;
   StreamSubscription? _driverLocationSub;
   StreamSubscription? _distanceUpdateSub;
-  bool _signalRConnected = false;
 
   GoogleMapController? _mapController;
   bool _isUserInteracting = false;
@@ -452,45 +451,42 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
 
     final baseUrl = AppConfig.getBaseUrl();
     final signalR = Modular.get<SignalRService>();
+    final bloc = context.read<TravelTrackingBloc>();
+
+    // Register stream listeners BEFORE connecting to avoid race condition:
+    // if the backend emits an event between connect() and listen(), the
+    // broadcast stream would drop it since it has no buffer.
+    _orderAcceptedSub = signalR.onOrderAccepted.listen((data) {
+      if (data['travelId'] == widget.travelId) bloc.add(TravelOrderAccepted(data));
+    });
+    _travelStartedSub = signalR.onTravelStarted.listen((data) {
+      if (data['travelId'] == widget.travelId) bloc.add(TravelStarted(data));
+    });
+    _travelCompletedSub = signalR.onTravelCompleted.listen((data) {
+      if (data['travelId'] == widget.travelId) bloc.add(TravelCompleted(data));
+    });
+    _travelCancelledSub = signalR.onTravelCancelled.listen((data) {
+      if (data['travelId'] == widget.travelId) bloc.add(TravelCancelled(data));
+    });
+    _orderCancelledSub = signalR.onOrderCancelled.listen((data) {
+      if (data['orderId'] == widget.orderId) {
+        bloc.add(TravelCancelled(data));
+      }
+    });
+    _driverLocationSub = signalR.onDriverLocationUpdated.listen((data) {
+      if (data['travelId'] == widget.travelId) bloc.add(DriverLocationUpdated(data));
+    });
+    _distanceUpdateSub = signalR.onDistanceUpdate.listen((data) {
+      if (data['travelId'] == widget.travelId) bloc.add(DistanceUpdated(data));
+    });
 
     try {
       await Future.wait([
         signalR.connect('travel-orders', '$baseUrl/hubs/travel-orders', token),
         signalR.connect('travel-management', '$baseUrl/hubs/travel-management', token),
       ]);
-      _signalRConnected = true;
     } catch (_) {
       // Fallback: polling will handle updates
-    }
-
-    if (_signalRConnected) {
-      final bloc = context.read<TravelTrackingBloc>();
-
-      _orderAcceptedSub = signalR.onOrderAccepted.listen((data) {
-        if (data['travelId'] == widget.travelId) bloc.add(TravelOrderAccepted(data));
-      });
-      _travelStartedSub = signalR.onTravelStarted.listen((data) {
-        if (data['travelId'] == widget.travelId) bloc.add(TravelStarted(data));
-      });
-      _travelCompletedSub = signalR.onTravelCompleted.listen((data) {
-        if (data['travelId'] == widget.travelId) bloc.add(TravelCompleted(data));
-      });
-      _travelCancelledSub = signalR.onTravelCancelled.listen((data) {
-        if (data['travelId'] == widget.travelId) bloc.add(TravelCancelled(data));
-      });
-      _orderCancelledSub = signalR.onOrderCancelled.listen((data) {
-        // OrderCancelled payload: { orderId, reason } — no travelId
-        // Only process if orderId matches (requires widget.orderId)
-        if (data['orderId'] == widget.orderId) {
-          bloc.add(TravelCancelled(data));
-        }
-      });
-      _driverLocationSub = signalR.onDriverLocationUpdated.listen((data) {
-        if (data['travelId'] == widget.travelId) bloc.add(DriverLocationUpdated(data));
-      });
-      _distanceUpdateSub = signalR.onDistanceUpdate.listen((data) {
-        if (data['travelId'] == widget.travelId) bloc.add(DistanceUpdated(data));
-      });
     }
 
     if (mounted) {
