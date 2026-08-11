@@ -7,6 +7,8 @@ import 'package:moto_passenger/core/config/app_config.dart';
 import 'package:moto_passenger/core/errors/exceptions.dart';
 import 'package:moto_passenger/core/local_db/repositories/auth_local_repository.dart';
 import 'package:moto_passenger/core/local_db/repositories/travel_local_repository.dart';
+import 'package:moto_passenger/core/notifications/deep_link_holder.dart';
+import 'package:moto_passenger/core/notifications/notification_handler.dart';
 import 'package:moto_passenger/core/theme/app_theme.dart';
 import 'package:moto_passenger/modules/auth/data/datasources/i_auth_datasource.dart';
 
@@ -42,9 +44,7 @@ class _SplashScreenState extends State<SplashScreen> {
       final refreshed = await _tryRefreshToken(localAuth.refreshToken);
       if (!mounted) return;
       if (refreshed) {
-        final restored = await _checkActiveTravel();
-        if (!mounted) return;
-        if (!restored) Modular.to.navigate('/usage-terms-guard');
+        await _afterAuthSuccess();
         return;
       }
       // Refresh failed (token expired) — sign out and go to login
@@ -55,9 +55,7 @@ class _SplashScreenState extends State<SplashScreen> {
     // Fallback: access token from local cache (no refresh token available)
     if (localAuth != null && localAuth.accessToken.isNotEmpty) {
       if (!mounted) return;
-      final restored = await _checkActiveTravel();
-      if (!mounted) return;
-      if (!restored) Modular.to.navigate('/usage-terms-guard');
+      await _afterAuthSuccess();
       return;
     }
 
@@ -67,12 +65,27 @@ class _SplashScreenState extends State<SplashScreen> {
 
     if (!mounted) return;
     if (token != null) {
-      final restored = await _checkActiveTravel();
-      if (!mounted) return;
-      if (!restored) Modular.to.navigate('/usage-terms-guard');
+      await _afterAuthSuccess();
     } else {
       Modular.to.navigate('/login');
     }
+  }
+
+  /// Chamado após autenticação confirmada.
+  /// Consome deep link pendente (cold start via push) ou segue fluxo normal.
+  Future<void> _afterAuthSuccess() async {
+    // Verificar cold start notification primeiro
+    final pending = DeepLinkHolder.consume();
+    if (pending != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        NotificationHandler.handleNotificationTap(pending);
+      });
+      return; // pula checkActiveTravel + terms-guard
+    }
+
+    final restored = await _checkActiveTravel();
+    if (!mounted) return;
+    if (!restored) Modular.to.navigate('/usage-terms-guard');
   }
 
   /// Tries to refresh the access token using the [refreshToken].
