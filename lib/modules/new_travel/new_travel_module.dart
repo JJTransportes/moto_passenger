@@ -21,7 +21,7 @@ class NewTravelModule extends Module {
 
   @override
   void binds(i) {
-    i.add<NewTravelDatasource>(NewTravelDatasource.new);
+    i.add<INewTravelDatasource>(NewTravelDatasource.new);
     i.add<NewTravelRepository>(NewTravelRepository.new);
     i.addSingleton<NewTravelBloc>(
       () => NewTravelBloc(

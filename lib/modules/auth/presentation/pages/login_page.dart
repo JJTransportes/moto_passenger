@@ -1,11 +1,17 @@
+import 'dart:async';
+import 'dart:developer';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart' hide ReadContext;
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:moto_passenger/core/brand/i_brand_cache_service.dart';
+import 'package:moto_passenger/core/notifications/deep_link_holder.dart';
+import 'package:moto_passenger/core/notifications/notification_handler.dart';
+import 'package:moto_passenger/core/notifications/push_notification_service.dart';
 import 'package:moto_passenger/core/theme/app_theme.dart';
+import 'package:moto_passenger/modules/auth/data/datasources/i_auth_datasource.dart';
+import 'package:moto_passenger/modules/auth/domain/entities/user_entity.dart';
 import 'package:moto_passenger/modules/auth/presentation/blocs/login_bloc.dart';
 import 'package:moto_passenger/widgets/app_button.dart';
 import 'package:moto_passenger/widgets/app_text_field.dart';
@@ -24,22 +30,6 @@ class _LoginPageState extends State<LoginPage> {
 
   String? _emailError;
   String? _passwordError;
-  String? _brandImagePath;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadBrandImage();
-  }
-
-  Future<void> _loadBrandImage() async {
-    final path = await Modular.get<IBrandCacheService>().getBrandImagePath();
-    if (mounted) {
-      setState(() {
-        _brandImagePath = path;
-      });
-    }
-  }
 
   @override
   void dispose() {
@@ -76,6 +66,64 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
+  Future<void> _onLoginSuccess(BuildContext context, UserEntity user) async {
+    // Navegar imediatamente — push registration é fire-and-forget
+    Navigator.of(context).pushReplacementNamed('/usage-terms-guard');
+
+    // Registrar push notifications em background
+    unawaited(_registerPushNotifications(user.id));
+  }
+
+  Future<void> _registerPushNotifications(String userId) async {
+    try {
+      final pushService = Modular.get<PushNotificationService>();
+
+      // 1. Solicitar permissão
+      final granted = await pushService.requestPermission();
+      if (!granted) {
+        log('[PUSH] Permission denied — skipping push registration');
+        return;
+      }
+
+      // 2. OneSignal.login (obrigatório, com retry interno)
+      await pushService.login(userId);
+
+      // 3. Aguardar playerId
+      String playerId;
+      try {
+        playerId = await pushService.onPlayerIdChanged.first
+            .timeout(const Duration(seconds: 10));
+      } on TimeoutException {
+        log('[PUSH] PlayerId timeout — skipping register-device');
+        return;
+      }
+
+      // 4. register-device (auditoria, retry 3x)
+      final platform = Platform.isAndroid ? 'android' : 'ios';
+      final authDatasource = Modular.get<IAuthDatasource>();
+      for (var i = 0; i < 3; i++) {
+        try {
+          await authDatasource.registerDeviceToken(playerId, platform);
+          log('[PUSH] register-device OK. playerId=$playerId');
+          break;
+        } catch (e) {
+          log('[PUSH] register-device attempt ${i + 1}/3 failed: $e');
+          if (i < 2) await Future.delayed(Duration(seconds: 1 << i));
+        }
+      }
+
+      // 5. Processar deep link pendente (cold start com JWT expirado)
+      final pending = DeepLinkHolder.consume();
+      if (pending != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          NotificationHandler.handleNotificationTap(pending);
+        });
+      }
+    } catch (e) {
+      log('[PUSH] _registerPushNotifications error: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
@@ -83,7 +131,7 @@ class _LoginPageState extends State<LoginPage> {
     return BlocConsumer<LoginBloc, LoginState>(
       listener: (context, state) {
         if (state is LoginSuccess) {
-          Navigator.of(context).pushReplacementNamed('/home');
+          _onLoginSuccess(context, state.user);
         }
       },
       builder: (context, state) {
@@ -107,7 +155,7 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  _buildBrandImage(),
+                  _buildLogo(),
                   Column(
                     spacing: 16,
                     children: [
@@ -179,16 +227,9 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  Widget _buildBrandImage() {
-    if (_brandImagePath != null) {
-      return Image.file(File(_brandImagePath!), width: 224, height: 90, fit: BoxFit.contain, errorBuilder: (_, __, ___) => _buildDefaultLogo());
-    }
-    return _buildDefaultLogo();
-  }
-
-  Widget _buildDefaultLogo() {
+  Widget _buildLogo() {
     return Image.asset(
-      'assets/images/logo.jpeg',
+      'assets/images/moto_passenger_logo.png',
       width: 224,
       height: 90,
       fit: BoxFit.contain,

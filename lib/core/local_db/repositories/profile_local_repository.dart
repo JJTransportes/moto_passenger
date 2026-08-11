@@ -7,6 +7,7 @@ class ProfileLocalRepository {
     required String userId,
     required String fullName,
     required String email,
+    String? photoUrl,
   }) async {
     try {
       final db = LocalDatabaseService.instance;
@@ -16,6 +17,7 @@ class ProfileLocalRepository {
           'user_id': userId,
           'full_name': fullName,
           'email': email,
+          if (photoUrl != null) 'photo_url': photoUrl,
           'updated_at': DateTime.now().toIso8601String(),
         },
         conflictAlgorithm: ConflictAlgorithm.replace,

@@ -2,6 +2,8 @@ import 'package:dio/dio.dart';
 
 abstract class INewTravelDatasource {
   Future<Map<String, dynamic>> createOrder(Map<String, dynamic> request);
+  Future<Map<String, dynamic>?> getLatestOrder();
+  Future<void> cancelOrder(String orderId);
 }
 
 class NoDriversAvailableException implements Exception {
@@ -39,6 +41,32 @@ class NewTravelDatasource implements INewTravelDatasource {
         }
       }
       throw Exception(e.message ?? 'Erro ao criar viagem');
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>?> getLatestOrder() async {
+    try {
+      final response = await _dio.get('/api/travels/orders/latest');
+      if (response.statusCode == 204) return null;
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404 || e.response?.statusCode == 204) {
+        return null;
+      }
+      throw Exception(e.message ?? 'Erro ao verificar pedidos pendentes');
+    }
+  }
+
+  @override
+  Future<void> cancelOrder(String orderId) async {
+    try {
+      await _dio.post('/api/travels/orders/$orderId/cancel');
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        throw Exception('Pedido não encontrado ou já foi processado');
+      }
+      throw Exception(e.message ?? 'Erro ao cancelar pedido');
     }
   }
 }

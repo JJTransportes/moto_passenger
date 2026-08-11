@@ -71,9 +71,16 @@ class SignalRService {
   }
 
   /// Envia um comando 'DenyOrder' para o hub de travel-orders.
-  Future<void> denyOrder(String travelId) async {
+  Future<void> denyOrder(String orderId) async {
     final conn = _connections['travel-orders'];
-    await conn?.invoke('DenyOrder', args: [travelId]);
+    await conn?.invoke('DenyOrder', args: [orderId]);
+  }
+
+  /// Envia um comando 'CancelOrder' para o hub de travel-orders.
+  /// Usado pelo passageiro para cancelar seu proprio pedido.
+  Future<void> cancelOrder(String orderId) async {
+    final conn = _connections['travel-orders'];
+    await conn?.invoke('CancelOrder', args: [orderId]);
   }
 
   void _registerHubHandlers(HubConnection connection, String hubName) {
