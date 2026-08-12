@@ -1,8 +1,17 @@
+import 'dart:async';
+import 'dart:developer';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart' hide ReadContext;
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:moto_passenger/core/notifications/deep_link_holder.dart';
+import 'package:moto_passenger/core/notifications/notification_handler.dart';
+import 'package:moto_passenger/core/notifications/push_notification_service.dart';
 import 'package:moto_passenger/core/theme/app_theme.dart';
+import 'package:moto_passenger/modules/auth/data/datasources/i_auth_datasource.dart';
+import 'package:moto_passenger/modules/auth/domain/entities/user_entity.dart';
 import 'package:moto_passenger/modules/auth/presentation/blocs/login_bloc.dart';
 import 'package:moto_passenger/widgets/app_button.dart';
 import 'package:moto_passenger/widgets/app_text_field.dart';
@@ -57,6 +66,78 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
+  Future<void> _onLoginSuccess(BuildContext context, UserEntity user) async {
+    // Navegar imediatamente — push registration é fire-and-forget
+    Navigator.of(context).pushReplacementNamed('/usage-terms-guard');
+
+    // Registrar push notifications em background
+    unawaited(_registerPushNotifications(user.id));
+  }
+
+  Future<void> _registerPushNotifications(String userId) async {
+    try {
+      final pushService = Modular.get<PushNotificationService>();
+
+      // 1. Solicitar permissão
+      final granted = await pushService.requestPermission();
+      if (!granted) {
+        log('[PUSH] Permission denied — skipping push registration');
+        return;
+      }
+
+      // 2. Subscrever ao playerId ANTES do login (evita race condition)
+      //    Se playerId já foi emitido antes, o getter retorna o valor atual.
+      //    Se ainda não foi emitido, o stream.first aguarda a próxima emissão.
+      String? currentPlayerId = pushService.playerId;
+      Future<String> playerIdFuture;
+      if (currentPlayerId != null && currentPlayerId.isNotEmpty) {
+        playerIdFuture = Future.value(currentPlayerId);
+      } else {
+        playerIdFuture = pushService.onPlayerIdChanged.first;
+      }
+
+      // 3. OneSignal.login (obrigatório, com retry interno)
+      //    Pode disparar nova emissão de playerId no observer.
+      await pushService.login(userId);
+
+      // 4. Aguardar playerId (já subscrito antes do login)
+      String playerId;
+      try {
+        playerId = await playerIdFuture.timeout(const Duration(seconds: 10));
+      } on TimeoutException {
+        playerId = pushService.playerId ?? '';
+        if (playerId.isEmpty) {
+          log('[PUSH] PlayerId still null after login+timeout — skipping register-device');
+          return;
+        }
+      }
+
+      // 5. register-device (auditoria, retry 3x)
+      final platform = Platform.isAndroid ? 'android' : 'ios';
+      final authDatasource = Modular.get<IAuthDatasource>();
+      for (var i = 0; i < 3; i++) {
+        try {
+          await authDatasource.registerDeviceToken(playerId, platform);
+          log('[PUSH] register-device OK. playerId=$playerId');
+          break;
+        } catch (e) {
+          log('[PUSH] register-device attempt ${i + 1}/3 failed: $e');
+          if (i < 2) await Future.delayed(Duration(seconds: 1 << i));
+        }
+      }
+
+      // 6. Processar deep link pendente (cold start com JWT expirado)
+      final pending = DeepLinkHolder.consume();
+      if (pending != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          NotificationHandler.handleNotificationTap(pending);
+        });
+      }
+    } catch (e) {
+      log('[PUSH] _registerPushNotifications error: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
@@ -64,7 +145,7 @@ class _LoginPageState extends State<LoginPage> {
     return BlocConsumer<LoginBloc, LoginState>(
       listener: (context, state) {
         if (state is LoginSuccess) {
-          Navigator.of(context).pushReplacementNamed('/usage-terms-guard');
+          _onLoginSuccess(context, state.user);
         }
       },
       builder: (context, state) {
@@ -77,7 +158,7 @@ class _LoginPageState extends State<LoginPage> {
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 36),
               child: Column(
-                spacing: size.height * 0.1,
+                spacing: size.height * 0.016,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   GradientText(
@@ -130,7 +211,6 @@ class _LoginPageState extends State<LoginPage> {
                       textAlign: TextAlign.center,
                     ),
                   ],
-                  const SizedBox(height: 24),
                       AppButton(label: 'Entrar', loading: isLoading, onPressed: _submit,),
                   const SizedBox(height: 16),
                   Align(
@@ -161,10 +241,12 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Widget _buildLogo() {
+    final size = MediaQuery.sizeOf(context);
+
     return Image.asset(
       'assets/images/moto_passenger_logo.png',
-      width: 224,
-      height: 90,
+      height: size.height * 0.4,
+      width: size.width * 0.4,
       fit: BoxFit.contain,
       errorBuilder: (_, __, ___) => const SizedBox(width: 224, height: 90, child: Placeholder()),
     );

@@ -19,6 +19,9 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   Timer? _locationTimer;
+  Timer? _activeTravelPollTimer;
+  StreamSubscription? _orderAcceptedSub;
+  StreamSubscription? _orderCancelledSub;
   String? _userName;
   String? _userPhotoUrl;
 
@@ -33,6 +36,9 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _locationTimer?.cancel();
+    _activeTravelPollTimer?.cancel();
+    _orderAcceptedSub?.cancel();
+    _orderCancelledSub?.cancel();
     super.dispose();
   }
 
@@ -42,17 +48,52 @@ class _HomeScreenState extends State<HomeScreen> {
     final token = await authStorage.getToken();
     if (token == null) return;
 
-    try {
-      await signalR.connect(
+    await Future.wait([
+      signalR.connect(
         'travel-management',
         '${AppConfig.getBaseUrl()}/hubs/travel-management',
         token,
-      );
-    } catch (_) {
-      // Non-critical
-    }
+      ),
+      signalR.connect(
+        'travel-orders',
+        '${AppConfig.getBaseUrl()}/hubs/travel-orders',
+        token,
+      ),
+    ]).catchError((_) {
+      // Non-critical — fallback polling will handle it
+    });
+
+    _orderAcceptedSub = signalR.onOrderAccepted.listen((data) {
+      if (!mounted) return;
+      final travelId = data['travelId'] as String?;
+      if (travelId != null) {
+        Modular.to.pushNamed(
+          '/new-travel/tracking',
+          arguments: {'travelId': travelId},
+        );
+      }
+    });
+
+    _orderCancelledSub = signalR.onOrderCancelled.listen((data) {
+      if (!mounted) return;
+      final reason = data['reason'] as String?;
+      if (reason == 'no_drivers_available' && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Nenhum motorista disponível no momento.')),
+        );
+      }
+    });
 
     _startLocationReporting(signalR);
+    _startPeriodicPolling();
+  }
+
+  void _startPeriodicPolling() {
+    _activeTravelPollTimer?.cancel();
+    _activeTravelPollTimer = Timer.periodic(
+      const Duration(seconds: 15),
+      (_) => _checkActiveTravel(),
+    );
   }
 
   Future<void> _loadUserProfile() async {

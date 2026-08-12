@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class AuthStorage {
@@ -24,11 +26,25 @@ class AuthStorage {
     ]);
   }
 
-  Future<String?> getToken() => _storage.read(key: _tokenKey);
+  Future<String?> getToken() => _safeRead(_tokenKey);
 
-  Future<String?> getRefreshToken() => _storage.read(key: _refreshTokenKey);
+  Future<String?> getRefreshToken() => _safeRead(_refreshTokenKey);
 
-  Future<String?> getUserId() => _storage.read(key: _userIdKey);
+  Future<String?> getUserId() => _safeRead(_userIdKey);
+
+  Future<String?> _safeRead(String key) async {
+    try {
+      return await _storage.read(key: key);
+    } on PlatformException catch (e) {
+      if (e.code == 'Exception encountered' &&
+          e.message?.contains('read') == true) {
+        debugPrint('AuthStorage: corrupted secure storage — clearing');
+        await _storage.deleteAll();
+        return null;
+      }
+      rethrow;
+    }
+  }
 
   Future<void> clear() async {
     await Future.wait([

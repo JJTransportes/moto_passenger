@@ -39,6 +39,14 @@ class AuthDatasource implements IAuthDatasource {
     }
   }
 
+  @override
+  Future<void> registerDeviceToken(String playerId, String platform) async {
+    await _dio.post('/api/notifications/register-device', data: {
+      'playerId': playerId,
+      'platform': platform,
+    });
+  }
+
   Exception _mapDioException(DioException e) {
     switch (e.response?.statusCode) {
       case 400:

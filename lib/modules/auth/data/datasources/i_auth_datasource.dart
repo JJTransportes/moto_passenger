@@ -12,4 +12,8 @@ abstract class IAuthDatasource {
   /// Returns raw [SignInResponseModel] on success.
   /// Throws [UnauthorizedException] if the refresh token is expired or invalid.
   Future<SignInResponseModel> refreshToken(String refreshToken);
+
+  /// Registers the device token (OneSignal playerId) for push notifications.
+  /// Idempotent — backend does UPSERT.
+  Future<void> registerDeviceToken(String playerId, String platform);
 }

@@ -77,7 +77,7 @@ class _WaitingPageState extends State<WaitingPage> {
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(reason != null ? 'Pedido cancelado: $reason' : 'Pedido cancelado'),
+          content: const Text('Pedido cancelado!'),
           duration: const Duration(seconds: 3),
           behavior: SnackBarBehavior.floating,
         ),
@@ -170,9 +170,6 @@ class _WaitingPageState extends State<WaitingPage> {
     _acceptedSub?.cancel();
     _cancelledSub?.cancel();
     _elapsedTimer?.cancel();
-    if (!_isCancelling) {
-      Modular.get<SignalRService>().disconnect('travel-orders');
-    }
     super.dispose();
   }
 
