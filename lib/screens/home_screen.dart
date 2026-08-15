@@ -59,9 +59,7 @@ class _HomeScreenState extends State<HomeScreen> {
         '${AppConfig.getBaseUrl()}/hubs/travel-orders',
         token,
       ),
-    ]).catchError((_) {
-      // Non-critical — fallback polling will handle it
-    });
+    ]);
 
     _orderAcceptedSub = signalR.onOrderAccepted.listen((data) {
       if (!mounted) return;
