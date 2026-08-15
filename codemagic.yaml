@@ -50,6 +50,7 @@ workflows:
           failure: true
 
       google_play:
+        changes_not_sent_for_review: false
         credentials: $GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS
         track: alpha
         submit_as_draft: false
