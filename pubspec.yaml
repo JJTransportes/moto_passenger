@@ -1,7 +1,7 @@
 name: moto_passenger
 description: "Moto Passenger app."
 publish_to: 'none'
-version: 1.0.0+14
+version: 1.0.0+16
 
 environment:
   sdk: ^3.8.1
@@ -26,6 +26,7 @@ dependencies:
   path_provider: ^2.1.0
   image_picker: ^1.0.0
   permission_handler: ^11.0.0
+  onesignal_flutter: ^5.2.0
 
 dev_dependencies:
   flutter_test:
@@ -37,10 +38,10 @@ dev_dependencies:
 
 flutter_launcher_icons:
   android: true
+  ios: true
+  remove_alpha_ios: true
   image_path_android: "assets/images/moto_passenger_icon.png"
   image_path_ios: "assets/images/moto_passenger_icon.png"
-  adaptatvie_icon_background: "#ffffff"
-  adaptatvie_icon_foreground: "assets/images/moto_icon_adaptative.png"
 
 flutter:
   uses-material-design: true
