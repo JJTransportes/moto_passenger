@@ -2,8 +2,6 @@ import 'package:dio/dio.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:moto_passenger/core/auth/auth_storage.dart';
 import 'package:moto_passenger/core/auth/sign_out_service.dart';
-import 'package:moto_passenger/core/brand/brand_cache_service.dart';
-import 'package:moto_passenger/core/brand/i_brand_cache_service.dart';
 import 'package:moto_passenger/core/http/dio_client.dart';
 import 'package:moto_passenger/core/local_db/repositories/auth_local_repository.dart';
 import 'package:moto_passenger/core/local_db/repositories/profile_local_repository.dart';
@@ -12,6 +10,7 @@ import 'package:moto_passenger/core/location/location_service.dart';
 import 'package:moto_passenger/core/maps/i_places_autocomplete_service.dart';
 import 'package:moto_passenger/core/maps/places_autocomplete_service.dart';
 import 'package:moto_passenger/core/network/signalr_service.dart';
+import 'package:moto_passenger/core/notifications/push_notification_service.dart';
 import 'package:moto_passenger/modules/auth/data/datasources/auth_datasource.dart';
 import 'package:moto_passenger/modules/auth/data/datasources/i_auth_datasource.dart';
 import 'package:moto_passenger/modules/auth/data/repositories/auth_repository.dart';
@@ -27,9 +26,9 @@ class CommonModule extends Module {
     i.addSingleton<TravelLocalRepository>(TravelLocalRepository.new);
     i.addSingleton<SignOutService>(SignOutService.new);
     i.addSingleton<SignalRService>(SignalRService.new);
+    i.addSingleton<PushNotificationService>(PushNotificationService.new);
     i.addSingleton<LocationService>(LocationService.new);
     i.addSingleton<IPlacesAutocompleteService>(PlacesAutocompleteService.new);
-    i.addSingleton<IBrandCacheService>(BrandCacheService.new);
     i.add<IAuthDatasource>(AuthDatasource.new);
     i.add<IAuthRepository>(AuthRepository.new);
   }
