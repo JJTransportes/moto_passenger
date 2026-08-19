@@ -1,16 +1,10 @@
 import 'dart:async';
-import 'dart:developer';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart' hide ReadContext;
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:moto_passenger/core/notifications/deep_link_holder.dart';
-import 'package:moto_passenger/core/notifications/notification_handler.dart';
-import 'package:moto_passenger/core/notifications/push_notification_service.dart';
 import 'package:moto_passenger/core/theme/app_theme.dart';
-import 'package:moto_passenger/modules/auth/data/datasources/i_auth_datasource.dart';
 import 'package:moto_passenger/modules/auth/domain/entities/user_entity.dart';
 import 'package:moto_passenger/modules/auth/presentation/blocs/login_bloc.dart';
 import 'package:moto_passenger/widgets/app_button.dart';
@@ -67,75 +61,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _onLoginSuccess(BuildContext context, UserEntity user) async {
-    // Navegar imediatamente — push registration é fire-and-forget
     Navigator.of(context).pushReplacementNamed('/usage-terms-guard');
-
-    // Registrar push notifications em background
-    unawaited(_registerPushNotifications(user.id));
-  }
-
-  Future<void> _registerPushNotifications(String userId) async {
-    try {
-      final pushService = Modular.get<PushNotificationService>();
-
-      // 1. Solicitar permissão
-      final granted = await pushService.requestPermission();
-      if (!granted) {
-        log('[PUSH] Permission denied — skipping push registration');
-        return;
-      }
-
-      // 2. Subscrever ao playerId ANTES do login (evita race condition)
-      //    Se playerId já foi emitido antes, o getter retorna o valor atual.
-      //    Se ainda não foi emitido, o stream.first aguarda a próxima emissão.
-      String? currentPlayerId = pushService.playerId;
-      Future<String> playerIdFuture;
-      if (currentPlayerId != null && currentPlayerId.isNotEmpty) {
-        playerIdFuture = Future.value(currentPlayerId);
-      } else {
-        playerIdFuture = pushService.onPlayerIdChanged.first;
-      }
-
-      // 3. OneSignal.login (obrigatório, com retry interno)
-      //    Pode disparar nova emissão de playerId no observer.
-      await pushService.login(userId);
-
-      // 4. Aguardar playerId (já subscrito antes do login)
-      String playerId;
-      try {
-        playerId = await playerIdFuture.timeout(const Duration(seconds: 10));
-      } on TimeoutException {
-        playerId = pushService.playerId ?? '';
-        if (playerId.isEmpty) {
-          log('[PUSH] PlayerId still null after login+timeout — skipping register-device');
-          return;
-        }
-      }
-
-      // 5. register-device (auditoria, retry 3x)
-      final platform = Platform.isAndroid ? 'android' : 'ios';
-      final authDatasource = Modular.get<IAuthDatasource>();
-      for (var i = 0; i < 3; i++) {
-        try {
-          await authDatasource.registerDeviceToken(playerId, platform);
-          log('[PUSH] register-device OK. playerId=$playerId');
-          break;
-        } catch (e) {
-          log('[PUSH] register-device attempt ${i + 1}/3 failed: $e');
-          if (i < 2) await Future.delayed(Duration(seconds: 1 << i));
-        }
-      }
-
-      // 6. Processar deep link pendente (cold start com JWT expirado)
-      final pending = DeepLinkHolder.consume();
-      if (pending != null) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          NotificationHandler.handleNotificationTap(pending);
-        });
-      }
-    } catch (e) {
-      log('[PUSH] _registerPushNotifications error: $e');
-    }
   }
 
   @override
@@ -174,61 +100,63 @@ class _LoginPageState extends State<LoginPage> {
                     spacing: 16,
                     children: [
                       AppTextField(
-                    label: 'E-mail',
-                    hint: 'Informe seu e-mail',
-                    controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    errorText: _emailError,
+                        label: 'E-mail',
+                        hint: 'Informe seu e-mail',
+                        controller: _emailController,
+                        keyboardType: TextInputType.emailAddress,
+                        errorText: _emailError,
                       ),
-                  AppTextField(
-                    label: 'Senha',
-                    hint: 'Informe sua senha',
-                    controller: _passwordController,
-                    obscureText: true,
-                    errorText: _passwordError,
+                      AppTextField(
+                        label: 'Senha',
+                        hint: 'Informe sua senha',
+                        controller: _passwordController,
+                        obscureText: true,
+                        errorText: _passwordError,
                       ),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: () => Navigator.of(context).pushNamed('/recovery'),
-                      child: Text(
-                        'Esqueci minha senha',
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          color: AppColors.primary,
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: () => Navigator.of(context).pushNamed('/recovery'),
+                          child: Text(
+                            'Esqueci minha senha',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: AppColors.primary,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-                  if (errorMessage != null) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      errorMessage,
-                      style: const TextStyle(
-                        color: Colors.red,
-                        fontSize: 12,
+                      if (errorMessage != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          errorMessage,
+                          style: const TextStyle(
+                            color: Colors.red,
+                            fontSize: 12,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                      AppButton(
+                        label: 'Entrar',
+                        loading: isLoading,
+                        onPressed: _submit,
                       ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                      AppButton(label: 'Entrar', loading: isLoading, onPressed: _submit,),
-                  const SizedBox(height: 16),
-                  Align(
-                    alignment: Alignment.center,
-                    child: TextButton(
-                      onPressed: isLoading
-                          ? null
-                          : () => Navigator.of(context).pushNamed('/register'),
-                      child: Text(
-                        'Criar conta',
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w600,
+                      const SizedBox(height: 16),
+                      Align(
+                        alignment: Alignment.center,
+                        child: TextButton(
+                          onPressed: isLoading ? null : () => Navigator.of(context).pushNamed('/register'),
+                          child: Text(
+                            'Criar conta',
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ),
                     ],
                   ),
                 ],

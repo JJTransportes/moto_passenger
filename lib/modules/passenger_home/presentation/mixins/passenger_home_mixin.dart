@@ -49,10 +49,7 @@ mixin PassengerHomeMixin on State<PassengerHomePage> {
             ),
             const SizedBox(height: 16),
           ],
-          LastTravelsCard(
-            travels: lastTravels,
-            onViewAll: () => Modular.to.pushNamed('/travel-history'),
-          ),
+          LastTravelsCard(travels: lastTravels),
         ],
       ),
     ),
