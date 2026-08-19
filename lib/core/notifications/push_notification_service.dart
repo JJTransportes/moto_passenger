@@ -9,15 +9,13 @@ class PushNotificationService {
   static final PushNotificationService _instance = PushNotificationService._();
   factory PushNotificationService() => _instance;
   PushNotificationService._();
-  final _foregroundController =
-      StreamController<PushNotificationData>.broadcast();
+  final _foregroundController = StreamController<PushNotificationData>.broadcast();
   final _tapController = StreamController<PushNotificationData>.broadcast();
   final _playerIdController = StreamController<String>.broadcast();
 
   String? _playerId;
 
-  Stream<PushNotificationData> get onForegroundNotification =>
-      _foregroundController.stream;
+  Stream<PushNotificationData> get onForegroundNotification => _foregroundController.stream;
   Stream<PushNotificationData> get onNotificationTap => _tapController.stream;
   Stream<String> get onPlayerIdChanged => _playerIdController.stream;
   String? get playerId => _playerId;
@@ -26,14 +24,6 @@ class PushNotificationService {
     try {
       OneSignal.initialize(AppConfig.getOneSignalAppId());
 
-      // Foreground: suprimir popup nativo (SignalR já trata o fluxo)
-      OneSignal.Notifications.addForegroundWillDisplayListener((event) {
-        event.preventDefault();
-        final data = _parseNotification(event.notification);
-        _foregroundController.add(data);
-      });
-
-      // Tap na notificação (background/closed)
       OneSignal.Notifications.addClickListener((event) {
         final data = _parseNotification(event.notification);
         _tapController.add(data);
@@ -61,8 +51,6 @@ class PushNotificationService {
     }
   }
 
-  /// Associa o dispositivo ao usuário no OneSignal.
-  /// OBRIGATÓRIO — backend usa include_external_user_ids para targeting.
   Future<void> login(String userId) async {
     for (var attempt = 0; attempt < 3; attempt++) {
       try {
@@ -79,7 +67,6 @@ class PushNotificationService {
     log('[PUSH] OneSignal.login permanently failed. Continuing without push.');
   }
 
-  /// Desassocia o dispositivo do usuário no OneSignal.
   Future<void> logout() async {
     try {
       await OneSignal.logout();
