@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:moto_passenger/core/auth/auth_storage.dart';
+import 'package:moto_passenger/core/auth/sign_out_service.dart';
 import 'package:moto_passenger/core/config/app_config.dart';
 import 'package:moto_passenger/core/network/signalr_service.dart';
 import 'package:moto_passenger/core/theme/app_theme.dart';
@@ -160,11 +161,9 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _logout(BuildContext context) async {
     _locationTimer?.cancel();
     await Modular.get<SignalRService>().disconnectAll();
-    final storage = AuthStorage();
-    await storage.clear();
-    if (context.mounted) {
-      Modular.to.navigate('/login');
-    }
+    // SignOutService chama o sign-out do backend (neutraliza vínculo de device)
+    // e limpa todo o estado local.
+    await Modular.get<SignOutService>().signOut();
   }
 
   @override
