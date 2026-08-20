@@ -111,6 +111,7 @@ class _PasswordResetPageState extends State<PasswordResetPage> {
                     hint: 'Digite novamente a senha',
                     controller: _confirmController,
                     obscureText: true,
+                    enableVisibilityToggle: true,
                   ),
                   if (_localError != null || serverError != null) ...[
                     const SizedBox(height: 12),
