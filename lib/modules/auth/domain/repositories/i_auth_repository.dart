@@ -5,4 +5,12 @@ abstract class IAuthRepository {
   Future<Result<UserEntity>> signIn(String email, String password);
 
   Future<Result<UserEntity>> refreshToken(String refreshToken);
+
+  AsyncResult<Unit> requestPasswordReset(String email);
+
+  AsyncResult<Unit> confirmPasswordReset({
+    required String email,
+    required String code,
+    required String newPassword,
+  });
 }
