@@ -109,7 +109,10 @@ class _SplashScreenState extends State<SplashScreen> {
       );
       return true;
     } on UnauthorizedException {
-      // Refresh token expired or revoked — not recoverable
+      // Refresh token expirado ou revogado — não recuperável
+      return false;
+    } on DeviceMismatchException {
+      // Token vinculado a outro tipo de dispositivo — não recuperável neste aparelho
       return false;
     } catch (_) {
       // Network or other error — fall through to access token fallback
