@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:moto_passenger/core/device/device_platform.dart';
 import 'package:moto_passenger/core/errors/exceptions.dart';
 import 'package:moto_passenger/modules/auth/data/datasources/auth_datasource.dart';
 import 'package:moto_passenger/modules/auth/data/models/sign_in_response_model.dart';
@@ -14,6 +15,10 @@ void main() {
   setUp(() {
     mockDio = MockDio();
     datasource = AuthDatasource(mockDio);
+  });
+
+  tearDown(() {
+    DevicePlatform.clearOverride();
   });
 
   const validResponse = {
@@ -135,6 +140,44 @@ void main() {
       );
     });
 
+    test('includes device in request body on mobile platform', () async {
+      DevicePlatform.overrideForTesting('android');
+      when(() => mockDio.post(
+            any(),
+            data: any(named: 'data'),
+          )).thenAnswer(
+        (_) async => Response(
+          requestOptions: RequestOptions(path: ''),
+          data: validResponse,
+          statusCode: 200,
+        ),
+      );
+
+      await datasource.signIn('maria@moto.com', '123456');
+
+      verify(() => mockDio.post(
+            '/api/auth/sign-in',
+            data: {'email': 'maria@moto.com', 'password': '123456', 'device': 'android'},
+          )).called(1);
+    });
+
+    test('throws DeviceConflictException on 409 (session on other device type)', () async {
+      when(() => mockDio.post(any(), data: any(named: 'data'))).thenThrow(
+        DioException(
+          requestOptions: RequestOptions(path: ''),
+          response: Response(
+            requestOptions: RequestOptions(path: ''),
+            statusCode: 409,
+          ),
+        ),
+      );
+
+      expect(
+        () => datasource.signIn('maria@moto.com', '123456'),
+        throwsA(isA<DeviceConflictException>()),
+      );
+    });
+
     test('throws NetworkException on connection error', () async {
       when(() => mockDio.post(any(), data: any(named: 'data'))).thenThrow(
         DioException(
@@ -214,6 +257,55 @@ void main() {
       );
     });
 
+    test('includes device in request body on mobile platform', () async {
+      DevicePlatform.overrideForTesting('ios');
+      when(() => mockDio.post(
+            any(),
+            data: any(named: 'data'),
+            options: any(named: 'options'),
+          )).thenAnswer(
+        (_) async => Response(
+          requestOptions: RequestOptions(path: ''),
+          data: refreshResponse,
+          statusCode: 200,
+        ),
+      );
+
+      await datasource.refreshToken('old_ref_123');
+
+      final captured = verify(() => mockDio.post(
+            captureAny(),
+            data: captureAny(named: 'data'),
+            options: captureAny(named: 'options'),
+          )).captured;
+
+      expect(captured[0], '/api/auth/refresh');
+      expect(captured[1], {'refreshToken': 'old_ref_123', 'device': 'ios'});
+      final options = captured[2] as Options;
+      expect(options.extra?['noAuth'], isTrue);
+    });
+
+    test('throws DeviceMismatchException on 403 (token bound to other device type)', () async {
+      when(() => mockDio.post(
+            any(),
+            data: any(named: 'data'),
+            options: any(named: 'options'),
+          )).thenThrow(
+        DioException(
+          requestOptions: RequestOptions(path: ''),
+          response: Response(
+            requestOptions: RequestOptions(path: ''),
+            statusCode: 403,
+          ),
+        ),
+      );
+
+      expect(
+        () => datasource.refreshToken('old_ref'),
+        throwsA(isA<DeviceMismatchException>()),
+      );
+    });
+
     test('throws NetworkException on connection timeout', () async {
       when(() => mockDio.post(
             any(),
@@ -247,6 +339,38 @@ void main() {
       expect(
         () => datasource.refreshToken('old_ref'),
         throwsA(isA<NetworkException>()),
+      );
+    });
+  });
+
+  group('signOut', () {
+    test('calls POST /api/auth/sign-out and succeeds on 204', () async {
+      when(() => mockDio.post(any())).thenAnswer(
+        (_) async => Response(
+          requestOptions: RequestOptions(path: ''),
+          statusCode: 204,
+        ),
+      );
+
+      await datasource.signOut();
+
+      verify(() => mockDio.post('/api/auth/sign-out')).called(1);
+    });
+
+    test('throws UnauthorizedException on 401 (expired access token)', () async {
+      when(() => mockDio.post(any())).thenThrow(
+        DioException(
+          requestOptions: RequestOptions(path: ''),
+          response: Response(
+            requestOptions: RequestOptions(path: ''),
+            statusCode: 401,
+          ),
+        ),
+      );
+
+      expect(
+        () => datasource.signOut(),
+        throwsA(isA<UnauthorizedException>()),
       );
     });
   });
