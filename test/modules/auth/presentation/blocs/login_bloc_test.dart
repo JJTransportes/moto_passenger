@@ -85,7 +85,6 @@ void main() {
             ));
       },
     );
-
     blocTest<LoginBloc, LoginState>(
       'calls usecase with correct credentials',
       build: () {
