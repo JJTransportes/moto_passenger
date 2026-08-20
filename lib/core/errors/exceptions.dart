@@ -40,6 +40,13 @@ class ServerException implements Exception {
   String toString() => message;
 }
 
+class ConflictException implements Exception {
+  final String message;
+  const ConflictException([this.message = 'Conflito ao processar a solicitação.']);
+  @override
+  String toString() => message;
+}
+
 class DeviceConflictException implements Exception {
   final String message;
   const DeviceConflictException([
