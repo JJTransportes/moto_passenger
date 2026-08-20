@@ -39,3 +39,28 @@ class ServerException implements Exception {
   @override
   String toString() => message;
 }
+
+class ConflictException implements Exception {
+  final String message;
+  const ConflictException([this.message = 'Conflito ao processar a solicitação.']);
+  @override
+  String toString() => message;
+}
+
+class DeviceConflictException implements Exception {
+  final String message;
+  const DeviceConflictException([
+    this.message = 'Sessão ativa em outro tipo de dispositivo. Faça logout no outro aparelho antes de entrar.',
+  ]);
+  @override
+  String toString() => message;
+}
+
+class DeviceMismatchException implements Exception {
+  final String message;
+  const DeviceMismatchException([
+    this.message = 'Sessão vinculada a outro tipo de dispositivo.',
+  ]);
+  @override
+  String toString() => message;
+}

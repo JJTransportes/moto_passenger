@@ -111,6 +111,7 @@ class _LoginPageState extends State<LoginPage> {
                         hint: 'Informe sua senha',
                         controller: _passwordController,
                         obscureText: true,
+                        enableVisibilityToggle: true,
                         errorText: _passwordError,
                       ),
                       Align(
