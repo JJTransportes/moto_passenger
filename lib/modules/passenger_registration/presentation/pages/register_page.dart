@@ -120,8 +120,8 @@ class _RegisterPageState extends State<RegisterPage> {
       _rgError = validators.validateRg(_rgController.text);
       _registrationError = validators.validateRequired(
               _registrationController.text, 'Matrícula') ??
-          validators.validateMaxLength(_registrationController.text, 30, 'Matrícula') ??
-          validators.validateSafeText(_registrationController.text, 'Matrícula');
+          validators.validateAlphanumericFormat(
+              _registrationController.text, 'Matrícula', 30);
       _emailError = validators.validateEmail(_emailController.text);
       _passwordError = validators.validatePassword(_passwordController.text);
       _birthdateError =
@@ -279,18 +279,20 @@ class _RegisterPageState extends State<RegisterPage> {
         ),
         AppTextField(
           label: 'RG *',
-          hint: '00.000.000-0',
+          hint: 'Somente letras e números (7 a 12 caracteres)',
           controller: _rgController,
-          keyboardType: TextInputType.number,
+          keyboardType: TextInputType.text,
           errorText: _rgError,
-          inputFormatters: [RgInputFormatter()],
+          inputFormatters: [AlphanumericInputFormatter(maxLength: 12)],
           maxLength: 12,
         ),
         AppTextField(
           label: 'Matrícula *',
-          hint: 'Informe sua matrícula',
+          hint: 'N° de matrícula (letras e números)',
           controller: _registrationController,
+          keyboardType: TextInputType.text,
           errorText: _registrationError,
+          inputFormatters: [AlphanumericInputFormatter(maxLength: 30)],
           maxLength: 30,
         ),
         _buildBirthdateField(),

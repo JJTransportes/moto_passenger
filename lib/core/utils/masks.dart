@@ -39,33 +39,29 @@ class CpfInputFormatter extends TextInputFormatter {
   }
 }
 
-/// Formats as the user types: 00.000.000-0
-class RgInputFormatter extends TextInputFormatter {
+/// Restricts input to letters and digits (optionally capped at [maxLength]) —
+/// no dots, dashes, slashes or spaces. Used for RG e Matrícula: o backend
+/// rejeita qualquer pontuação nesses dois campos (regex alfanumérico puro), e o
+/// RG varia de formato por estado (letras misturadas, tamanhos diferentes),
+/// então uma máscara fixa não serve para nenhum dos dois.
+class AlphanumericInputFormatter extends TextInputFormatter {
+  AlphanumericInputFormatter({this.maxLength});
+
+  final int? maxLength;
+
   @override
   TextEditingValue formatEditUpdate(
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
-    final raw = unmaskRg(newValue.text);
-    final digits = raw.substring(0, raw.length > 9 ? 9 : raw.length);
-
-    final p1 = digits.substring(0, digits.length > 2 ? 2 : digits.length);
-    final p2 = digits.length > 2
-        ? digits.substring(2, digits.length > 5 ? 5 : digits.length)
-        : '';
-    final p3 = digits.length > 5
-        ? digits.substring(5, digits.length > 8 ? 8 : digits.length)
-        : '';
-    final p4 = digits.length > 8 ? digits.substring(8) : '';
-
-    var formatted = p1;
-    if (p2.isNotEmpty) formatted += '.$p2';
-    if (p3.isNotEmpty) formatted += '.$p3';
-    if (p4.isNotEmpty) formatted += '-$p4';
-
+    var text = newValue.text.replaceAll(RegExp(r'[^A-Za-z0-9]'), '');
+    final cap = maxLength;
+    if (cap != null && text.length > cap) {
+      text = text.substring(0, cap);
+    }
     return TextEditingValue(
-      text: formatted,
-      selection: TextSelection.collapsed(offset: formatted.length),
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
     );
   }
 }

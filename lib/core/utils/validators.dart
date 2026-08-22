@@ -22,15 +22,36 @@ String? validateCpf(String cpf) {
   return null;
 }
 
-String? validateRg(String rg) {
-  final trimmed = rg.trim();
-  if (trimmed.isEmpty) return 'RG obrigatório.';
-  final cleaned = trimmed.replaceAll(RegExp(r'[\s.\-/]'), '');
-  if (!RegExp(r'^[a-zA-Z0-9]+$').hasMatch(cleaned)) {
-    return 'RG deve conter apenas caracteres alfanuméricos.';
+/// Enforces alphanumeric-only content (no punctuation/spaces) within
+/// [minLength]..[maxLength] — o formato que o backend exige. Não checa vazio
+/// (minLength só reprova se maior que zero; "campo obrigatório" é tratado à
+/// parte por quem chama).
+String? validateAlphanumericFormat(
+  String value,
+  String fieldName,
+  int maxLength, {
+  int minLength = 1,
+}) {
+  final trimmed = value.trim();
+  if (!RegExp(r'^[a-zA-Z0-9]+$').hasMatch(trimmed)) {
+    return '$fieldName deve conter apenas letras e números, sem pontuação.';
   }
-  if (trimmed.length > 20) return 'RG deve ter no máximo 20 caracteres.';
+  if (trimmed.length < minLength) {
+    return '$fieldName deve ter no mínimo $minLength caracteres.';
+  }
+  if (trimmed.length > maxLength) {
+    return '$fieldName deve ter no máximo $maxLength caracteres.';
+  }
   return null;
+}
+
+/// RGs brasileiros válidos variam de 7 (estados/DF com numeração antiga e
+/// curta) a 12 caracteres (casos raros com 11 dígitos + verificador, ou
+/// legados com dígito verificador alfanumérico). Mesma faixa usada no backend,
+/// já limpo de pontuação: ^[0-9A-Za-z]{7,12}$
+String? validateRg(String rg) {
+  if (rg.trim().isEmpty) return 'RG obrigatório.';
+  return validateAlphanumericFormat(rg, 'RG', 12, minLength: 7);
 }
 
 String? validateFullName(String value) {
