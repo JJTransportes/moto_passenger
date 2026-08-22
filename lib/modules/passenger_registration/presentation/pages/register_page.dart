@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart' hide ReadContext;
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:moto_passenger/core/theme/app_theme.dart';
+import 'package:moto_passenger/core/utils/masks.dart';
+import 'package:moto_passenger/core/utils/validators.dart' as validators;
 import 'package:moto_passenger/modules/passenger_registration/domain/entities/department_entity.dart';
 import 'package:moto_passenger/modules/passenger_registration/domain/entities/public_partition_entity.dart';
 import 'package:moto_passenger/modules/passenger_registration/presentation/blocs/register_bloc.dart';
@@ -36,6 +38,7 @@ class _RegisterPageState extends State<RegisterPage> {
   String? _fullNameError;
   String? _cpfError;
   String? _rgError;
+  String? _registrationError;
   String? _emailError;
   String? _passwordError;
   String? _birthdateError;
@@ -111,62 +114,30 @@ class _RegisterPageState extends State<RegisterPage> {
   bool _validate() {
     bool valid = true;
     setState(() {
-      _fullNameError = null;
-      _cpfError = null;
-      _rgError = null;
-      _emailError = null;
-      _passwordError = null;
-      _birthdateError = null;
-      _partitionError = null;
+      _fullNameError = validators.validateFullName(_fullNameController.text) ??
+          validators.validateSafeText(_fullNameController.text, 'Nome completo');
+      _cpfError = validators.validateCpf(_cpfController.text);
+      _rgError = validators.validateRg(_rgController.text);
+      _registrationError = validators.validateRequired(
+              _registrationController.text, 'Matrícula') ??
+          validators.validateMaxLength(_registrationController.text, 30, 'Matrícula') ??
+          validators.validateSafeText(_registrationController.text, 'Matrícula');
+      _emailError = validators.validateEmail(_emailController.text);
+      _passwordError = validators.validatePassword(_passwordController.text);
+      _birthdateError =
+          _birthdate == null ? 'Data de nascimento obrigatória' : null;
+      _partitionError = _selectedPartitionId == null ? 'Selecione um órgão' : null;
 
-      if (_fullNameController.text.trim().isEmpty) {
-        _fullNameError = 'Nome obrigatório';
-        valid = false;
-      }
-      if (_cpfController.text.trim().isEmpty) {
-        _cpfError = 'CPF obrigatório';
-        valid = false;
-      } else if (!_isValidCpf(_cpfController.text.trim())) {
-        _cpfError = 'CPF inválido';
-        valid = false;
-      }
-      if (_rgController.text.trim().isEmpty) {
-        _rgError = 'RG obrigatório';
-        valid = false;
-      }
-      if (_emailController.text.trim().isEmpty) {
-        _emailError = 'E-mail obrigatório';
-        valid = false;
-      } else if (!_isValidEmail(_emailController.text.trim())) {
-        _emailError = 'E-mail inválido';
-        valid = false;
-      }
-      if (_passwordController.text.isEmpty) {
-        _passwordError = 'Senha obrigatória';
-        valid = false;
-      } else if (_passwordController.text.length < 6) {
-        _passwordError = 'Mínimo 6 caracteres';
-        valid = false;
-      }
-      if (_birthdate == null) {
-        _birthdateError = 'Data de nascimento obrigatória';
-        valid = false;
-      }
-      if (_selectedPartitionId == null) {
-        _partitionError = 'Selecione um órgão';
-        valid = false;
-      }
+      valid = _fullNameError == null &&
+          _cpfError == null &&
+          _rgError == null &&
+          _registrationError == null &&
+          _emailError == null &&
+          _passwordError == null &&
+          _birthdateError == null &&
+          _partitionError == null;
     });
     return valid;
-  }
-
-  bool _isValidEmail(String email) {
-    return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email);
-  }
-
-  bool _isValidCpf(String cpf) {
-    final cleaned = cpf.replaceAll(RegExp(r'[^\d]'), '');
-    return cleaned.length == 11;
   }
 
   void _submit() {
@@ -175,8 +146,8 @@ class _RegisterPageState extends State<RegisterPage> {
       RegisterSubmitted(
         fullName: _fullNameController.text.trim(),
         cpf: _cpfController.text.trim(),
-        rg: _rgController.text.trim(),
-        registration: _registrationController.text.trim().isEmpty ? null : _registrationController.text.trim(),
+        rg: _rgController.text.trim().replaceAll(RegExp(r'[^A-Za-z0-9]'), ''),
+        registration: _registrationController.text.trim(),
         birthdate: _birthdate!,
         email: _emailController.text.trim(),
         initialPassword: _passwordController.text,
@@ -291,43 +262,54 @@ class _RegisterPageState extends State<RegisterPage> {
         _buildPartitionDropdown(),
         if (_hasDepartments) _buildDepartmentDropdown(),
         AppTextField(
-          label: 'Nome completo',
+          label: 'Nome completo *',
           hint: 'Informe seu nome completo',
           controller: _fullNameController,
           errorText: _fullNameError,
+          maxLength: 100,
         ),
         AppTextField(
-          label: 'CPF',
+          label: 'CPF *',
           hint: '000.000.000-00',
           controller: _cpfController,
           keyboardType: TextInputType.number,
           errorText: _cpfError,
+          inputFormatters: [CpfInputFormatter()],
+          maxLength: 14,
         ),
         AppTextField(
-          label: 'RG',
-          hint: 'Informe seu RG',
+          label: 'RG *',
+          hint: '00.000.000-0',
           controller: _rgController,
+          keyboardType: TextInputType.number,
           errorText: _rgError,
+          inputFormatters: [RgInputFormatter()],
+          maxLength: 12,
         ),
         AppTextField(
-          label: 'Matrícula',
+          label: 'Matrícula *',
           hint: 'Informe sua matrícula',
           controller: _registrationController,
+          errorText: _registrationError,
+          maxLength: 30,
         ),
         _buildBirthdateField(),
         AppTextField(
-          label: 'E-mail',
+          label: 'E-mail *',
           hint: 'Informe seu e-mail',
           controller: _emailController,
           keyboardType: TextInputType.emailAddress,
           errorText: _emailError,
+          maxLength: 100,
         ),
         AppTextField(
-          label: 'Senha',
-          hint: 'Mínimo 6 caracteres',
+          label: 'Senha *',
+          hint: 'Mínimo 8 caracteres',
           controller: _passwordController,
           obscureText: true,
+          enableVisibilityToggle: true,
           errorText: _passwordError,
+          maxLength: 72,
         ),
       ],
     );

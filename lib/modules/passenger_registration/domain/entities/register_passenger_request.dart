@@ -3,7 +3,7 @@ class RegisterPassengerRequest {
   final String fullName;
   final String cpf;
   final String rg;
-  final String? registration;
+  final String registration;
   final DateTime birthdate;
   final String email;
   final String initialPassword;
@@ -15,7 +15,7 @@ class RegisterPassengerRequest {
     required this.fullName,
     required this.cpf,
     required this.rg,
-    this.registration,
+    required this.registration,
     required this.birthdate,
     required this.email,
     required this.initialPassword,
@@ -29,8 +29,7 @@ class RegisterPassengerRequest {
       'fullName': fullName,
       'cpf': cpf,
       'rg': rg,
-      if (registration != null && registration!.isNotEmpty)
-        'registration': registration,
+      'registration': registration,
       'birthdate':
           '${birthdate.year}-${birthdate.month.toString().padLeft(2, '0')}-${birthdate.day.toString().padLeft(2, '0')}',
       'email': email.trim().toLowerCase(),
