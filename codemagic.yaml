@@ -1,6 +1,6 @@
 workflows:
   android_pre_release:
-    name: Moto Passenger Android Pre Release
+    name: Moto Passenger Android Release
     max_build_duration: 30
     instance_type: mac_mini_m2
 
@@ -16,7 +16,7 @@ workflows:
     environment:
       flutter: 3.32.2
       groups:
-      - pre_release
+      - release
       android_signing:
       - moto_passenger_keystore
 
@@ -51,5 +51,5 @@ workflows:
 
       google_play:
         credentials: $GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS
-        track: "Pre Release"
+        track: "Production"
         submit_as_draft: false
