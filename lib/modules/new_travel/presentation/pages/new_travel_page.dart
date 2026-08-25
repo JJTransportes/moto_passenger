@@ -1,7 +1,12 @@
+import 'dart:developer';
+import 'dart:io';
+
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart' hide ReadContext;
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:moto_passenger/core/auth/auth_storage.dart';
 import 'package:moto_passenger/core/location/location_service.dart';
 import 'package:moto_passenger/core/theme/app_theme.dart';
 import 'package:moto_passenger/modules/new_travel/domain/entities/travel_route_entity.dart';
@@ -19,6 +24,7 @@ class NewTravelPage extends StatefulWidget {
 class _NewTravelPageState extends State<NewTravelPage> {
   final _destinationController = TextEditingController();
   GoogleMapController? _mapController;
+  bool _hasPriorityAccess = false;
 
   LatLng? _currentLocation;
   Set<Marker> _markers = {};
@@ -115,6 +121,25 @@ class _NewTravelPageState extends State<NewTravelPage> {
     super.initState();
     // Check for pending orders first, then proceed to normal flow
     BlocProvider.of<NewTravelBloc>(context).add(const CheckPendingOrder());
+
+    Future.microtask(() async {
+      await _verifyPriorityAccess();
+    });
+  }
+
+  Future<void> _verifyPriorityAccess() async {
+    try {
+      final dio = Modular.get<Dio>();
+      final authStorage = Modular.get<AuthStorage>();
+      final userId = await authStorage.getUserId();
+
+      final response = await dio.get('/api/passengers/$userId/priority');
+
+      _hasPriorityAccess = response.statusCode == HttpStatus.ok;
+    } on DioException catch (e) {
+      log(e.message ?? "");
+      return;
+    }
   }
 
   Widget _buildMap(NewTravelState state) {
