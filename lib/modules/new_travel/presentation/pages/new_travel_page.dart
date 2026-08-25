@@ -1,3 +1,5 @@
+// ignore_for_file: must_be_immutable
+
 import 'dart:developer';
 import 'dart:io';
 
@@ -24,7 +26,9 @@ class NewTravelPage extends StatefulWidget {
 class _NewTravelPageState extends State<NewTravelPage> {
   final _destinationController = TextEditingController();
   GoogleMapController? _mapController;
-  bool _hasPriorityAccess = false;
+  final ValueNotifier<bool> _hasPriorityAccess = ValueNotifier(false);
+
+  OrderType _orderType = OrderType.normal;
 
   LatLng? _currentLocation;
   Set<Marker> _markers = {};
@@ -135,7 +139,7 @@ class _NewTravelPageState extends State<NewTravelPage> {
 
       final response = await dio.get('/api/passengers/$userId/priority');
 
-      _hasPriorityAccess = response.statusCode == HttpStatus.ok;
+      _hasPriorityAccess.value = response.statusCode == HttpStatus.ok;
     } on DioException catch (e) {
       log(e.message ?? "");
       return;
@@ -293,12 +297,19 @@ class _NewTravelPageState extends State<NewTravelPage> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (_) => BlocProvider.value(
-        value: BlocProvider.of<NewTravelBloc>(context),
-        child: _RouteBottomSheetContent(
-          route: route,
-          distKm: distKm,
-        ),
+      builder: (_) => AnimatedBuilder(
+        animation: _hasPriorityAccess,
+        builder: (_, __) {
+          return BlocProvider.value(
+            value: BlocProvider.of<NewTravelBloc>(context),
+            child: _RouteBottomSheetContent(
+              route: route,
+              distKm: distKm,
+              hasPriorityAccess: _hasPriorityAccess.value,
+              orderType: _orderType,
+            ),
+          );
+        },
       ),
     );
   }
@@ -449,15 +460,24 @@ String _formatTravelTime(int totalMinutes) {
   return '${hours}h ${minutes}min';
 }
 
-class _RouteBottomSheetContent extends StatelessWidget {
+class _RouteBottomSheetContent extends StatefulWidget {
   final TravelRouteEntity route;
   final String distKm;
+  bool hasPriorityAccess;
+  OrderType orderType;
 
-  const _RouteBottomSheetContent({
+  _RouteBottomSheetContent({
     required this.route,
     required this.distKm,
+    required this.hasPriorityAccess,
+    required this.orderType,
   });
 
+  @override
+  State<_RouteBottomSheetContent> createState() => _RouteBottomSheetContentState();
+}
+
+class _RouteBottomSheetContentState extends State<_RouteBottomSheetContent> {
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<NewTravelBloc, NewTravelState>(
@@ -483,7 +503,7 @@ class _RouteBottomSheetContent extends StatelessWidget {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        route.destinationAddress,
+                        widget.route.destinationAddress,
                         style: const TextStyle(color: Color(0xFF4E4E4E)),
                       ),
                     ),
@@ -495,7 +515,7 @@ class _RouteBottomSheetContent extends StatelessWidget {
                     const Icon(Icons.straighten, color: Color(0xFF4685C0), size: 20),
                     const SizedBox(width: 8),
                     Text(
-                      '$distKm km',
+                      '${widget.distKm} km',
                       style: const TextStyle(color: Color(0xFF4E4E4E)),
                     ),
                   ],
@@ -506,10 +526,30 @@ class _RouteBottomSheetContent extends StatelessWidget {
                     const Icon(Icons.timer_outlined, color: Color(0xFF4685C0), size: 20),
                     const SizedBox(width: 8),
                     Text(
-                      _formatTravelTime(route.timeMinutes),
+                      _formatTravelTime(widget.route.timeMinutes),
                       style: const TextStyle(color: Color(0xFF4E4E4E)),
                     ),
                   ],
+                ),
+                Visibility(
+                  visible: widget.hasPriorityAccess,
+                  child: Row(
+                    spacing: 16,
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    children: [
+                      Switch(
+                        value: widget.orderType == OrderType.priority,
+                        onChanged: (value) {
+                          widget.orderType = widget.orderType == OrderType.normal ? OrderType.priority : OrderType.normal;
+                          setState(() {});
+                        },
+                      ),
+                      Text(
+                        'Pedido com prioridade',
+                        style: const TextStyle(color: Color(0xFF4E4E4E)),
+                      ),
+                    ],
+                  ),
                 ),
                 if (isCreating) ...[
                   const Center(
@@ -580,10 +620,11 @@ class _RouteBottomSheetContent extends StatelessWidget {
                               ? null
                               : () => BlocProvider.of<NewTravelBloc>(context).add(
                                   ConfirmTravel(
-                                    originLat: route.originLat,
-                                    originLng: route.originLng,
-                                    destinationLat: route.destinationLat,
-                                    destinationLng: route.destinationLng,
+                                    originLat: widget.route.originLat,
+                                    originLng: widget.route.originLng,
+                                    destinationLat: widget.route.destinationLat,
+                                    destinationLng: widget.route.destinationLng,
+                                    orderType: widget.orderType,
                                   ),
                                 ),
                           child: isCreating
@@ -612,3 +653,5 @@ class _RouteBottomSheetContent extends StatelessWidget {
     );
   }
 }
+
+enum OrderType { normal, priority }
