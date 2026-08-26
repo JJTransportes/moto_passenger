@@ -43,6 +43,7 @@ class TravelTrackingRepository implements ITravelTrackingRepository {
     // Try sequenceIndex==1 first, fallback to routes[0] for backward compatibility.
     final routes = data['routes'] as List?;
     double? destLat, destLng;
+    String? routePolyline;
     if (routes != null && routes.isNotEmpty) {
       final destRoute = routes.cast<Map<String, dynamic>>().firstWhere(
         (r) => r['sequenceIndex'] == 1,
@@ -50,6 +51,7 @@ class TravelTrackingRepository implements ITravelTrackingRepository {
       );
       destLat = (destRoute['destinationLatitude'] as num?)?.toDouble();
       destLng = (destRoute['destinationLongitude'] as num?)?.toDouble();
+      routePolyline = destRoute['encodedPolyline'] as String?;
     }
 
     return TravelTrackingEntity(
@@ -62,8 +64,10 @@ class TravelTrackingRepository implements ITravelTrackingRepository {
       finishedAt: DateTime.tryParse(data['finishedAt']?.toString() ?? ''),
       cancelledAt: DateTime.tryParse(data['cancelledAt']?.toString() ?? ''),
       cancellationReason: data['cancellationReason'] as String?,
+      driverId: data['driverId'] as String?,
       destinationLatitude: destLat,
       destinationLongitude: destLng,
+      routePolyline: routePolyline,
     );
   }
 
@@ -74,13 +78,16 @@ class TravelTrackingRepository implements ITravelTrackingRepository {
 
   @override
   Future<DriverInfoEntity> getDriverProfile(String driverId) async {
+    // Backend response (DriverProfileResponse) uses "id"/"name", not
+    // "driverId"/"fullName" — a previous mismatch here meant this always fell
+    // back to a generic name and could throw when "driverId" was missing.
     final data = await _datasource.getDriverProfile(driverId);
     return DriverInfoEntity(
-      driverId: data['driverId'] as String,
-      fullName: data['fullName'] as String? ?? 'Motorista',
+      driverId: data['id'] as String? ?? driverId,
+      fullName: data['name'] as String? ?? 'Motorista',
+      photoUrl: data['photoUrl'] as String?,
       vehicleModel: data['vehicle']?['model'] as String?,
       vehiclePlate: data['vehicle']?['plate'] as String?,
-      vehicleColor: data['vehicle']?['color'] as String?,
     );
   }
 }

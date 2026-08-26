@@ -7,6 +7,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:moto_passenger/core/auth/auth_storage.dart';
 import 'package:moto_passenger/core/config/app_config.dart';
 import 'package:moto_passenger/core/local_db/repositories/travel_local_repository.dart';
+import 'package:moto_passenger/core/maps/polyline_decoder.dart';
 import 'package:moto_passenger/core/network/signalr_service.dart';
 import 'package:moto_passenger/modules/new_travel/domain/entities/travel_tracking_entity.dart';
 import 'package:moto_passenger/modules/new_travel/presentation/blocs/travel_tracking_bloc.dart';
@@ -40,6 +41,7 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
   bool _isUserInteracting = false;
   double? _lastDriverLat;
   double? _lastDriverLng;
+  String? _authToken;
 
   @override
   Widget build(BuildContext context) {
@@ -90,6 +92,7 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
                 destinationLongitude: final destLng,
                 distanceToDestinationMeters: final dist,
                 remainingTimeMinutes: final time,
+                routePolyline: final polyline,
               ) =>
                 _buildAcceptedState(
                   driver,
@@ -99,22 +102,27 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
                   destLng: destLng,
                   distanceToDestinationMeters: dist,
                   remainingTimeMinutes: time,
+                  routePolyline: polyline,
                 ),
               TravelTrackingInProgress(
+                driver: final driver,
                 driverLatitude: final lat,
                 driverLongitude: final lng,
                 destinationLatitude: final destLat,
                 destinationLongitude: final destLng,
                 distanceToDestinationMeters: final dist,
                 remainingTimeMinutes: final time,
+                routePolyline: final polyline,
               ) =>
                 _buildInProgressState(
+                  driver,
                   driverLat: lat,
                   driverLng: lng,
                   destLat: destLat,
                   destLng: destLng,
                   distanceToDestinationMeters: dist,
                   remainingTimeMinutes: time,
+                  routePolyline: polyline,
                 ),
               TravelTrackingCompleted() => _buildCompletedState(),
               TravelTrackingCancelled(reason: final reason) => _buildCancelledState(reason),
@@ -155,6 +163,7 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
     double? driverLng,
     double? destLat,
     double? destLng,
+    String? routePolyline,
   }) {
     final centerLat = driverLat ?? destLat ?? -23.5505;
     final centerLng = driverLng ?? destLng ?? -46.6333;
@@ -181,6 +190,18 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
       );
     }
 
+    final polylines = <Polyline>{};
+    if (routePolyline != null && routePolyline.isNotEmpty) {
+      polylines.add(
+        Polyline(
+          polylineId: const PolylineId('route'),
+          points: decodePolyline(routePolyline),
+          color: const Color(0xFF4685C0),
+          width: 4,
+        ),
+      );
+    }
+
     return Stack(
       children: [
         GoogleMap(
@@ -192,7 +213,7 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
             zoom: 14,
           ),
           markers: markers,
-          polylines: const {},
+          polylines: polylines,
           zoomControlsEnabled: false,
           myLocationEnabled: false,
         ),
@@ -214,6 +235,7 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
     double? destLng,
     int? distanceToDestinationMeters,
     int? remainingTimeMinutes,
+    String? routePolyline,
   }) {
     final infoCard = Card(
       elevation: 4,
@@ -232,27 +254,26 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
               ],
             ),
             if (driver != null) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               Row(
                 children: [
-                  const Icon(Icons.person, color: Color(0xFF4685C0)),
-                  const SizedBox(width: 8),
-                  Text(driver.fullName, style: const TextStyle(fontSize: 14)),
+                  _buildDriverAvatar(driver),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(driver.fullName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                        if (driver.vehicleModel != null)
+                          Text(
+                            '${driver.vehicleModel}${driver.vehiclePlate != null ? " - ${driver.vehiclePlate}" : ""}',
+                            style: const TextStyle(fontSize: 13, color: Color(0xFF4E4E4E)),
+                          ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
-              if (driver.vehicleModel != null) ...[
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    const Icon(Icons.directions_car, color: Color(0xFF4685C0)),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${driver.vehicleModel}${driver.vehiclePlate != null ? " - ${driver.vehiclePlate}" : ""}',
-                      style: const TextStyle(fontSize: 14, color: Color(0xFF4E4E4E)),
-                    ),
-                  ],
-                ),
-              ],
             ],
             if (distanceToDestinationMeters != null || remainingTimeMinutes != null) ...[
               const SizedBox(height: 8),
@@ -289,6 +310,7 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
       driverLng: driverLng,
       destLat: destLat,
       destLng: destLng,
+      routePolyline: routePolyline,
     );
   }
 
@@ -350,13 +372,15 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
     );
   }
 
-  Widget _buildInProgressState({
+  Widget _buildInProgressState(
+    DriverInfoEntity? driver, {
     double? driverLat,
     double? driverLng,
     double? destLat,
     double? destLng,
     int? distanceToDestinationMeters,
     int? remainingTimeMinutes,
+    String? routePolyline,
   }) {
     final infoCard = Card(
       elevation: 4,
@@ -376,6 +400,28 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
             ),
             const SizedBox(height: 8),
             const Text('Seu motorista está a caminho do destino.', style: TextStyle(color: Color(0xFF4E4E4E))),
+            if (driver != null) ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  _buildDriverAvatar(driver),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(driver.fullName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                        if (driver.vehicleModel != null)
+                          Text(
+                            '${driver.vehicleModel}${driver.vehiclePlate != null ? " - ${driver.vehiclePlate}" : ""}',
+                            style: const TextStyle(fontSize: 13, color: Color(0xFF4E4E4E)),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
             if (distanceToDestinationMeters != null || remainingTimeMinutes != null) ...[
               const SizedBox(height: 8),
               Row(
@@ -405,6 +451,7 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
       driverLng: driverLng,
       destLat: destLat,
       destLng: destLng,
+      routePolyline: routePolyline,
     );
   }
 
@@ -440,8 +487,35 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
     context.read<TravelTrackingBloc>().add(CancelTravel(widget.travelId));
   }
 
+  String _resolveImageUrl(String url) {
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    return '${AppConfig.getBaseUrl()}$url';
+  }
+
+  Map<String, String>? get _authHeaders {
+    final token = _authToken;
+    if (token == null) return null;
+    return {'Authorization': 'Bearer $token'};
+  }
+
+  Widget _buildDriverAvatar(DriverInfoEntity driver) {
+    final photoUrl = driver.photoUrl;
+    return CircleAvatar(
+      radius: 20,
+      backgroundColor: const Color(0xFF4685C0).withAlpha(30),
+      backgroundImage: photoUrl != null && photoUrl.isNotEmpty
+          ? NetworkImage(_resolveImageUrl(photoUrl), headers: _authHeaders)
+          : null,
+      child: photoUrl == null || photoUrl.isEmpty
+          ? const Icon(Icons.person, color: Color(0xFF4685C0))
+          : null,
+    );
+  }
+
   Future<void> _connectAndLoad() async {
     final token = await AuthStorage().getToken();
+    _authToken = token;
+    if (mounted) setState(() {});
     if (token == null) {
       if (mounted) {
         context.read<TravelTrackingBloc>().add(LoadTravel(widget.travelId));

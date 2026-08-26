@@ -9,9 +9,11 @@ class TravelTrackingEntity {
   final DateTime? finishedAt;
   final DateTime? cancelledAt;
   final String? cancellationReason;
+  final String? driverId;
   final DriverInfoEntity? driver;
   final double? destinationLatitude;
   final double? destinationLongitude;
+  final String? routePolyline;
 
   const TravelTrackingEntity({
     required this.travelId,
@@ -22,24 +24,26 @@ class TravelTrackingEntity {
     this.finishedAt,
     this.cancelledAt,
     this.cancellationReason,
+    this.driverId,
     this.driver,
     this.destinationLatitude,
     this.destinationLongitude,
+    this.routePolyline,
   });
 }
 
 class DriverInfoEntity {
   final String driverId;
   final String fullName;
+  final String? photoUrl;
   final String? vehicleModel;
   final String? vehiclePlate;
-  final String? vehicleColor;
 
   const DriverInfoEntity({
     required this.driverId,
     required this.fullName,
+    this.photoUrl,
     this.vehicleModel,
     this.vehiclePlate,
-    this.vehicleColor,
   });
 }

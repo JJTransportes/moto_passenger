@@ -31,6 +31,7 @@ class TravelTrackingAccepted extends TravelTrackingState {
   final double? destinationLongitude;
   final int? distanceToDestinationMeters;
   final int? remainingTimeMinutes;
+  final String? routePolyline;
 
   const TravelTrackingAccepted({
     required this.travelId,
@@ -41,26 +42,31 @@ class TravelTrackingAccepted extends TravelTrackingState {
     this.destinationLongitude,
     this.distanceToDestinationMeters,
     this.remainingTimeMinutes,
+    this.routePolyline,
   });
 }
 
 class TravelTrackingInProgress extends TravelTrackingState {
   final String travelId;
+  final DriverInfoEntity? driver;
   final double? driverLatitude;
   final double? driverLongitude;
   final double? destinationLatitude;
   final double? destinationLongitude;
   final int? distanceToDestinationMeters;
   final int? remainingTimeMinutes;
+  final String? routePolyline;
 
   const TravelTrackingInProgress({
     required this.travelId,
+    this.driver,
     this.driverLatitude,
     this.driverLongitude,
     this.destinationLatitude,
     this.destinationLongitude,
     this.distanceToDestinationMeters,
     this.remainingTimeMinutes,
+    this.routePolyline,
   });
 }
 
