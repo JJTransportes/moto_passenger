@@ -36,14 +36,18 @@ class DriverInfoEntity {
   final String driverId;
   final String fullName;
   final String? photoUrl;
+  final String? vehicleBrand;
   final String? vehicleModel;
   final String? vehiclePlate;
+  final int? travelCount;
 
   const DriverInfoEntity({
     required this.driverId,
     required this.fullName,
     this.photoUrl,
+    this.vehicleBrand,
     this.vehicleModel,
     this.vehiclePlate,
+    this.travelCount,
   });
 }

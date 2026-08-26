@@ -86,8 +86,10 @@ class TravelTrackingRepository implements ITravelTrackingRepository {
       driverId: data['id'] as String? ?? driverId,
       fullName: data['name'] as String? ?? 'Motorista',
       photoUrl: data['photoUrl'] as String?,
+      vehicleBrand: data['vehicle']?['brand'] as String?,
       vehicleModel: data['vehicle']?['model'] as String?,
       vehiclePlate: data['vehicle']?['plate'] as String?,
+      travelCount: data['travelCount'] as int?,
     );
   }
 }

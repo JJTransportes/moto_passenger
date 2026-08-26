@@ -93,6 +93,7 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
                 distanceToDestinationMeters: final dist,
                 remainingTimeMinutes: final time,
                 routePolyline: final polyline,
+                requestedAt: final requestedAt,
               ) =>
                 _buildAcceptedState(
                   driver,
@@ -103,6 +104,7 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
                   distanceToDestinationMeters: dist,
                   remainingTimeMinutes: time,
                   routePolyline: polyline,
+                  requestedAt: requestedAt,
                 ),
               TravelTrackingInProgress(
                 driver: final driver,
@@ -113,6 +115,7 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
                 distanceToDestinationMeters: final dist,
                 remainingTimeMinutes: final time,
                 routePolyline: final polyline,
+                requestedAt: final requestedAt,
               ) =>
                 _buildInProgressState(
                   driver,
@@ -123,6 +126,7 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
                   distanceToDestinationMeters: dist,
                   remainingTimeMinutes: time,
                   routePolyline: polyline,
+                  requestedAt: requestedAt,
                 ),
               TravelTrackingCompleted() => _buildCompletedState(),
               TravelTrackingCancelled(reason: final reason) => _buildCancelledState(reason),
@@ -218,13 +222,156 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
           myLocationEnabled: false,
         ),
         Positioned(
-          left: 16,
-          right: 16,
-          bottom: 24,
+          left: 0,
+          right: 0,
+          bottom: 0,
           child: infoOverlay,
         ),
       ],
     );
+  }
+
+  /// Bottom-sheet-styled panel (edge-to-edge, rounded top corners, drag
+  /// handle) matching the "Resumo da Viagem" sheet shown when picking a
+  /// destination — used for both Accepted and InProgress so the driver's
+  /// info reads the same visual language throughout the trip.
+  Widget _buildInfoSheet({
+    required String title,
+    required IconData titleIcon,
+    required Color titleColor,
+    String? subtitle,
+    DriverInfoEntity? driver,
+    DateTime? requestedAt,
+    int? distanceToDestinationMeters,
+    int? remainingTimeMinutes,
+    bool showCancelButton = false,
+  }) {
+    return Container(
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 12, offset: Offset(0, -2))],
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          Row(
+            children: [
+              Icon(titleIcon, color: titleColor),
+              const SizedBox(width: 8),
+              Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          if (subtitle != null) ...[
+            const SizedBox(height: 6),
+            Text(subtitle, style: const TextStyle(color: Color(0xFF4E4E4E))),
+          ],
+          if (driver != null) ...[
+            const Divider(height: 24),
+            Row(
+              children: [
+                _buildDriverAvatar(driver),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(driver.fullName, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                      if (driver.travelCount != null)
+                        Text(
+                          '${driver.travelCount} viagem${driver.travelCount == 1 ? '' : 's'} realizada${driver.travelCount == 1 ? '' : 's'}',
+                          style: const TextStyle(fontSize: 12, color: Color(0xFF4E4E4E)),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (driver.vehicleModel != null) ...[
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  const Icon(Icons.directions_car, color: Color(0xFF4685C0), size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      [
+                        if (driver.vehicleBrand != null) driver.vehicleBrand,
+                        driver.vehicleModel,
+                      ].join(' ') + (driver.vehiclePlate != null ? ' · ${driver.vehiclePlate}' : ''),
+                      style: const TextStyle(fontSize: 14, color: Color(0xFF4E4E4E)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+          if (requestedAt != null) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                const Icon(Icons.event_note, color: Color(0xFF4685C0), size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  'Solicitada às ${_formatTime(requestedAt)}',
+                  style: const TextStyle(fontSize: 14, color: Color(0xFF4E4E4E)),
+                ),
+              ],
+            ),
+          ],
+          if (distanceToDestinationMeters != null || remainingTimeMinutes != null) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                if (distanceToDestinationMeters != null) ...[
+                  const Icon(Icons.route, color: Color(0xFF4685C0), size: 20),
+                  const SizedBox(width: 8),
+                  Text('${(distanceToDestinationMeters / 1000).toStringAsFixed(1)} km', style: const TextStyle(fontSize: 14)),
+                  const SizedBox(width: 16),
+                ],
+                if (remainingTimeMinutes != null) ...[
+                  const Icon(Icons.timer_outlined, color: Color(0xFF4685C0), size: 20),
+                  const SizedBox(width: 8),
+                  Text('Chegada estimada em $remainingTimeMinutes min', style: const TextStyle(fontSize: 14)),
+                ],
+              ],
+            ),
+          ],
+          if (showCancelButton) ...[
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.red)),
+                onPressed: _cancelTravel,
+                child: const Text('Cancelar Viagem', style: TextStyle(color: Colors.red)),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _formatTime(DateTime dateTime) {
+    final local = dateTime.toLocal();
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
   }
 
   Widget _buildAcceptedState(
@@ -236,76 +383,21 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
     int? distanceToDestinationMeters,
     int? remainingTimeMinutes,
     String? routePolyline,
+    DateTime? requestedAt,
   }) {
-    final infoCard = Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Row(
-              children: [
-                Icon(Icons.check_circle, color: Colors.green),
-                SizedBox(width: 8),
-                Text('Motorista a caminho!', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              ],
-            ),
-            if (driver != null) ...[
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  _buildDriverAvatar(driver),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(driver.fullName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                        if (driver.vehicleModel != null)
-                          Text(
-                            '${driver.vehicleModel}${driver.vehiclePlate != null ? " - ${driver.vehiclePlate}" : ""}',
-                            style: const TextStyle(fontSize: 13, color: Color(0xFF4E4E4E)),
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ],
-            if (distanceToDestinationMeters != null || remainingTimeMinutes != null) ...[
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  if (distanceToDestinationMeters != null) ...[
-                    const Icon(Icons.route, color: Color(0xFF4685C0), size: 18),
-                    const SizedBox(width: 4),
-                    Text('${(distanceToDestinationMeters / 1000).toStringAsFixed(1)} km'),
-                    const SizedBox(width: 12),
-                  ],
-                  if (remainingTimeMinutes != null) ...[
-                    const Icon(Icons.timer_outlined, color: Color(0xFF4685C0), size: 18),
-                    const SizedBox(width: 4),
-                    Text('$remainingTimeMinutes min'),
-                  ],
-                ],
-              ),
-            ],
-            const SizedBox(height: 12),
-            OutlinedButton(
-              style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.red)),
-              onPressed: _cancelTravel,
-              child: const Text('Cancelar Viagem', style: TextStyle(color: Colors.red)),
-            ),
-          ],
-        ),
-      ),
+    final infoSheet = _buildInfoSheet(
+      title: 'Motorista a caminho!',
+      titleIcon: Icons.check_circle,
+      titleColor: Colors.green,
+      driver: driver,
+      requestedAt: requestedAt,
+      distanceToDestinationMeters: distanceToDestinationMeters,
+      remainingTimeMinutes: remainingTimeMinutes,
+      showCancelButton: true,
     );
 
     return _buildWithMap(
-      infoOverlay: infoCard,
+      infoOverlay: infoSheet,
       driverLat: driverLat,
       driverLng: driverLng,
       destLat: destLat,
@@ -381,72 +473,21 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
     int? distanceToDestinationMeters,
     int? remainingTimeMinutes,
     String? routePolyline,
+    DateTime? requestedAt,
   }) {
-    final infoCard = Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Row(
-              children: [
-                Icon(Icons.directions_car, color: Color(0xFF4685C0)),
-                SizedBox(width: 8),
-                Text('Viagem em andamento', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              ],
-            ),
-            const SizedBox(height: 8),
-            const Text('Seu motorista está a caminho do destino.', style: TextStyle(color: Color(0xFF4E4E4E))),
-            if (driver != null) ...[
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  _buildDriverAvatar(driver),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(driver.fullName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                        if (driver.vehicleModel != null)
-                          Text(
-                            '${driver.vehicleModel}${driver.vehiclePlate != null ? " - ${driver.vehiclePlate}" : ""}',
-                            style: const TextStyle(fontSize: 13, color: Color(0xFF4E4E4E)),
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ],
-            if (distanceToDestinationMeters != null || remainingTimeMinutes != null) ...[
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  if (distanceToDestinationMeters != null) ...[
-                    const Icon(Icons.route, color: Color(0xFF4685C0), size: 18),
-                    const SizedBox(width: 4),
-                    Text('${(distanceToDestinationMeters / 1000).toStringAsFixed(1)} km'),
-                    const SizedBox(width: 12),
-                  ],
-                  if (remainingTimeMinutes != null) ...[
-                    const Icon(Icons.timer_outlined, color: Color(0xFF4685C0), size: 18),
-                    const SizedBox(width: 4),
-                    Text('$remainingTimeMinutes min'),
-                  ],
-                ],
-              ),
-            ],
-          ],
-        ),
-      ),
+    final infoSheet = _buildInfoSheet(
+      title: 'Viagem em andamento',
+      titleIcon: Icons.directions_car,
+      titleColor: const Color(0xFF4685C0),
+      subtitle: 'Seu motorista está a caminho do destino.',
+      driver: driver,
+      requestedAt: requestedAt,
+      distanceToDestinationMeters: distanceToDestinationMeters,
+      remainingTimeMinutes: remainingTimeMinutes,
     );
 
     return _buildWithMap(
-      infoOverlay: infoCard,
+      infoOverlay: infoSheet,
       driverLat: driverLat,
       driverLng: driverLng,
       destLat: destLat,

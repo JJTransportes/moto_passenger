@@ -36,11 +36,12 @@ class TravelTrackingBloc extends Bloc<TravelTrackingEvent, TravelTrackingState> 
 
   // ─── Driver profile resolution ──────────────────────────────────────────
 
-  /// Fetches the driver's full profile (name, photo, vehicle) the first time
-  /// a driverId shows up, and reuses it afterwards — GET /api/travels/{id}
-  /// (used by both the initial load and polling) only returns driverId/name,
-  /// not photo/vehicle, so those need a separate GET /api/drivers/{id} call,
-  /// same one the SignalR "order accepted" path already made.
+  /// Fetches the driver's full profile (name, photo, vehicle, trip count) the
+  /// first time a driverId shows up, and reuses it afterwards — GET
+  /// /api/travels/{id} (used by both the initial load and polling) only
+  /// returns driverId/name, not photo/vehicle/travelCount, so those need a
+  /// separate GET /api/drivers/{id} call, same one the SignalR "order
+  /// accepted" path already made.
   Future<DriverInfoEntity?> _resolveDriver(String? driverId, DriverInfoEntity? existing) async {
     if (driverId == null) return existing;
     if (existing != null && existing.driverId == driverId) return existing;
@@ -126,6 +127,7 @@ class TravelTrackingBloc extends Bloc<TravelTrackingEvent, TravelTrackingState> 
             destinationLatitude: travel.destinationLatitude,
             destinationLongitude: travel.destinationLongitude,
             routePolyline: travel.routePolyline,
+            requestedAt: travel.createdAt,
           ));
         }
       case TravelStatus.completed:
@@ -143,6 +145,7 @@ class TravelTrackingBloc extends Bloc<TravelTrackingEvent, TravelTrackingState> 
       destinationLatitude: travel.destinationLatitude,
       destinationLongitude: travel.destinationLongitude,
       routePolyline: travel.routePolyline,
+      requestedAt: travel.createdAt,
     ));
   }
 
@@ -175,6 +178,7 @@ class TravelTrackingBloc extends Bloc<TravelTrackingEvent, TravelTrackingState> 
             destinationLatitude: travel.destinationLatitude,
             destinationLongitude: travel.destinationLongitude,
             routePolyline: travel.routePolyline,
+            requestedAt: travel.createdAt,
           ));
         case TravelStatus.inProgress:
           final driver = await _resolveDriver(travel.driverId, travel.driver);
@@ -184,6 +188,7 @@ class TravelTrackingBloc extends Bloc<TravelTrackingEvent, TravelTrackingState> 
             destinationLatitude: travel.destinationLatitude,
             destinationLongitude: travel.destinationLongitude,
             routePolyline: travel.routePolyline,
+            requestedAt: travel.createdAt,
           ));
         case TravelStatus.completed:
           emit(TravelTrackingCompleted(travelId: travel.travelId));
@@ -209,6 +214,7 @@ class TravelTrackingBloc extends Bloc<TravelTrackingEvent, TravelTrackingState> 
     final destLng = currentState is TravelTrackingPending ? null
         : (currentState is TravelTrackingAccepted ? currentState.destinationLongitude : null);
     final routePolyline = currentState is TravelTrackingAccepted ? currentState.routePolyline : null;
+    final requestedAt = currentState is TravelTrackingAccepted ? currentState.requestedAt : null;
 
     try {
       final driverId = event.data['driverId'] as String?;
@@ -220,6 +226,7 @@ class TravelTrackingBloc extends Bloc<TravelTrackingEvent, TravelTrackingState> 
           destinationLatitude: destLat,
           destinationLongitude: destLng,
           routePolyline: routePolyline,
+          requestedAt: requestedAt,
         ));
       }
     } catch (e) {
@@ -229,6 +236,7 @@ class TravelTrackingBloc extends Bloc<TravelTrackingEvent, TravelTrackingState> 
         destinationLatitude: destLat,
         destinationLongitude: destLng,
         routePolyline: routePolyline,
+        requestedAt: requestedAt,
       ));
     }
   }
@@ -256,24 +264,24 @@ class TravelTrackingBloc extends Bloc<TravelTrackingEvent, TravelTrackingState> 
       case TravelTrackingAccepted(:final travelId, :final driver,
             :final destinationLatitude, :final destinationLongitude,
             :final distanceToDestinationMeters, :final remainingTimeMinutes,
-            :final routePolyline):
+            :final routePolyline, :final requestedAt):
         emit(TravelTrackingAccepted(
           travelId: travelId, driver: driver,
           driverLatitude: lat, driverLongitude: lng,
           destinationLatitude: destinationLatitude, destinationLongitude: destinationLongitude,
           distanceToDestinationMeters: distanceToDestinationMeters, remainingTimeMinutes: remainingTimeMinutes,
-          routePolyline: routePolyline,
+          routePolyline: routePolyline, requestedAt: requestedAt,
         ));
       case TravelTrackingInProgress(:final travelId, :final driver,
             :final destinationLatitude, :final destinationLongitude,
             :final distanceToDestinationMeters, :final remainingTimeMinutes,
-            :final routePolyline):
+            :final routePolyline, :final requestedAt):
         emit(TravelTrackingInProgress(
           travelId: travelId, driver: driver,
           driverLatitude: lat, driverLongitude: lng,
           destinationLatitude: destinationLatitude, destinationLongitude: destinationLongitude,
           distanceToDestinationMeters: distanceToDestinationMeters, remainingTimeMinutes: remainingTimeMinutes,
-          routePolyline: routePolyline,
+          routePolyline: routePolyline, requestedAt: requestedAt,
         ));
       default:
         break;
@@ -292,24 +300,24 @@ class TravelTrackingBloc extends Bloc<TravelTrackingEvent, TravelTrackingState> 
       case TravelTrackingAccepted(:final travelId, :final driver,
             :final driverLatitude, :final driverLongitude,
             :final destinationLatitude, :final destinationLongitude,
-            :final routePolyline):
+            :final routePolyline, :final requestedAt):
         emit(TravelTrackingAccepted(
           travelId: travelId, driver: driver,
           driverLatitude: driverLatitude, driverLongitude: driverLongitude,
           destinationLatitude: destinationLatitude, destinationLongitude: destinationLongitude,
           distanceToDestinationMeters: dist, remainingTimeMinutes: time,
-          routePolyline: routePolyline,
+          routePolyline: routePolyline, requestedAt: requestedAt,
         ));
       case TravelTrackingInProgress(:final travelId, :final driver,
             :final driverLatitude, :final driverLongitude,
             :final destinationLatitude, :final destinationLongitude,
-            :final routePolyline):
+            :final routePolyline, :final requestedAt):
         emit(TravelTrackingInProgress(
           travelId: travelId, driver: driver,
           driverLatitude: driverLatitude, driverLongitude: driverLongitude,
           destinationLatitude: destinationLatitude, destinationLongitude: destinationLongitude,
           distanceToDestinationMeters: dist, remainingTimeMinutes: time,
-          routePolyline: routePolyline,
+          routePolyline: routePolyline, requestedAt: requestedAt,
         ));
       default:
         break;
@@ -324,6 +332,7 @@ class TravelTrackingBloc extends Bloc<TravelTrackingEvent, TravelTrackingState> 
     final driverLng = currentState is TravelTrackingAccepted ? currentState.driverLongitude : null;
     final driver = currentState is TravelTrackingAccepted ? currentState.driver : null;
     final routePolyline = currentState is TravelTrackingAccepted ? currentState.routePolyline : null;
+    final requestedAt = currentState is TravelTrackingAccepted ? currentState.requestedAt : null;
 
     emit(TravelTrackingInProgress(
       travelId: event.data['travelId'] as String,
@@ -333,6 +342,7 @@ class TravelTrackingBloc extends Bloc<TravelTrackingEvent, TravelTrackingState> 
       destinationLatitude: destLat,
       destinationLongitude: destLng,
       routePolyline: routePolyline,
+      requestedAt: requestedAt,
     ));
   }
 }
