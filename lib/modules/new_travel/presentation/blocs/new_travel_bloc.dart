@@ -7,6 +7,7 @@ import 'package:moto_passenger/modules/new_travel/data/repositories/new_travel_r
 import 'package:moto_passenger/modules/new_travel/domain/entities/travel_route_entity.dart';
 import 'package:moto_passenger/modules/new_travel/presentation/blocs/new_travel_event.dart';
 import 'package:moto_passenger/modules/new_travel/presentation/blocs/new_travel_state.dart';
+import 'package:moto_passenger/modules/new_travel/presentation/pages/new_travel_page.dart';
 
 class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
   final NewTravelRepository _repository;
@@ -101,19 +102,23 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
       final status = order['status'] as String?;
 
       if (status == 'Pending') {
-        emit(NewTravelPendingOrder(
-          orderId: order['orderId'] as String,
-          travelId: order['travelId'] as String? ?? '',
-          createdAt: DateTime.tryParse(order['createdAt']?.toString() ?? '') ?? DateTime.now(),
-          destinationAddress: order['destinationAddress'] as String?,
-        ));
+        emit(
+          NewTravelPendingOrder(
+            orderId: order['orderId'] as String,
+            travelId: order['travelId'] as String? ?? '',
+            createdAt: DateTime.tryParse(order['createdAt']?.toString() ?? '') ?? DateTime.now(),
+            destinationAddress: order['destinationAddress'] as String?,
+          ),
+        );
       } else if (status == 'Accepted' || status == 'InProgress') {
         final travelId = order['travelId'] as String?;
         if (travelId != null) {
-          emit(NewTravelActiveOrder(
-            travelId: travelId,
-            status: status!,
-          ));
+          emit(
+            NewTravelActiveOrder(
+              travelId: travelId,
+              status: status!,
+            ),
+          );
         } else {
           add(const GetCurrentLocation());
         }
@@ -153,17 +158,22 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
         'passengerLongitude': event.originLng,
       };
 
-      final result = await _repository.createOrder(request);
+      final result = event.orderType == OrderType.normal
+          ? await _repository.createOrder(request) //
+          : await _repository.createPriorityOrder(request);
+
       emit(
         NewTravelCreated(
           orderId: result['orderId'] as String,
         ),
       );
     } on NoDriversAvailableException catch (e) {
-      emit(NewTravelNoDriversAvailable(
-        partitionAcronym: e.partitionAcronym,
-        message: e.message,
-      ));
+      emit(
+        NewTravelNoDriversAvailable(
+          partitionAcronym: e.partitionAcronym,
+          message: e.message,
+        ),
+      );
     } catch (e) {
       emit(NewTravelFailure(message: e.toString()));
     }
