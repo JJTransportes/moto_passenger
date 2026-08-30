@@ -26,7 +26,6 @@ dependencies:
   path_provider: ^2.1.0
   image_picker: ^1.0.0
   permission_handler: ^11.0.0
-  onesignal_flutter: ^5.2.0
 
 dev_dependencies:
   flutter_test:

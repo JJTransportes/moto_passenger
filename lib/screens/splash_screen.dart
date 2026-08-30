@@ -7,8 +7,6 @@ import 'package:moto_passenger/core/config/app_config.dart';
 import 'package:moto_passenger/core/errors/exceptions.dart';
 import 'package:moto_passenger/core/local_db/repositories/auth_local_repository.dart';
 import 'package:moto_passenger/core/local_db/repositories/travel_local_repository.dart';
-import 'package:moto_passenger/core/notifications/deep_link_holder.dart';
-import 'package:moto_passenger/core/notifications/notification_handler.dart';
 import 'package:moto_passenger/core/theme/app_theme.dart';
 import 'package:moto_passenger/modules/auth/data/datasources/i_auth_datasource.dart';
 
@@ -71,18 +69,7 @@ class _SplashScreenState extends State<SplashScreen> {
     }
   }
 
-  /// Chamado após autenticação confirmada.
-  /// Consome deep link pendente (cold start via push) ou segue fluxo normal.
   Future<void> _afterAuthSuccess() async {
-    // Verificar cold start notification primeiro
-    final pending = DeepLinkHolder.consume();
-    if (pending != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        NotificationHandler.handleNotificationTap(pending);
-      });
-      return; // pula checkActiveTravel + terms-guard
-    }
-
     final restored = await _checkActiveTravel();
     if (!mounted) return;
     if (!restored) Modular.to.navigate('/usage-terms-guard');
@@ -126,9 +113,7 @@ class _SplashScreenState extends State<SplashScreen> {
     final travelRepo = Modular.get<TravelLocalRepository>();
     final active = await travelRepo.getActiveTravel();
 
-    if (active == null ||
-        active.status == 'Completed' ||
-        active.status == 'Cancelled') {
+    if (active == null || active.status == 'Completed' || active.status == 'Cancelled') {
       return false;
     }
 
