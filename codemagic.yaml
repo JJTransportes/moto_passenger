@@ -16,7 +16,7 @@ workflows:
       cancel_previous_builds: true
 
     environment:
-      flutter: 3.32.2
+      flutter: 3.44.0
       groups:
       - release
       ios_signing:
@@ -53,7 +53,7 @@ workflows:
       script: |
         flutter build ipa --release \
           --build-name=2.0.0 \
-          --build-number=37 \
+          --build-number=39 \
           --export-options-plist=/Users/builder/export_options.plist
 
     artifacts:
