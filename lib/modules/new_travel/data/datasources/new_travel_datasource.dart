@@ -28,7 +28,7 @@ class NewTravelDatasource implements INewTravelDatasource {
   @override
   Future<Map<String, dynamic>> createOrder(Map<String, dynamic> request) async {
     try {
-      final response = await _dio.post(' ', data: request);
+      final response = await _dio.post('/api/travels/orders', data: request);
       return response.data as Map<String, dynamic>;
     } on DioException catch (e) {
       if (e.response?.statusCode == 404 && e.response?.data is Map) {
