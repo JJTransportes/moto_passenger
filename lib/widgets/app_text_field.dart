@@ -14,6 +14,7 @@ class AppTextField extends StatefulWidget {
   final bool enableVisibilityToggle;
   final List<TextInputFormatter>? inputFormatters;
   final int? maxLength;
+  final bool enabled;
 
   const AppTextField({
     super.key,
@@ -27,6 +28,7 @@ class AppTextField extends StatefulWidget {
     this.enableVisibilityToggle = false,
     this.inputFormatters,
     this.maxLength,
+    this.enabled = true,
   });
 
   @override
@@ -63,6 +65,7 @@ class _AppTextFieldState extends State<AppTextField> {
           obscureText: _obscure,
           keyboardType: widget.keyboardType,
           onChanged: widget.onChanged,
+          enabled: widget.enabled,
           inputFormatters: widget.inputFormatters,
           maxLength: widget.maxLength,
           buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
@@ -91,6 +94,8 @@ class _AppTextFieldState extends State<AppTextField> {
               color: AppColors.primary,
               letterSpacing: 0.2,
             ),
+            filled: !widget.enabled,
+            fillColor: Colors.grey.shade100,
             contentPadding: const EdgeInsets.all(12),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(4),

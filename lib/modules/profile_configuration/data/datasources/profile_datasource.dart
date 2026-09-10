@@ -12,7 +12,7 @@ class ProfileDatasource implements IProfileDatasource {
   @override
   Future<ProfileModel> getProfile(String userId) async {
     try {
-      final response = await _dio.get('/api/users/$userId/profile');
+      final response = await _dio.get('/api/passengers/me');
       return ProfileModel.fromJson(response.data as Map<String, dynamic>);
     } on DioException catch (e) {
       throw _mapException(e);
@@ -26,7 +26,7 @@ class ProfileDatasource implements IProfileDatasource {
   ) async {
     try {
       final response = await _dio.put(
-        '/api/users/$userId/profile',
+        '/api/passengers/$userId/profile',
         data: data,
       );
       return ProfileModel.fromJson(response.data as Map<String, dynamic>);
@@ -45,7 +45,7 @@ class ProfileDatasource implements IProfileDatasource {
         ),
       });
       final response = await _dio.post(
-        '/api/users/$userId/profile/image',
+        '/api/passengers/$userId/profile/image',
         data: formData,
       );
       final data = response.data as Map<String, dynamic>;
@@ -58,31 +58,48 @@ class ProfileDatasource implements IProfileDatasource {
   @override
   Future<bool> removePhoto(String userId) async {
     try {
-      await _dio.delete('/api/users/$userId/profile/image');
+      await _dio.delete('/api/passengers/$userId/profile/image');
       return true;
     } on DioException catch (e) {
       throw _mapException(e);
     }
   }
 
+  String? _extractErrorMessage(DioException e) {
+    final data = e.response?.data;
+    if (data is Map) {
+      for (final key in ['error', 'message', 'detail', 'title']) {
+        if (data[key] is String) return data[key] as String;
+      }
+    }
+    return null;
+  }
+
   Exception _mapException(DioException e) {
+    final serverMessage = _extractErrorMessage(e);
     switch (e.response?.statusCode) {
       case 400:
-        final errors = e.response?.data;
-        if (errors is Map<String, dynamic> && errors.containsKey('errors')) {
-          return ValidationException(errors['errors'].toString());
-        }
-        return const ValidationException('Dados inválidos. Verifique os campos.');
+        return ValidationException(
+          serverMessage ?? 'Dados inválidos. Verifique as informações e tente novamente.',
+        );
       case 401:
         return const UnauthorizedException('Sessão expirada. Faça login novamente.');
+      case 403:
+        return ValidationException(
+          serverMessage ?? 'Você só pode editar o próprio perfil.',
+        );
       case 404:
         return const NotFoundException('Perfil não encontrado.');
       case 409:
         return const ValidationException('Este email já está em uso.');
       case 413:
-        return const ValidationException('A imagem é muito grande. Máximo 5MB.');
+        return const ValidationException('Arquivo muito grande. Envie uma imagem menor.');
+      case 415:
+        return const ValidationException(
+          'Formato de arquivo não suportado. Use JPEG ou PNG.',
+        );
       case var code when code != null && code >= 500:
-        return const ServerException();
+        return const ServerException('Erro interno do servidor. Tente novamente mais tarde.');
       default:
         if (e.type == DioExceptionType.connectionTimeout ||
             e.type == DioExceptionType.receiveTimeout ||

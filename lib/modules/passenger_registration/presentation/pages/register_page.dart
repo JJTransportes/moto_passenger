@@ -25,6 +25,7 @@ class _RegisterPageState extends State<RegisterPage> {
   final _rgController = TextEditingController();
   final _registrationController = TextEditingController();
   final _emailController = TextEditingController();
+  final _confirmEmailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _birthdateController = TextEditingController();
 
@@ -40,6 +41,7 @@ class _RegisterPageState extends State<RegisterPage> {
   String? _rgError;
   String? _registrationError;
   String? _emailError;
+  String? _confirmEmailError;
   String? _passwordError;
   String? _birthdateError;
   String? _partitionError;
@@ -50,6 +52,38 @@ class _RegisterPageState extends State<RegisterPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<RegisterBloc>().add(const LoadPartitions());
     });
+    for (final controller in [
+      _fullNameController,
+      _cpfController,
+      _rgController,
+      _registrationController,
+      _emailController,
+      _confirmEmailController,
+      _passwordController,
+    ]) {
+      controller.addListener(_onFieldsChanged);
+    }
+  }
+
+  void _onFieldsChanged() => setState(() {});
+
+  bool get _isFormFilled =>
+      _fullNameController.text.trim().isNotEmpty &&
+      _cpfController.text.trim().isNotEmpty &&
+      _rgController.text.trim().isNotEmpty &&
+      _registrationController.text.trim().isNotEmpty &&
+      validators.validateEmail(_emailController.text) == null &&
+      _confirmEmailController.text.trim() == _emailController.text.trim() &&
+      _passwordController.text.isNotEmpty &&
+      _birthdate != null &&
+      _selectedPartitionId != null;
+
+  String? get _confirmEmailMismatch {
+    final email = _emailController.text.trim();
+    final confirmEmail = _confirmEmailController.text.trim();
+    if (email.isEmpty || confirmEmail.isEmpty) return null;
+    if (email == confirmEmail) return null;
+    return 'Os e-mails não coincidem';
   }
 
   @override
@@ -59,6 +93,7 @@ class _RegisterPageState extends State<RegisterPage> {
     _rgController.dispose();
     _registrationController.dispose();
     _emailController.dispose();
+    _confirmEmailController.dispose();
     _passwordController.dispose();
     _birthdateController.dispose();
     super.dispose();
@@ -98,6 +133,7 @@ class _RegisterPageState extends State<RegisterPage> {
       initialDate: _birthdate ?? DateTime(1990, 1, 1),
       firstDate: DateTime(1900),
       lastDate: now,
+      locale: const Locale('pt', 'BR'),
       helpText: 'Selecione a data de nascimento',
       cancelText: 'Cancelar',
       confirmText: 'OK',
@@ -123,6 +159,13 @@ class _RegisterPageState extends State<RegisterPage> {
           validators.validateAlphanumericFormat(
               _registrationController.text, 'Matrícula', 30);
       _emailError = validators.validateEmail(_emailController.text);
+      if (_confirmEmailController.text.trim().isEmpty) {
+        _confirmEmailError = 'Confirme seu e-mail';
+      } else if (_confirmEmailController.text.trim() != _emailController.text.trim()) {
+        _confirmEmailError = 'Os e-mails não coincidem';
+      } else {
+        _confirmEmailError = null;
+      }
       _passwordError = validators.validatePassword(_passwordController.text);
       _birthdateError =
           _birthdate == null ? 'Data de nascimento obrigatória' : null;
@@ -133,6 +176,7 @@ class _RegisterPageState extends State<RegisterPage> {
           _rgError == null &&
           _registrationError == null &&
           _emailError == null &&
+          _confirmEmailError == null &&
           _passwordError == null &&
           _birthdateError == null &&
           _partitionError == null;
@@ -205,7 +249,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   AppButton(
                     label: 'Criar conta',
                     loading: isSubmitting,
-                    onPressed: _submit,
+                    onPressed: _isFormFilled ? _submit : null,
                   ),
                   const SizedBox(height: 16),
                   TextButton(
@@ -302,6 +346,14 @@ class _RegisterPageState extends State<RegisterPage> {
           controller: _emailController,
           keyboardType: TextInputType.emailAddress,
           errorText: _emailError,
+          maxLength: 100,
+        ),
+        AppTextField(
+          label: 'Confirmar e-mail *',
+          hint: 'Repita seu e-mail',
+          controller: _confirmEmailController,
+          keyboardType: TextInputType.emailAddress,
+          errorText: _confirmEmailMismatch ?? _confirmEmailError,
           maxLength: 100,
         ),
         AppTextField(

@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_modular/flutter_modular.dart' hide ModularWatchExtension;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:moto_passenger/core/theme/app_theme.dart';
+import 'package:moto_passenger/core/utils/validators.dart' as validators;
 import 'package:moto_passenger/modules/auth/presentation/blocs/password_recovery_bloc.dart';
 import 'package:moto_passenger/widgets/app_button.dart';
 import 'package:moto_passenger/widgets/app_text_field.dart';
@@ -17,16 +18,52 @@ class PasswordRecoveryPage extends StatefulWidget {
 
 class _PasswordRecoveryPageState extends State<PasswordRecoveryPage> {
   final _emailController = TextEditingController();
+  final _confirmEmailController = TextEditingController();
+
+  String? _localError;
+
+  @override
+  void initState() {
+    super.initState();
+    _emailController.addListener(_onFieldsChanged);
+    _confirmEmailController.addListener(_onFieldsChanged);
+  }
+
+  void _onFieldsChanged() => setState(() {});
+
+  bool get _isFormFilled =>
+      validators.validateEmail(_emailController.text) == null &&
+      _confirmEmailController.text.trim() == _emailController.text.trim();
+
+  String? get _confirmEmailMismatch {
+    final email = _emailController.text.trim();
+    final confirmEmail = _confirmEmailController.text.trim();
+    if (email.isEmpty || confirmEmail.isEmpty) return null;
+    if (email == confirmEmail) return null;
+    return 'Os e-mails não coincidem';
+  }
 
   @override
   void dispose() {
     _emailController.dispose();
+    _confirmEmailController.dispose();
     super.dispose();
   }
 
   void _submit() {
     final email = _emailController.text.trim();
-    if (email.isEmpty) return;
+    final confirmEmail = _confirmEmailController.text.trim();
+
+    if (email.isEmpty || confirmEmail.isEmpty) {
+      setState(() => _localError = 'Confirme seu e-mail');
+      return;
+    }
+    if (email != confirmEmail) {
+      setState(() => _localError = 'Os e-mails não coincidem');
+      return;
+    }
+
+    setState(() => _localError = null);
     context.read<PasswordRecoveryBloc>().add(RequestCodeSubmitted(email));
   }
 
@@ -42,8 +79,8 @@ class _PasswordRecoveryPageState extends State<PasswordRecoveryPage> {
             }
 
             final isLoading = state is PasswordRecoveryLoading;
-            final errorMessage =
-                state is PasswordRecoveryError ? state.message : null;
+            final errorMessage = _localError ??
+                (state is PasswordRecoveryError ? state.message : null);
 
             return Padding(
               padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 36),
@@ -82,6 +119,14 @@ class _PasswordRecoveryPageState extends State<PasswordRecoveryPage> {
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
                       ),
+                      const SizedBox(height: 12),
+                      AppTextField(
+                        label: 'Confirmar e-mail',
+                        hint: 'Repita seu e-mail',
+                        controller: _confirmEmailController,
+                        keyboardType: TextInputType.emailAddress,
+                        errorText: _confirmEmailMismatch,
+                      ),
                       if (errorMessage != null) ...[
                         const SizedBox(height: 12),
                         Text(
@@ -98,7 +143,7 @@ class _PasswordRecoveryPageState extends State<PasswordRecoveryPage> {
                   AppButton(
                     label: 'Enviar',
                     loading: isLoading,
-                    onPressed: _submit,
+                    onPressed: _isFormFilled ? _submit : null,
                   ),
                 ],
               ),
