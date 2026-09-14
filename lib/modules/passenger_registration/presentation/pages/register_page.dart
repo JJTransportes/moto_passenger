@@ -4,13 +4,17 @@ import 'package:flutter_modular/flutter_modular.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:moto_passenger/core/theme/app_theme.dart';
 import 'package:moto_passenger/core/utils/masks.dart';
+import 'package:moto_passenger/core/utils/password_policy_validator.dart';
 import 'package:moto_passenger/core/utils/validators.dart' as validators;
+import 'package:moto_passenger/modules/auth/domain/entities/password_policy_entity.dart';
+import 'package:moto_passenger/modules/auth/presentation/cubits/password_policy_cubit.dart';
 import 'package:moto_passenger/modules/passenger_registration/domain/entities/department_entity.dart';
 import 'package:moto_passenger/modules/passenger_registration/domain/entities/public_partition_entity.dart';
 import 'package:moto_passenger/modules/passenger_registration/presentation/blocs/register_bloc.dart';
 import 'package:moto_passenger/widgets/app_button.dart';
 import 'package:moto_passenger/widgets/app_text_field.dart';
 import 'package:moto_passenger/widgets/gradient_text.dart';
+import 'package:moto_passenger/widgets/password_requirements_checklist.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -51,6 +55,7 @@ class _RegisterPageState extends State<RegisterPage> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<RegisterBloc>().add(const LoadPartitions());
+      context.read<PasswordPolicyCubit>().load();
     });
     for (final controller in [
       _fullNameController,
@@ -74,7 +79,10 @@ class _RegisterPageState extends State<RegisterPage> {
       _registrationController.text.trim().isNotEmpty &&
       validators.validateEmail(_emailController.text) == null &&
       _confirmEmailController.text.trim() == _emailController.text.trim() &&
-      _passwordController.text.isNotEmpty &&
+      unmetPasswordRequirements(
+        _passwordController.text,
+        context.read<PasswordPolicyCubit>().state,
+      ).isEmpty &&
       _birthdate != null &&
       _selectedPartitionId != null;
 
@@ -166,7 +174,11 @@ class _RegisterPageState extends State<RegisterPage> {
       } else {
         _confirmEmailError = null;
       }
-      _passwordError = validators.validatePassword(_passwordController.text);
+      final missing = unmetPasswordRequirements(
+        _passwordController.text,
+        context.read<PasswordPolicyCubit>().state,
+      );
+      _passwordError = missing.isEmpty ? null : missing.join(', ');
       _birthdateError =
           _birthdate == null ? 'Data de nascimento obrigatória' : null;
       _partitionError = _selectedPartitionId == null ? 'Selecione um órgão' : null;
@@ -356,14 +368,28 @@ class _RegisterPageState extends State<RegisterPage> {
           errorText: _confirmEmailMismatch ?? _confirmEmailError,
           maxLength: 100,
         ),
-        AppTextField(
-          label: 'Senha *',
-          hint: 'Mínimo 8 caracteres',
-          controller: _passwordController,
-          obscureText: true,
-          enableVisibilityToggle: true,
-          errorText: _passwordError,
-          maxLength: 72,
+        BlocBuilder<PasswordPolicyCubit, PasswordPolicy>(
+          builder: (context, policy) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AppTextField(
+                  label: 'Senha *',
+                  hint: 'Mínimo ${policy.minLength} caracteres',
+                  controller: _passwordController,
+                  obscureText: true,
+                  enableVisibilityToggle: true,
+                  errorText: _passwordError,
+                  maxLength: policy.maxLength,
+                ),
+                const SizedBox(height: 6),
+                PasswordRequirementsChecklist(
+                  password: _passwordController.text,
+                  policy: policy,
+                ),
+              ],
+            );
+          },
         ),
       ],
     );

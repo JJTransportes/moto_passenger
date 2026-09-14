@@ -72,12 +72,16 @@ class _PasswordRecoveryPageState extends State<PasswordRecoveryPage> {
     return Scaffold(
       backgroundColor: AppColors.white,
       body: SafeArea(
-        child: BlocBuilder<PasswordRecoveryBloc, PasswordRecoveryState>(
-          builder: (context, state) {
+        child: BlocConsumer<PasswordRecoveryBloc, PasswordRecoveryState>(
+          listener: (context, state) {
             if (state is PasswordRecoverySent) {
-              return _SuccessView(email: state.email);
+              Modular.to.pushNamed(
+                '/verify-code',
+                arguments: {'email': state.email},
+              );
             }
-
+          },
+          builder: (context, state) {
             final isLoading = state is PasswordRecoveryLoading;
             final errorMessage = _localError ??
                 (state is PasswordRecoveryError ? state.message : null);
@@ -150,55 +154,6 @@ class _PasswordRecoveryPageState extends State<PasswordRecoveryPage> {
             );
           },
         ),
-      ),
-    );
-  }
-}
-
-class _SuccessView extends StatelessWidget {
-  final String email;
-
-  const _SuccessView({required this.email});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 36),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.email_outlined, color: AppColors.primary, size: 64),
-          const SizedBox(height: 24),
-          Text(
-            'Se o e-mail estiver cadastrado, você receberá um código de verificação em instantes.',
-            style: GoogleFonts.inter(
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
-              color: Colors.black,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 32),
-          AppButton(
-            label: 'Já tenho o código',
-            onPressed: () => Modular.to.pushNamed(
-              '/reset-password',
-              arguments: {'email': email},
-            ),
-          ),
-          const SizedBox(height: 16),
-          TextButton(
-            onPressed: () => Modular.to.navigate('/login'),
-            child: Text(
-              'Voltar ao login',
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: AppColors.primary,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

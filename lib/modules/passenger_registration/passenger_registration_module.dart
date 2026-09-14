@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_modular/flutter_modular.dart';
+import 'package:moto_passenger/modules/auth/presentation/cubits/password_policy_cubit.dart';
 import 'package:moto_passenger/modules/common_module.dart';
 import 'package:moto_passenger/modules/passenger_registration/data/datasources/i_registration_datasource.dart';
 import 'package:moto_passenger/modules/passenger_registration/data/datasources/registration_datasource.dart';
@@ -32,8 +33,11 @@ class PassengerRegistrationModule extends Module {
   void routes(RouteManager r) {
     r.child(
       '/',
-      child: (_) => BlocProvider.value(
-        value: Modular.get<RegisterBloc>(),
+      child: (_) => MultiBlocProvider(
+        providers: [
+          BlocProvider.value(value: Modular.get<RegisterBloc>()),
+          BlocProvider.value(value: Modular.get<PasswordPolicyCubit>()),
+        ],
         child: const RegisterPage(),
       ),
     );

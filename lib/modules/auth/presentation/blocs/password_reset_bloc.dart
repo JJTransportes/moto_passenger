@@ -7,9 +7,9 @@ part 'password_reset_state.dart';
 
 class PasswordResetBloc extends Bloc<PasswordResetEvent, PasswordResetState> {
   final IConfirmPasswordResetUsecase _confirmPasswordResetUsecase;
-  final String email;
+  final String resetToken;
 
-  PasswordResetBloc(this._confirmPasswordResetUsecase, {required this.email})
+  PasswordResetBloc(this._confirmPasswordResetUsecase, {required this.resetToken})
       : super(const PasswordResetInitial()) {
     on<ResetConfirmSubmitted>(_onResetConfirmSubmitted);
   }
@@ -21,8 +21,7 @@ class PasswordResetBloc extends Bloc<PasswordResetEvent, PasswordResetState> {
     emit(const PasswordResetSubmitting());
 
     final result = await _confirmPasswordResetUsecase.call(
-      email: email,
-      code: event.code,
+      resetToken: resetToken,
       newPassword: event.newPassword,
     );
 
