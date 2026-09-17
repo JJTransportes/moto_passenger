@@ -332,7 +332,7 @@ class _WaitingPageState extends State<WaitingPage> {
         ),
         const SizedBox(height: 24),
         Text(
-          'Contatando o Sr. $_contactedDriverName',
+          'Contatando motorista $_contactedDriverName',
           textAlign: TextAlign.center,
           style: const TextStyle(
             fontSize: 20,

@@ -84,6 +84,26 @@ class AuthDatasource implements IAuthDatasource {
           _extractErrorMessage(e) ?? 'Email não cadastrado.',
         );
       }
+      // 403: conta ainda não aprovada pelo GlobalAdmin — bug real encontrado
+      // no checklist manual (era possível resetar senha de conta pendente,
+      // mas o login continuava recusando sem explicação). Ver
+      // BACKEND_CHANGES_TODO.md.
+      if (e.response?.statusCode == 403) {
+        throw ForbiddenException(
+          _extractErrorMessage(e) ?? 'Sua conta ainda não foi aprovada.',
+        );
+      }
+      // 429: rate limit de pedidos de reset (por e-mail ou por IP) — antes
+      // vinha sem corpo, agora vem com mensagem. `_mapDioException` usa
+      // RateLimitedException() sem argumento (mensagem genérica fixa), então
+      // esse caso precisa de tratamento explícito para repassar a mensagem
+      // real. Ver BACKEND_CHANGES_TODO.md.
+      if (e.response?.statusCode == 429) {
+        throw RateLimitedException(
+          _extractErrorMessage(e) ??
+              'Muitas solicitações de redefinição de senha. Aguarde um pouco antes de tentar novamente.',
+        );
+      }
       throw _mapDioException(e);
     }
   }
@@ -178,7 +198,13 @@ class AuthDatasource implements IAuthDatasource {
           'Dados inválidos. Verifique as informações.',
         );
       case 401:
-        return const UnauthorizedException();
+        // Conta pendente de aprovação agora vem com corpo {"error": "..."}
+        // (antes vinha 401 sem corpo, igual senha errada). Login com senha
+        // errada em conta normal continua sem corpo — cai no fallback padrão,
+        // sem mudança de comportamento. Ver BACKEND_CHANGES_TODO.md.
+        return UnauthorizedException(
+          _extractErrorMessage(e) ?? 'Credenciais inválidas',
+        );
       case 403:
         return const DeviceMismatchException();
       case 404:

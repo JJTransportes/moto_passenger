@@ -31,6 +31,14 @@ class ProfileDatasource implements IProfileDatasource {
       );
       return ProfileModel.fromJson(response.data as Map<String, dynamic>);
     } on DioException catch (e) {
+      // Este endpoint exige a senha atual (confirm_password_dialog) para
+      // autorizar a alteração — um 401 aqui significa senha incorreta, não
+      // sessão expirada (diferente dos outros métodos deste datasource, que
+      // não enviam senha). Usar a mensagem genérica de "_mapException" aqui
+      // confundia o usuário: parecia que nada tinha acontecido.
+      if (e.response?.statusCode == 401) {
+        throw UnauthorizedException(_extractErrorMessage(e) ?? 'Senha incorreta.');
+      }
       throw _mapException(e);
     }
   }

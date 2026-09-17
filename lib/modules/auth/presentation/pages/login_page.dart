@@ -25,6 +25,7 @@ class _LoginPageState extends State<LoginPage> {
 
   String? _emailError;
   String? _passwordError;
+  bool _serverErrorBlocked = false;
 
   @override
   void initState() {
@@ -33,7 +34,7 @@ class _LoginPageState extends State<LoginPage> {
     _passwordController.addListener(_onFieldsChanged);
   }
 
-  void _onFieldsChanged() => setState(() {});
+  void _onFieldsChanged() => setState(() => _serverErrorBlocked = false);
 
   bool get _isFormFilled =>
       validators.validateEmail(_emailController.text) == null &&
@@ -86,6 +87,8 @@ class _LoginPageState extends State<LoginPage> {
       listener: (context, state) {
         if (state is LoginSuccess) {
           _onLoginSuccess(context, state.user);
+        } else if (state is LoginFailure) {
+          setState(() => _serverErrorBlocked = true);
         }
       },
       builder: (context, state) {
@@ -155,7 +158,7 @@ class _LoginPageState extends State<LoginPage> {
                       AppButton(
                         label: 'Entrar',
                         loading: isLoading,
-                        onPressed: _isFormFilled ? _submit : null,
+                        onPressed: _isFormFilled && !_serverErrorBlocked ? _submit : null,
                       ),
                       const SizedBox(height: 16),
                       Align(

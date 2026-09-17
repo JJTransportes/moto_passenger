@@ -135,7 +135,8 @@ class _ProfilePageState extends State<ProfilePage> {
       _confirmEmailController.text.trim().toLowerCase();
 
   bool get _isFormFilled =>
-      _fullNameController.text.trim().isNotEmpty &&
+      validators.validateFullName(_fullNameController.text) == null &&
+      validators.validateSafeText(_fullNameController.text, 'Nome completo') == null &&
       validators.validateEmail(_emailController.text) == null &&
       _isEmailConfirmed &&
       (_phoneController.text.trim().isEmpty ||
@@ -148,10 +149,10 @@ class _ProfilePageState extends State<ProfilePage> {
       _emailError = null;
       _phoneError = null;
 
-      if (_fullNameController.text.trim().isEmpty) {
-        _fullNameError = 'Nome é obrigatório';
-        valid = false;
-      }
+      _fullNameError = validators.validateFullName(_fullNameController.text) ??
+          validators.validateSafeText(_fullNameController.text, 'Nome completo');
+      if (_fullNameError != null) valid = false;
+
       _emailError = validators.validateEmail(_emailController.text);
       if (_emailError != null) valid = false;
 
@@ -650,6 +651,7 @@ class _ProfilePageState extends State<ProfilePage> {
           controller: _fullNameController,
           errorText: _fullNameError,
           enabled: _isEditing,
+          maxLength: 100,
           onChanged: (_) {
             _onFieldChanged();
             setState(() {
@@ -665,6 +667,7 @@ class _ProfilePageState extends State<ProfilePage> {
             controller: _confirmEmailController,
             keyboardType: TextInputType.emailAddress,
             errorText: _confirmEmailMismatch,
+            maxLength: 100,
           ),
         _buildPhoneField(),
       ],
@@ -687,6 +690,7 @@ class _ProfilePageState extends State<ProfilePage> {
       keyboardType: TextInputType.emailAddress,
       errorText: _emailError,
       enabled: true,
+      maxLength: 100,
       onChanged: (_) {
         _onFieldChanged();
         setState(() {

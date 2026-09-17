@@ -30,6 +30,9 @@ class PasswordRecoveryBloc extends Bloc<PasswordRecoveryEvent, PasswordRecoveryS
           // mais anti-enumeração). Ver .sdd/checklist-email-nao-cadastrado.md.
           NotFoundException() => error.message,
           RateLimitedException() => error.message,
+          // 403: conta ainda não aprovada pelo GlobalAdmin. Ver
+          // BACKEND_CHANGES_TODO.md.
+          ForbiddenException() => error.message,
           _ => 'Erro ao enviar o código. Verifique sua conexão e tente novamente.',
         };
         emit(PasswordRecoveryError(message));
