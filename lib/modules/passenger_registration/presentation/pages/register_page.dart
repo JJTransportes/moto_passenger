@@ -31,6 +31,7 @@ class _RegisterPageState extends State<RegisterPage> {
   final _emailController = TextEditingController();
   final _confirmEmailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
   final _birthdateController = TextEditingController();
 
   String? _selectedPartitionId;
@@ -47,8 +48,17 @@ class _RegisterPageState extends State<RegisterPage> {
   String? _emailError;
   String? _confirmEmailError;
   String? _passwordError;
+  String? _confirmPasswordError;
   String? _birthdateError;
   String? _partitionError;
+
+  /// Campo apontado pelo `409` do backend ('email'|'cpf'|'rg'|'registration'),
+  /// ou `'_generic'` para erros sem campo específico (rede/servidor) — nesses
+  /// dois casos o botão "Criar conta" fica bloqueado até o campo responsável
+  /// (ou qualquer campo, no caso genérico) ser editado, evitando reenvio da
+  /// mesma requisição inválida.
+  String? _blockedField;
+  String? _serverFieldMessage;
 
   @override
   void initState() {
@@ -59,18 +69,27 @@ class _RegisterPageState extends State<RegisterPage> {
     });
     for (final controller in [
       _fullNameController,
-      _cpfController,
-      _rgController,
-      _registrationController,
-      _emailController,
       _confirmEmailController,
       _passwordController,
+      _confirmPasswordController,
     ]) {
       controller.addListener(_onFieldsChanged);
     }
+    _emailController.addListener(() => _onFieldTouched('email'));
+    _cpfController.addListener(() => _onFieldTouched('cpf'));
+    _rgController.addListener(() => _onFieldTouched('rg'));
+    _registrationController.addListener(() => _onFieldTouched('registration'));
   }
 
-  void _onFieldsChanged() => setState(() {});
+  void _onFieldsChanged() => _onFieldTouched('_generic');
+
+  void _onFieldTouched(String field) {
+    if (_blockedField == field || _blockedField == '_generic') {
+      _blockedField = null;
+      _serverFieldMessage = null;
+    }
+    setState(() {});
+  }
 
   bool get _isFormFilled =>
       _fullNameController.text.trim().isNotEmpty &&
@@ -83,6 +102,7 @@ class _RegisterPageState extends State<RegisterPage> {
         _passwordController.text,
         context.read<PasswordPolicyCubit>().state,
       ).isEmpty &&
+      _confirmPasswordController.text == _passwordController.text &&
       _birthdate != null &&
       _selectedPartitionId != null;
 
@@ -94,6 +114,14 @@ class _RegisterPageState extends State<RegisterPage> {
     return 'Os e-mails não coincidem';
   }
 
+  String? get _confirmPasswordMismatch {
+    final password = _passwordController.text;
+    final confirmPassword = _confirmPasswordController.text;
+    if (password.isEmpty || confirmPassword.isEmpty) return null;
+    if (password == confirmPassword) return null;
+    return 'As senhas não coincidem';
+  }
+
   @override
   void dispose() {
     _fullNameController.dispose();
@@ -103,6 +131,7 @@ class _RegisterPageState extends State<RegisterPage> {
     _emailController.dispose();
     _confirmEmailController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
     _birthdateController.dispose();
     super.dispose();
   }
@@ -179,6 +208,13 @@ class _RegisterPageState extends State<RegisterPage> {
         context.read<PasswordPolicyCubit>().state,
       );
       _passwordError = missing.isEmpty ? null : missing.join(', ');
+      if (_confirmPasswordController.text.isEmpty) {
+        _confirmPasswordError = 'Confirme sua senha';
+      } else if (_confirmPasswordController.text != _passwordController.text) {
+        _confirmPasswordError = 'As senhas não coincidem';
+      } else {
+        _confirmPasswordError = null;
+      }
       _birthdateError =
           _birthdate == null ? 'Data de nascimento obrigatória' : null;
       _partitionError = _selectedPartitionId == null ? 'Selecione um órgão' : null;
@@ -190,6 +226,7 @@ class _RegisterPageState extends State<RegisterPage> {
           _emailError == null &&
           _confirmEmailError == null &&
           _passwordError == null &&
+          _confirmPasswordError == null &&
           _birthdateError == null &&
           _partitionError == null;
     });
@@ -219,11 +256,29 @@ class _RegisterPageState extends State<RegisterPage> {
       listener: (context, state) {
         if (state is RegisterSuccess) {
           Modular.to.pushNamed('/pending-approval');
+        } else if (state is RegisterFailure) {
+          setState(() {
+            final message = state.message;
+            if (message.contains('E-mail')) {
+              _blockedField = 'email';
+            } else if (message.contains('CPF')) {
+              _blockedField = 'cpf';
+            } else if (message.contains('RG')) {
+              _blockedField = 'rg';
+            } else if (message.contains('Matrícula')) {
+              _blockedField = 'registration';
+            } else {
+              _blockedField = '_generic';
+            }
+            _serverFieldMessage = message;
+          });
         }
       },
       builder: (context, state) {
         final isSubmitting = state is RegisterSubmitting;
-        final errorMessage = state is RegisterFailure ? state.message : null;
+        final errorMessage = state is RegisterFailure && _blockedField == '_generic'
+            ? state.message
+            : null;
 
         if (state is PartitionsLoaded) {
           _partitions = state.partitions;
@@ -261,7 +316,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   AppButton(
                     label: 'Criar conta',
                     loading: isSubmitting,
-                    onPressed: _isFormFilled ? _submit : null,
+                    onPressed: _isFormFilled && _blockedField == null ? _submit : null,
                   ),
                   const SizedBox(height: 16),
                   TextButton(
@@ -329,7 +384,7 @@ class _RegisterPageState extends State<RegisterPage> {
           hint: '000.000.000-00',
           controller: _cpfController,
           keyboardType: TextInputType.number,
-          errorText: _cpfError,
+          errorText: _cpfError ?? (_blockedField == 'cpf' ? _serverFieldMessage : null),
           inputFormatters: [CpfInputFormatter()],
           maxLength: 14,
         ),
@@ -338,7 +393,7 @@ class _RegisterPageState extends State<RegisterPage> {
           hint: 'Somente letras e números (7 a 12 caracteres)',
           controller: _rgController,
           keyboardType: TextInputType.text,
-          errorText: _rgError,
+          errorText: _rgError ?? (_blockedField == 'rg' ? _serverFieldMessage : null),
           inputFormatters: [AlphanumericInputFormatter(maxLength: 12)],
           maxLength: 12,
         ),
@@ -347,7 +402,8 @@ class _RegisterPageState extends State<RegisterPage> {
           hint: 'N° de matrícula (letras e números)',
           controller: _registrationController,
           keyboardType: TextInputType.text,
-          errorText: _registrationError,
+          errorText: _registrationError ??
+              (_blockedField == 'registration' ? _serverFieldMessage : null),
           inputFormatters: [AlphanumericInputFormatter(maxLength: 30)],
           maxLength: 30,
         ),
@@ -357,7 +413,7 @@ class _RegisterPageState extends State<RegisterPage> {
           hint: 'Informe seu e-mail',
           controller: _emailController,
           keyboardType: TextInputType.emailAddress,
-          errorText: _emailError,
+          errorText: _emailError ?? (_blockedField == 'email' ? _serverFieldMessage : null),
           maxLength: 100,
         ),
         AppTextField(
@@ -386,6 +442,16 @@ class _RegisterPageState extends State<RegisterPage> {
                 PasswordRequirementsChecklist(
                   password: _passwordController.text,
                   policy: policy,
+                ),
+                const SizedBox(height: 12),
+                AppTextField(
+                  label: 'Confirmar senha *',
+                  hint: 'Repita sua senha',
+                  controller: _confirmPasswordController,
+                  obscureText: true,
+                  enableVisibilityToggle: true,
+                  errorText: _confirmPasswordMismatch ?? _confirmPasswordError,
+                  maxLength: policy.maxLength,
                 ),
               ],
             );

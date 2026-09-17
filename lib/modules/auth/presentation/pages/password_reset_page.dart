@@ -24,16 +24,22 @@ class _PasswordResetPageState extends State<PasswordResetPage> {
   final _confirmController = TextEditingController();
 
   String? _localError;
+  String? _passwordServerError;
 
   @override
   void initState() {
     super.initState();
     context.read<PasswordPolicyCubit>().load();
-    _passwordController.addListener(_onFieldsChanged);
+    _passwordController.addListener(_onPasswordChanged);
     _confirmController.addListener(_onFieldsChanged);
   }
 
   void _onFieldsChanged() => setState(() {});
+
+  void _onPasswordChanged() {
+    _passwordServerError = null;
+    setState(() {});
+  }
 
   @override
   void dispose() {
@@ -70,15 +76,18 @@ class _PasswordResetPageState extends State<PasswordResetPage> {
     return Scaffold(
       backgroundColor: AppColors.white,
       body: SafeArea(
-        child: BlocBuilder<PasswordResetBloc, PasswordResetState>(
+        child: BlocConsumer<PasswordResetBloc, PasswordResetState>(
+          listener: (context, state) {
+            if (state is PasswordResetError) {
+              setState(() => _passwordServerError = state.message);
+            }
+          },
           builder: (context, state) {
             if (state is PasswordResetSuccess) {
               return const _SuccessView();
             }
 
             final isLoading = state is PasswordResetSubmitting;
-            final serverError =
-                state is PasswordResetError ? state.message : null;
             final codeConsumed =
                 state is PasswordResetError && state.codeConsumed;
 
@@ -112,6 +121,7 @@ class _PasswordResetPageState extends State<PasswordResetPage> {
                         hint: 'Defina sua senha',
                         controller: _passwordController,
                         obscureText: true,
+                        errorText: _passwordServerError,
                         maxLength: policy.maxLength,
                       ),
                       const SizedBox(height: 16),
@@ -128,10 +138,10 @@ class _PasswordResetPageState extends State<PasswordResetPage> {
                         password: _passwordController.text,
                         policy: policy,
                       ),
-                      if (_localError != null || serverError != null) ...[
+                      if (_localError != null) ...[
                         const SizedBox(height: 12),
                         Text(
-                          _localError ?? serverError!,
+                          _localError!,
                           style: GoogleFonts.inter(
                             fontSize: 13,
                             fontWeight: FontWeight.w400,
@@ -163,7 +173,8 @@ class _PasswordResetPageState extends State<PasswordResetPage> {
                                 unmetPasswordRequirements(
                                   _passwordController.text,
                                   policy,
-                                ).isEmpty
+                                ).isEmpty &&
+                                _passwordServerError == null
                             ? () => _submit(policy)
                             : null,
                       ),

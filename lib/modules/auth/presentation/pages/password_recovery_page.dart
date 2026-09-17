@@ -21,15 +21,21 @@ class _PasswordRecoveryPageState extends State<PasswordRecoveryPage> {
   final _confirmEmailController = TextEditingController();
 
   String? _localError;
+  String? _emailServerError;
 
   @override
   void initState() {
     super.initState();
-    _emailController.addListener(_onFieldsChanged);
+    _emailController.addListener(_onEmailChanged);
     _confirmEmailController.addListener(_onFieldsChanged);
   }
 
   void _onFieldsChanged() => setState(() {});
+
+  void _onEmailChanged() {
+    _emailServerError = null;
+    setState(() {});
+  }
 
   bool get _isFormFilled =>
       validators.validateEmail(_emailController.text) == null &&
@@ -79,12 +85,13 @@ class _PasswordRecoveryPageState extends State<PasswordRecoveryPage> {
                 '/verify-code',
                 arguments: {'email': state.email},
               );
+            } else if (state is PasswordRecoveryError) {
+              setState(() => _emailServerError = state.message);
             }
           },
           builder: (context, state) {
             final isLoading = state is PasswordRecoveryLoading;
-            final errorMessage = _localError ??
-                (state is PasswordRecoveryError ? state.message : null);
+            final errorMessage = _localError;
 
             return Padding(
               padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 36),
@@ -122,6 +129,7 @@ class _PasswordRecoveryPageState extends State<PasswordRecoveryPage> {
                         hint: 'Informe seu e-mail',
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
+                        errorText: _emailServerError,
                       ),
                       const SizedBox(height: 12),
                       AppTextField(
@@ -147,7 +155,7 @@ class _PasswordRecoveryPageState extends State<PasswordRecoveryPage> {
                   AppButton(
                     label: 'Enviar',
                     loading: isLoading,
-                    onPressed: _isFormFilled ? _submit : null,
+                    onPressed: _isFormFilled && _emailServerError == null ? _submit : null,
                   ),
                 ],
               ),

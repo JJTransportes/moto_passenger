@@ -19,6 +19,7 @@ class _PasswordVerifyCodePageState extends State<PasswordVerifyCodePage> {
   final _codeController = TextEditingController();
 
   int _wrongAttempts = 0;
+  String? _codeServerError;
 
   @override
   void initState() {
@@ -26,7 +27,10 @@ class _PasswordVerifyCodePageState extends State<PasswordVerifyCodePage> {
     _codeController.addListener(_onFieldsChanged);
   }
 
-  void _onFieldsChanged() => setState(() {});
+  void _onFieldsChanged() {
+    _codeServerError = null;
+    setState(() {});
+  }
 
   @override
   void dispose() {
@@ -52,14 +56,14 @@ class _PasswordVerifyCodePageState extends State<PasswordVerifyCodePage> {
                 '/reset-password',
                 arguments: {'resetToken': state.resetToken},
               );
-            } else if (state is PasswordVerifyCodeError && !state.requestNewCode) {
-              setState(() => _wrongAttempts++);
+            } else if (state is PasswordVerifyCodeError) {
+              _codeServerError = state.message;
+              if (!state.requestNewCode) _wrongAttempts++;
+              setState(() {});
             }
           },
           builder: (context, state) {
             final isLoading = state is PasswordVerifyCodeSubmitting;
-            final serverError =
-                state is PasswordVerifyCodeError ? state.message : null;
             final requestNewCode =
                 state is PasswordVerifyCodeError && state.requestNewCode;
             final remainingAttemptsHint =
@@ -93,6 +97,7 @@ class _PasswordVerifyCodePageState extends State<PasswordVerifyCodePage> {
                     hint: 'Informe o código de verificação',
                     controller: _codeController,
                     keyboardType: TextInputType.number,
+                    errorText: _codeServerError,
                   ),
                   if (remainingAttemptsHint != null && remainingAttemptsHint > 0) ...[
                     const SizedBox(height: 8),
@@ -102,17 +107,6 @@ class _PasswordVerifyCodePageState extends State<PasswordVerifyCodePage> {
                         fontSize: 12,
                         fontWeight: FontWeight.w400,
                         color: Colors.black54,
-                      ),
-                    ),
-                  ],
-                  if (serverError != null) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      serverError,
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w400,
-                        color: Colors.red,
                       ),
                     ),
                   ],
@@ -134,7 +128,9 @@ class _PasswordVerifyCodePageState extends State<PasswordVerifyCodePage> {
                   AppButton(
                     label: 'Confirmar',
                     loading: isLoading,
-                    onPressed: _codeController.text.trim().isEmpty ? null : _submit,
+                    onPressed: _codeController.text.trim().isEmpty || _codeServerError != null
+                        ? null
+                        : _submit,
                   ),
                 ],
               ),
