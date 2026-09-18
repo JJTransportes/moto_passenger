@@ -85,6 +85,33 @@ void main() {
       verifyNever(() => authLocal.updateTokens(any(), any()));
     });
 
+    test('returns false and does NOT save tokens on DeviceMismatchException', () async {
+      final datasource = MockAuthDatasource();
+      final storage = MockAuthStorage();
+      final authLocal = MockAuthLocalRepository();
+
+      when(() => datasource.refreshToken('bound_to_other_type')).thenThrow(const DeviceMismatchException());
+
+      // Simulate _tryRefreshToken
+      bool success = true;
+      try {
+        final result = await datasource.refreshToken('bound_to_other_type');
+        await storage.saveTokens(result.accessToken, result.refreshToken!, result.userId);
+        await authLocal.updateTokens(result.accessToken, result.refreshToken!);
+        success = true;
+      } on UnauthorizedException {
+        success = false;
+      } on DeviceMismatchException {
+        success = false;
+      } catch (_) {
+        success = false;
+      }
+
+      expect(success, isFalse);
+      verifyNever(() => storage.saveTokens(any(), any(), any()));
+      verifyNever(() => authLocal.updateTokens(any(), any()));
+    });
+
     test('returns false on network exception', () async {
       final datasource = MockAuthDatasource();
       final storage = MockAuthStorage();

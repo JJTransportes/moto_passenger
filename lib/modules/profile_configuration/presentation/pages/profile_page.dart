@@ -5,11 +5,17 @@ import 'package:flutter_modular/flutter_modular.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:moto_passenger/core/auth/auth_storage.dart';
+import 'package:moto_passenger/core/auth/sign_out_service.dart';
 import 'package:moto_passenger/core/config/app_config.dart';
+import 'package:moto_passenger/core/network/signalr_service.dart';
 import 'package:moto_passenger/core/theme/app_theme.dart';
+import 'package:moto_passenger/core/utils/masks.dart';
+import 'package:moto_passenger/core/utils/validators.dart' as validators;
+import 'package:moto_passenger/modules/passenger_home/domain/repositories/i_passenger_home_repository.dart';
 import 'package:moto_passenger/modules/profile_configuration/domain/entities/profile_entity.dart';
 import 'package:moto_passenger/modules/profile_configuration/domain/entities/update_profile_request.dart';
 import 'package:moto_passenger/modules/profile_configuration/presentation/blocs/profile_bloc.dart';
+import 'package:moto_passenger/modules/profile_configuration/presentation/widgets/confirm_password_dialog.dart';
 import 'package:moto_passenger/widgets/app_button.dart';
 import 'package:moto_passenger/widgets/app_text_field.dart';
 
@@ -23,6 +29,7 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   final _fullNameController = TextEditingController();
   final _emailController = TextEditingController();
+  final _confirmEmailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _imagePicker = ImagePicker();
 
@@ -34,10 +41,20 @@ class _ProfilePageState extends State<ProfilePage> {
   String? _phoneError;
   File? _pendingPhoto;
 
+  bool _isEditing = false;
+  bool _checkingActiveTravel = true;
+  bool _hasActiveTravel = true;
+  String? _originalFullName;
+  String? _originalEmail;
+  String? _originalPhone;
+  bool _pendingEmailChange = false;
+
   @override
   void initState() {
     super.initState();
     _loadProfile();
+    _checkActiveTravel();
+    _confirmEmailController.addListener(_onFieldChanged);
   }
 
   Future<void> _loadProfile() async {
@@ -51,6 +68,21 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
+  Future<void> _checkActiveTravel() async {
+    final repository = Modular.get<IPassengerHomeRepository>();
+    final result = await repository.getActiveTravel();
+    if (!mounted) return;
+    setState(() {
+      _checkingActiveTravel = false;
+      _hasActiveTravel = result.fold(
+        (travels) => travels.isNotEmpty,
+        (_) => true,
+      );
+    });
+  }
+
+  bool get _isBlockedByActiveTravel => _checkingActiveTravel || _hasActiveTravel;
+
   Future<void> _handleDeleteAccount() async {
     await Modular.to.pushNamed('/delete-account');
   }
@@ -59,6 +91,7 @@ class _ProfilePageState extends State<ProfilePage> {
   void dispose() {
     _fullNameController.dispose();
     _emailController.dispose();
+    _confirmEmailController.dispose();
     _phoneController.dispose();
     super.dispose();
   }
@@ -73,6 +106,8 @@ class _ProfilePageState extends State<ProfilePage> {
         setState(() {
           _hasUnsavedChanges = hasChanges;
         });
+      } else {
+        setState(() {});
       }
     }
   }
@@ -81,8 +116,31 @@ class _ProfilePageState extends State<ProfilePage> {
     _fullNameController.text = profile.fullName;
     _emailController.text = profile.email;
     _phoneController.text = profile.phone ?? '';
+    _originalFullName = profile.fullName;
+    _originalEmail = profile.email;
+    _originalPhone = profile.phone ?? '';
     _hasUnsavedChanges = false;
   }
+
+  String? get _confirmEmailMismatch {
+    final email = _emailController.text.trim().toLowerCase();
+    final confirmEmail = _confirmEmailController.text.trim().toLowerCase();
+    if (email.isEmpty || confirmEmail.isEmpty) return null;
+    if (email == confirmEmail) return null;
+    return 'Os e-mails não coincidem';
+  }
+
+  bool get _isEmailConfirmed =>
+      _emailController.text.trim().toLowerCase() ==
+      _confirmEmailController.text.trim().toLowerCase();
+
+  bool get _isFormFilled =>
+      validators.validateFullName(_fullNameController.text) == null &&
+      validators.validateSafeText(_fullNameController.text, 'Nome completo') == null &&
+      validators.validateEmail(_emailController.text) == null &&
+      _isEmailConfirmed &&
+      (_phoneController.text.trim().isEmpty ||
+          _phoneController.text.replaceAll(RegExp(r'\D'), '').length >= 10);
 
   bool _validate() {
     bool valid = true;
@@ -91,17 +149,19 @@ class _ProfilePageState extends State<ProfilePage> {
       _emailError = null;
       _phoneError = null;
 
-      if (_fullNameController.text.trim().isEmpty) {
-        _fullNameError = 'Nome é obrigatório';
+      _fullNameError = validators.validateFullName(_fullNameController.text) ??
+          validators.validateSafeText(_fullNameController.text, 'Nome completo');
+      if (_fullNameError != null) valid = false;
+
+      _emailError = validators.validateEmail(_emailController.text);
+      if (_emailError != null) valid = false;
+
+      if (_confirmEmailMismatch != null) {
+        valid = false;
+      } else if (_confirmEmailController.text.trim().isEmpty) {
         valid = false;
       }
-      if (_emailController.text.trim().isEmpty) {
-        _emailError = 'Email é obrigatório';
-        valid = false;
-      } else if (!_isValidEmail(_emailController.text.trim())) {
-        _emailError = 'Email inválido';
-        valid = false;
-      }
+
       if (_phoneController.text.trim().isNotEmpty) {
         final digits = _phoneController.text.replaceAll(RegExp(r'[^\d]'), '');
         if (digits.length < 10 || digits.length > 11) {
@@ -111,43 +171,6 @@ class _ProfilePageState extends State<ProfilePage> {
       }
     });
     return valid;
-  }
-
-  bool _isValidEmail(String email) {
-    return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email);
-  }
-
-  String _formatPhone(String text) {
-    final digits = text.replaceAll(RegExp(r'[^\d]'), '');
-    if (digits.length <= 10) {
-      // (XX) XXXX-XXXX
-      final parts = <String>[];
-      if (digits.length > 2) {
-        parts.add('(${digits.substring(0, 2)})');
-        if (digits.length > 6) {
-          parts.add(' ${digits.substring(2, 6)}-${digits.substring(6)}');
-        } else {
-          parts.add(' ${digits.substring(2)}');
-        }
-      } else {
-        parts.add(digits);
-      }
-      return parts.join();
-    } else {
-      // (XX) XXXXX-XXXX
-      final parts = <String>[];
-      if (digits.length > 2) {
-        parts.add('(${digits.substring(0, 2)})');
-        if (digits.length > 7) {
-          parts.add(' ${digits.substring(2, 7)}-${digits.substring(7)}');
-        } else {
-          parts.add(' ${digits.substring(2)}');
-        }
-      } else {
-        parts.add(digits);
-      }
-      return parts.join();
-    }
   }
 
   Future<bool> _onWillPop() async {
@@ -172,20 +195,55 @@ class _ProfilePageState extends State<ProfilePage> {
     return result ?? false;
   }
 
-  void _saveProfile() {
+  void _enterEditMode() {
+    setState(() {
+      _isEditing = true;
+      _confirmEmailController.clear();
+    });
+  }
+
+  Future<void> _onActionButtonTapped() async {
+    if (!_isEditing) {
+      _enterEditMode();
+      return;
+    }
+    await _onSaveTapped();
+  }
+
+  Future<void> _onSaveTapped() async {
     if (!_validate()) return;
 
+    final newEmail = _emailController.text.trim();
+    final emailChanged = newEmail != (_originalEmail ?? '');
+
+    final password = await showConfirmPasswordDialog(
+      context,
+      showLogoutWarning: emailChanged,
+    );
+    if (password == null || !mounted) return;
+
+    _pendingEmailChange = emailChanged;
+    _submitSave(password, emailChanged ? newEmail : null);
+  }
+
+  void _submitSave(String password, String? newEmail) {
+    final newFullName = _fullNameController.text.trim();
     final phoneText = _phoneController.text.trim();
-    final phone = phoneText.isNotEmpty
+    final newPhone = phoneText.isNotEmpty
         ? phoneText.replaceAll(RegExp(r'[^\d]'), '')
         : null;
 
+    final uid = _userId;
+    if (uid == null) return;
+
     context.read<ProfileBloc>().add(
           SaveProfile(
+            uid,
             UpdateProfileRequest(
-              fullName: _fullNameController.text.trim(),
-              email: _emailController.text.trim(),
-              phone: phone,
+              fullName: newFullName != (_originalFullName ?? '') ? newFullName : null,
+              email: newEmail,
+              phone: newPhone != _originalPhone ? newPhone : null,
+              password: password,
             ),
           ),
         );
@@ -201,7 +259,6 @@ class _ProfilePageState extends State<ProfilePage> {
       );
       if (xFile != null && mounted) {
         final file = File(xFile.path);
-        // Validate size (max 5MB)
         final bytes = await file.length();
         if (bytes > 5 * 1024 * 1024) {
           if (mounted) {
@@ -217,7 +274,6 @@ class _ProfilePageState extends State<ProfilePage> {
         setState(() {
           _pendingPhoto = file;
         });
-        // Auto-upload after selection
         final uid = _userId;
         if (uid != null) {
           context.read<ProfileBloc>().add(UploadPhoto(uid, file));
@@ -266,7 +322,10 @@ class _ProfilePageState extends State<ProfilePage> {
                     style: TextStyle(color: Colors.red)),
                 onTap: () {
                   Navigator.of(ctx).pop();
-                  context.read<ProfileBloc>().add(const RemovePhoto());
+                  final uid = _userId;
+                  if (uid != null) {
+                    context.read<ProfileBloc>().add(RemovePhoto(uid));
+                  }
                 },
               ),
             ],
@@ -329,9 +388,16 @@ class _ProfilePageState extends State<ProfilePage> {
               listener: (context, state) {
                 switch (state) {
                   case ProfileSaveSuccess():
+                    if (_pendingEmailChange) {
+                      Modular.get<SignalRService>().disconnectAll().whenComplete(
+                            () => Modular.get<SignOutService>().signOut(),
+                          );
+                      return;
+                    }
                     setState(() {
                       _hasUnsavedChanges = false;
                       _pendingPhoto = null;
+                      _isEditing = false;
                     });
                     _populateControllers(state.profile);
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -406,7 +472,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         const SizedBox(height: 32),
                         _buildForm(state),
                         const SizedBox(height: 24),
-                        _buildSaveButton(state),
+                        _buildActionButton(state),
                         const SizedBox(height: 32),
                         _buildDeleteAccountSection(),
                       ],
@@ -454,7 +520,7 @@ class _ProfilePageState extends State<ProfilePage> {
     }
 
     return GestureDetector(
-      onTap: isLoading ? null : _showPhotoOptions,
+      onTap: (isLoading || _isBlockedByActiveTravel) ? null : _showPhotoOptions,
       child: Stack(
         children: [
           CircleAvatar(
@@ -492,8 +558,8 @@ class _ProfilePageState extends State<ProfilePage> {
             right: 0,
             child: Container(
               padding: const EdgeInsets.all(4),
-              decoration: const BoxDecoration(
-                color: AppColors.primary,
+              decoration: BoxDecoration(
+                color: _isBlockedByActiveTravel ? Colors.grey : AppColors.primary,
                 shape: BoxShape.circle,
               ),
               child: isLoading
@@ -563,15 +629,16 @@ class _ProfilePageState extends State<ProfilePage> {
       );
     }
 
-    // Populate controllers when profile is first loaded
     if (state is ProfileLoaded && _fullNameController.text.isEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _populateControllers(state.profile);
+        if (!mounted) return;
+        setState(() => _populateControllers(state.profile));
       });
     }
     if (state is ProfileSaveSuccess && _fullNameController.text.isEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _populateControllers(state.profile);
+        if (!mounted) return;
+        setState(() => _populateControllers(state.profile));
       });
     }
 
@@ -583,6 +650,8 @@ class _ProfilePageState extends State<ProfilePage> {
           hint: 'Seu nome completo',
           controller: _fullNameController,
           errorText: _fullNameError,
+          enabled: _isEditing,
+          maxLength: 100,
           onChanged: (_) {
             _onFieldChanged();
             setState(() {
@@ -590,25 +659,74 @@ class _ProfilePageState extends State<ProfilePage> {
             });
           },
         ),
-        AppTextField(
-          label: 'Email',
-          hint: 'seu@email.com',
-          controller: _emailController,
-          keyboardType: TextInputType.emailAddress,
-          errorText: _emailError,
-          onChanged: (_) {
-            _onFieldChanged();
-            setState(() {
-              _emailError = null;
-            });
-          },
-        ),
+        _buildDisplayOrEditableEmail(),
+        if (_isEditing)
+          AppTextField(
+            label: 'Confirmar e-mail',
+            hint: 'Repita seu e-mail',
+            controller: _confirmEmailController,
+            keyboardType: TextInputType.emailAddress,
+            errorText: _confirmEmailMismatch,
+            maxLength: 100,
+          ),
         _buildPhoneField(),
       ],
     );
   }
 
+  Widget _buildDisplayOrEditableEmail() {
+    if (!_isEditing) {
+      return AppTextField(
+        label: 'Email',
+        hint: 'seu@email.com',
+        controller: TextEditingController(text: maskEmail(_emailController.text)),
+        enabled: false,
+      );
+    }
+    return AppTextField(
+      label: 'Email',
+      hint: 'seu@email.com',
+      controller: _emailController,
+      keyboardType: TextInputType.emailAddress,
+      errorText: _emailError,
+      enabled: true,
+      maxLength: 100,
+      onChanged: (_) {
+        _onFieldChanged();
+        setState(() {
+          _emailError = null;
+        });
+      },
+    );
+  }
+
   Widget _buildPhoneField() {
+    if (!_isEditing) {
+      return _buildPhoneFieldRaw(
+        controller: TextEditingController(
+          text: _phoneController.text.isNotEmpty ? maskPhone(_phoneController.text) : '',
+        ),
+        enabled: false,
+        onChanged: null,
+      );
+    }
+    return _buildPhoneFieldRaw(
+      controller: _phoneController,
+      enabled: true,
+      onChanged: (value) {
+        _onFieldChanged();
+        setState(() {
+          _phoneError = null;
+        });
+      },
+    );
+  }
+
+  Widget _buildPhoneFieldRaw({
+    required TextEditingController controller,
+    required bool enabled,
+    required ValueChanged<String>? onChanged,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -624,21 +742,11 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
         const SizedBox(height: 8),
         TextField(
-          controller: _phoneController,
+          controller: controller,
+          enabled: enabled,
           keyboardType: TextInputType.phone,
-          onChanged: (value) {
-            final formatted = _formatPhone(value);
-            if (formatted != value) {
-              _phoneController.value = TextEditingValue(
-                text: formatted,
-                selection: TextSelection.collapsed(offset: formatted.length),
-              );
-            }
-            _onFieldChanged();
-            setState(() {
-              _phoneError = null;
-            });
-          },
+          onChanged: onChanged,
+          inputFormatters: [PhoneInputFormatter()],
           style: GoogleFonts.robotoFlex(
             fontSize: 10,
             fontWeight: FontWeight.w300,
@@ -647,13 +755,15 @@ class _ProfilePageState extends State<ProfilePage> {
             height: 1.2,
           ),
           decoration: InputDecoration(
-            hintText: '(11) 91234-5678',
+            hintText: '(11) 91234-5678 (opcional)',
             hintStyle: GoogleFonts.robotoFlex(
               fontSize: 10,
               fontWeight: FontWeight.w300,
               color: AppColors.primary,
               letterSpacing: 0.2,
             ),
+            filled: !enabled,
+            fillColor: Colors.grey.shade100,
             contentPadding: const EdgeInsets.all(12),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(4),
@@ -719,39 +829,58 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildSaveButton(ProfileState state) {
+  Widget _buildActionButton(ProfileState state) {
     final isLoading = state is ProfileLoading;
     final isSaving = state is ProfileSaving;
     final isUploading = state is ProfilePhotoUploading;
-    final isDisabled = isLoading || isSaving || isUploading;
+    final isBusy = isLoading || isSaving || isUploading;
 
-    return Column(
+    final canAct = !isBusy && !_isBlockedByActiveTravel;
+
+    void cancelEdit() {
+      setState(() => _isEditing = false);
+      if (_originalFullName != null) {
+        _fullNameController.text = _originalFullName!;
+        _emailController.text = _originalEmail!;
+        _phoneController.text = _originalPhone ?? '';
+      }
+      _hasUnsavedChanges = false;
+    }
+
+    if (!_isEditing) {
+      return AppButton(
+        label: 'Editar',
+        loading: isSaving,
+        onPressed: canAct ? _onActionButtonTapped : null,
+      );
+    }
+
+    return Row(
       children: [
-        AppButton(
-          label: 'Salvar',
-          loading: isSaving,
-          onPressed: isDisabled ? null : _saveProfile,
-        ),
-        const SizedBox(height: 8),
-        TextButton(
-          onPressed: isDisabled
-              ? null
-              : () async {
-                  if (_hasUnsavedChanges || _pendingPhoto != null) {
-                    final shouldPop = await _onWillPop();
-                    if (shouldPop && mounted) {
-                      Navigator.of(context).pop();
-                    }
-                  } else {
-                    Navigator.of(context).pop();
-                  }
-                },
-          child: Text(
-            'Cancelar',
-            style: GoogleFonts.robotoFlex(
-              fontSize: 12,
-              color: AppColors.primary,
+        Expanded(
+          child: OutlinedButton(
+            onPressed: isBusy ? null : cancelEdit,
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: AppColors.primary),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
             ),
+            child: Text(
+              'Cancelar',
+              style: GoogleFonts.robotoFlex(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: AppColors.primary,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: AppButton(
+            label: 'Salvar',
+            loading: isSaving,
+            onPressed: (canAct && _isFormFilled) ? _onActionButtonTapped : null,
           ),
         ),
       ],
@@ -759,25 +888,29 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildDeleteAccountSection() {
+    final isBlocked = _isBlockedByActiveTravel;
+
     return Column(
       children: [
         const Divider(height: 1, thickness: 1),
         const SizedBox(height: 20),
-        const Text(
+        Text(
           'Zona de Perigo',
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w700,
-            color: Colors.red,
+            color: isBlocked ? Colors.grey : Colors.red,
           ),
         ),
         const SizedBox(height: 8),
-        const Text(
-          'Ao excluir sua conta, todos os seus dados serão perdidos '
-          'e você não poderá mais acessar o aplicativo.',
+        Text(
+          isBlocked
+              ? 'Você não pode excluir sua conta enquanto tiver uma viagem em andamento.'
+              : 'Ao excluir sua conta, todos os seus dados serão perdidos '
+                  'e você não poderá mais acessar o aplicativo.',
           style: TextStyle(
             fontSize: 12,
-            color: Color(0xFF6B6B6B),
+            color: isBlocked ? Colors.grey : const Color(0xFF6B6B6B),
           ),
           textAlign: TextAlign.center,
         ),
@@ -785,14 +918,17 @@ class _ProfilePageState extends State<ProfilePage> {
         SizedBox(
           width: double.infinity,
           child: OutlinedButton.icon(
-            onPressed: _handleDeleteAccount,
-            icon: const Icon(Icons.delete_forever, color: Colors.red),
-            label: const Text(
+            onPressed: isBlocked ? null : _handleDeleteAccount,
+            icon: Icon(
+              Icons.delete_forever,
+              color: isBlocked ? Colors.grey : Colors.red,
+            ),
+            label: Text(
               'Excluir minha conta',
-              style: TextStyle(color: Colors.red),
+              style: TextStyle(color: isBlocked ? Colors.grey : Colors.red),
             ),
             style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: Colors.red),
+              side: BorderSide(color: isBlocked ? Colors.grey : Colors.red),
               padding: const EdgeInsets.symmetric(vertical: 14),
             ),
           ),

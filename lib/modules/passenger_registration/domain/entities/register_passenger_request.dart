@@ -1,9 +1,11 @@
+import 'package:moto_passenger/core/utils/masks.dart';
+
 class RegisterPassengerRequest {
   final String role;
   final String fullName;
   final String cpf;
   final String rg;
-  final String? registration;
+  final String registration;
   final DateTime birthdate;
   final String email;
   final String initialPassword;
@@ -15,7 +17,7 @@ class RegisterPassengerRequest {
     required this.fullName,
     required this.cpf,
     required this.rg,
-    this.registration,
+    required this.registration,
     required this.birthdate,
     required this.email,
     required this.initialPassword,
@@ -27,10 +29,12 @@ class RegisterPassengerRequest {
     return {
       'role': role,
       'fullName': fullName,
-      'cpf': cpf,
-      'rg': rg,
-      if (registration != null && registration!.isNotEmpty)
-        'registration': registration,
+      // CPF e RG chegam já formatados pela máscara/formatter do formulário. O
+      // backend rejeita qualquer pontuação nos dois — envia-se só o valor
+      // "limpo", nunca o texto exibido no input (ver handoff, seção 5).
+      'cpf': unmaskDigits(cpf),
+      'rg': unmaskRg(rg),
+      'registration': registration,
       'birthdate':
           '${birthdate.year}-${birthdate.month.toString().padLeft(2, '0')}-${birthdate.day.toString().padLeft(2, '0')}',
       'email': email.trim().toLowerCase(),

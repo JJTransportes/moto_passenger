@@ -1,7 +1,9 @@
 import 'package:dio/dio.dart';
+import 'package:moto_passenger/core/errors/exceptions.dart';
 
 abstract class INewTravelDatasource {
   Future<Map<String, dynamic>> createOrder(Map<String, dynamic> request);
+  Future<Map<String, dynamic>> createPriorityOrder(Map<String, dynamic> request);
   Future<Map<String, dynamic>?> getLatestOrder();
   Future<void> cancelOrder(String orderId);
 }
@@ -30,7 +32,6 @@ class NewTravelDatasource implements INewTravelDatasource {
       final response = await _dio.post('/api/travels/orders', data: request);
       return response.data as Map<String, dynamic>;
     } on DioException catch (e) {
-      // Check for structured 404 — no drivers available for the passenger's secretariat
       if (e.response?.statusCode == 404 && e.response?.data is Map) {
         final body = e.response!.data as Map<String, dynamic>;
         if (body['type'] == 'no_drivers_available') {
@@ -39,6 +40,53 @@ class NewTravelDatasource implements INewTravelDatasource {
             message: body['message'] as String? ?? 'Nenhum motorista disponível',
           );
         }
+      }
+      if (e.response?.statusCode == 429) {
+        throw RateLimitedException(
+          _extractErrorMessage(e) ??
+              'Muitos pedidos de corrida em pouco tempo. Aguarde alguns minutos e tente novamente.',
+        );
+      }
+      if (e.response?.statusCode == 400) {
+        throw ValidationException(
+          _extractErrorMessage(e) ?? 'Dados inválidos para criar a viagem.',
+        );
+      }
+      if ((e.response?.statusCode ?? 0) >= 500) {
+        throw const ServerException();
+      }
+      throw Exception(e.message ?? 'Erro ao criar viagem');
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> createPriorityOrder(Map<String, dynamic> request) async {
+    try {
+      final response = await _dio.post('/api/travels/priority-orders', data: request);
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404 && e.response?.data is Map) {
+        final body = e.response!.data as Map<String, dynamic>;
+        if (body['type'] == 'no_drivers_available') {
+          throw NoDriversAvailableException(
+            partitionAcronym: body['partitionAcronym'] as String? ?? '',
+            message: body['message'] as String? ?? 'Nenhum motorista disponível',
+          );
+        }
+      }
+      if (e.response?.statusCode == 429) {
+        throw RateLimitedException(
+          _extractErrorMessage(e) ??
+              'Muitos pedidos de corrida em pouco tempo. Aguarde alguns minutos e tente novamente.',
+        );
+      }
+      if (e.response?.statusCode == 400) {
+        throw ValidationException(
+          _extractErrorMessage(e) ?? 'Dados inválidos para criar a viagem.',
+        );
+      }
+      if ((e.response?.statusCode ?? 0) >= 500) {
+        throw const ServerException();
       }
       throw Exception(e.message ?? 'Erro ao criar viagem');
     }
@@ -68,5 +116,13 @@ class NewTravelDatasource implements INewTravelDatasource {
       }
       throw Exception(e.message ?? 'Erro ao cancelar pedido');
     }
+  }
+
+  String? _extractErrorMessage(DioException e) {
+    final data = e.response?.data;
+    if (data is Map && data['error'] is String) {
+      return data['error'] as String;
+    }
+    return null;
   }
 }
