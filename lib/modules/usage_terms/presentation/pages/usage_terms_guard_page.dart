@@ -85,6 +85,14 @@ class _UsageTermsGuardPageState extends State<UsageTermsGuardPage> {
       );
     }
 
+    if(state is UsageTermsError) {
+      final message = state.message;
+
+      if(message.toLowerCase().contains('credenciais')){
+        Modular.to.navigate('/login');
+      }
+    }
+
     // Loading / checking states
     return const Center(child: CircularProgressIndicator());
   }

@@ -43,6 +43,12 @@ class AuthStorage {
         return null;
       }
       rethrow;
+    } catch (e) {
+      // Na web o flutter_secure_storage usa WebCrypto e pode lançar
+      // OperationError se a chave/dados estiverem inconsistentes. Tratamos
+      // como "sem token" para não travar a inicialização (splash → login).
+      debugPrint('AuthStorage: leitura falhou ($e) — tratando como sem token');
+      return null;
     }
   }
 

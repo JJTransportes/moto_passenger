@@ -57,7 +57,7 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
 
     emit(ProfileSaving(profile));
 
-    final result = await _updateProfileUsecase.call(profile.id, event.request);
+    final result = await _updateProfileUsecase.call(event.userId, event.request);
 
     result.fold(
       (updatedProfile) => emit(ProfileSaveSuccess(updatedProfile)),
@@ -111,7 +111,7 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
 
     final profile = _extractProfile(currentState);
 
-    final result = await _removePhotoUsecase.call(profile.id);
+    final result = await _removePhotoUsecase.call(event.userId);
 
     result.fold(
       (_) => emit(

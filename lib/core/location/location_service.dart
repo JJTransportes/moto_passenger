@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -43,14 +44,24 @@ class LocationService {
   }
 
   static Future<void> requestPermissionIfNeeded() async {
-    if (Platform.isIOS) {
-      await Permission.location.request();
-      return;
-    }
+    // Na web não pré-solicitamos permissão no start: a Permissions API do
+    // navegador pode lançar (ex.: OperationError) e derrubaria o main() antes
+    // do runApp. O navegador pede a permissão quando a geolocalização é de fato
+    // usada (mapa/corrida).
+    if (kIsWeb) return;
 
-    final permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      await Geolocator.requestPermission();
+    try {
+      if (Platform.isIOS) {
+        await Permission.location.request();
+        return;
+      }
+
+      final permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        await Geolocator.requestPermission();
+      }
+    } catch (_) {
+      // Nunca deixar a checagem de permissão bloquear a inicialização do app.
     }
   }
 }

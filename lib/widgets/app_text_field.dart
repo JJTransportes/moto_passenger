@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:moto_passenger/core/theme/app_theme.dart';
 
-class AppTextField extends StatelessWidget {
+class AppTextField extends StatefulWidget {
   final String label;
   final String hint;
   final TextEditingController controller;
@@ -10,6 +11,10 @@ class AppTextField extends StatelessWidget {
   final String? errorText;
   final TextInputType keyboardType;
   final ValueChanged<String>? onChanged;
+  final bool enableVisibilityToggle;
+  final List<TextInputFormatter>? inputFormatters;
+  final int? maxLength;
+  final bool enabled;
 
   const AppTextField({
     super.key,
@@ -20,7 +25,24 @@ class AppTextField extends StatelessWidget {
     this.errorText,
     this.keyboardType = TextInputType.text,
     this.onChanged,
+    this.enableVisibilityToggle = false,
+    this.inputFormatters,
+    this.maxLength,
+    this.enabled = true,
   });
+
+  @override
+  State<AppTextField> createState() => _AppTextFieldState();
+}
+
+class _AppTextFieldState extends State<AppTextField> {
+  late bool _obscure;
+
+  @override
+  void initState() {
+    super.initState();
+    _obscure = widget.obscureText;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +50,7 @@ class AppTextField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          label,
+          widget.label,
           style: GoogleFonts.robotoFlex(
             fontSize: 10,
             fontWeight: FontWeight.w700,
@@ -39,10 +61,14 @@ class AppTextField extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         TextField(
-          controller: controller,
-          obscureText: obscureText,
-          keyboardType: keyboardType,
-          onChanged: onChanged,
+          controller: widget.controller,
+          obscureText: _obscure,
+          keyboardType: widget.keyboardType,
+          onChanged: widget.onChanged,
+          enabled: widget.enabled,
+          inputFormatters: widget.inputFormatters,
+          maxLength: widget.maxLength,
+          buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
           style: GoogleFonts.robotoFlex(
             fontSize: 10,
             fontWeight: FontWeight.w300,
@@ -51,13 +77,25 @@ class AppTextField extends StatelessWidget {
             height: 1.2,
           ),
           decoration: InputDecoration(
-            hintText: hint,
+            hintText: widget.hint,
+            suffixIcon: widget.enableVisibilityToggle
+                ? IconButton(
+                    icon: Icon(
+                      _obscure ? Icons.visibility_off : Icons.visibility,
+                      color: AppColors.primary,
+                      size: 18,
+                    ),
+                    onPressed: () => setState(() => _obscure = !_obscure),
+                  )
+                : null,
             hintStyle: GoogleFonts.robotoFlex(
               fontSize: 10,
               fontWeight: FontWeight.w300,
               color: AppColors.primary,
               letterSpacing: 0.2,
             ),
+            filled: !widget.enabled,
+            fillColor: Colors.grey.shade100,
             contentPadding: const EdgeInsets.all(12),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(4),
@@ -80,7 +118,7 @@ class AppTextField extends StatelessWidget {
               borderRadius: BorderRadius.circular(4),
               borderSide: const BorderSide(color: Colors.red, width: 2),
             ),
-            errorText: errorText,
+            errorText: widget.errorText,
           ),
         ),
       ],

@@ -38,21 +38,21 @@ mixin PassengerHomeMixin on State<PassengerHomePage> {
           if (currentTravel != null) ...[
             CurrentTravelCard(
               travel: currentTravel,
-              onTap: () {
-                Modular.to.pushNamed(
+              onTap: () async {
+                await Modular.to.pushNamed(
                   '/new-travel/tracking',
                   arguments: {
                     'travelId': currentTravel.travelId,
                   },
                 );
+                if (mounted) {
+                  BlocProvider.of<PassengerHomeBloc>(context).add(const RefreshPassengerHome());
+                }
               },
             ),
             const SizedBox(height: 16),
           ],
-          LastTravelsCard(
-            travels: lastTravels,
-            onViewAll: () => Modular.to.pushNamed('/travel-history'),
-          ),
+          LastTravelsCard(travels: lastTravels),
         ],
       ),
     ),
@@ -91,14 +91,25 @@ mixin PassengerHomeMixin on State<PassengerHomePage> {
     ),
   );
 
-  FloatingActionButton homeFab() => FloatingActionButton(
+  FloatingActionButton homeFab({bool hasActiveTravel = false}) => FloatingActionButton(
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(
         MediaQuery.sizeOf(context).height * 0.1,
       ),
     ),
-    backgroundColor: AppColors.primary,
-    onPressed: () => Modular.to.pushNamed('/new-travel'),
+    backgroundColor: hasActiveTravel ? Colors.grey : AppColors.primary,
+    onPressed: hasActiveTravel
+        ? null
+        : () async {
+            // A Home não recarrega sozinha ao voltar dessa tela (só no pull-
+            // to-refresh) — sem isso, o FAB ficava com o estado antigo (ex.:
+            // habilitado mesmo já tendo uma corrida ativa) até um refresh
+            // manual.
+            await Modular.to.pushNamed('/new-travel');
+            if (mounted) {
+              BlocProvider.of<PassengerHomeBloc>(context).add(const RefreshPassengerHome());
+            }
+          },
     child: const Icon(Icons.add, color: Colors.white),
   );
 
