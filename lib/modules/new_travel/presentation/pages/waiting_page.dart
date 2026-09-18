@@ -245,22 +245,25 @@ class _WaitingPageState extends State<WaitingPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.white,
-      appBar: AppBar(
-        title: const Text('Aguardando Motorista', style: TextStyle(color: Color(0xFF4E4E4E))),
+    // Sem volta manual daqui: só sai pelo cancelamento explícito (botão
+    // "Cancelar pedido") ou pelas transições automáticas de OrderAccepted/
+    // OrderCancelled — nunca pelo botão/gesto de voltar do Android.
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
         backgroundColor: AppColors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF4E4E4E)),
-          onPressed: () => Modular.to.pop(),
+        appBar: AppBar(
+          title: const Text('Aguardando Motorista', style: TextStyle(color: Color(0xFF4E4E4E))),
+          backgroundColor: AppColors.white,
+          elevation: 0,
+          automaticallyImplyLeading: false,
         ),
-      ),
-      body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: _contactedDriverName == null ? _buildWaitingCard() : _buildContactingCard(),
+        body: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: _contactedDriverName == null ? _buildWaitingCard() : _buildContactingCard(),
+            ),
           ),
         ),
       ),
