@@ -38,10 +38,8 @@ workflows:
         ONE_SIGNAL_ID=$ONE_SIGNAL_ID
         EOF
 
-    # - name: Run tests
-    #   script: flutter test
-    # temporarily disabled — same reasoning as moto_driver: needs its own pass to
-    # check for pre-existing failing tests before this gate can be turned on.
+    - name: Run tests
+      script: flutter test
 
     - name: Determine next build number
       script: |
