@@ -4,7 +4,7 @@ workflows:
     instance_type: mac_mini_m2
     max_build_duration: 30
     integrations:
-      app_store_connect: Moto Driver
+      app_store_connect: Moto Passenger
 
     triggering:
       events:
@@ -49,11 +49,19 @@ workflows:
         ONE_SIGNAL_ID=$ONE_SIGNAL_ID
         EOF
 
+    - name: Determine next build number
+      script: |
+        LATEST_BUILD_NUMBER=$(app-store-connect get-latest-build-number "$APP_STORE_APPLE_ID")
+        NEW_BUILD_NUMBER=$((LATEST_BUILD_NUMBER + 1))
+        echo "Latest build number: $LATEST_BUILD_NUMBER"
+        echo "Next build number: $NEW_BUILD_NUMBER"
+        echo "NEW_BUILD_NUMBER=$NEW_BUILD_NUMBER" >> $CM_ENV
+
     - name: Flutter build ipa
       script: |
         flutter build ipa --release \
           --build-name=1.0.0 \
-          --build-number=36 \
+          --build-number=$NEW_BUILD_NUMBER \
           --export-options-plist=/Users/builder/export_options.plist
 
     artifacts:
