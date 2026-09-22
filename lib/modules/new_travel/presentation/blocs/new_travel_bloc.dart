@@ -1,16 +1,23 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:moto_passenger/core/auth/auth_storage.dart';
+import 'package:moto_passenger/core/config/app_config.dart';
 import 'package:moto_passenger/core/location/location_service.dart';
 import 'package:moto_passenger/core/maps/i_places_autocomplete_service.dart';
+import 'package:moto_passenger/core/network/signalr_service.dart';
+import 'package:moto_passenger/modules/new_travel/data/datasources/new_travel_datasource.dart';
 import 'package:moto_passenger/modules/new_travel/data/repositories/new_travel_repository.dart';
 import 'package:moto_passenger/modules/new_travel/domain/entities/travel_route_entity.dart';
 import 'package:moto_passenger/modules/new_travel/presentation/blocs/new_travel_event.dart';
 import 'package:moto_passenger/modules/new_travel/presentation/blocs/new_travel_state.dart';
+import 'package:moto_passenger/modules/new_travel/presentation/pages/new_travel_page.dart';
 
 class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
   final NewTravelRepository _repository;
   final LocationService _locationService;
   final IPlacesAutocompleteService _placesService;
+  final SignalRService _signalR;
+  final AuthStorage _authStorage;
 
   /// Persisted across state changes so route calculation always has an origin.
   LatLng? _currentPosition;
@@ -19,7 +26,11 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
     this._repository,
     this._locationService,
     this._placesService,
-  ) : super(const NewTravelInitial()) {
+    this._signalR,
+    this._authStorage,
+  ) : super(const NewTravelCheckingPending()) {
+    on<CheckPendingOrder>(_onCheckPendingOrder);
+    on<CancelPendingOrder>(_onCancelPendingOrder);
     on<GetCurrentLocation>(_onGetCurrentLocation);
     on<SearchPlaces>(_onSearchPlaces);
     on<SelectPlace>(_onSelectPlace);
@@ -80,11 +91,77 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
     }
   }
 
+  Future<void> _onCheckPendingOrder(
+    CheckPendingOrder event,
+    Emitter<NewTravelState> emit,
+  ) async {
+    emit(const NewTravelCheckingPending());
+
+    try {
+      final order = await _repository.getLatestOrder();
+
+      if (order == null) {
+        // No pending order — proceed to normal flow
+        add(const GetCurrentLocation());
+        return;
+      }
+
+      final status = order['status'] as String?;
+
+      if (status == 'Pending') {
+        emit(
+          NewTravelPendingOrder(
+            orderId: order['orderId'] as String,
+            travelId: order['travelId'] as String? ?? '',
+            createdAt: DateTime.tryParse(order['createdAt']?.toString() ?? '') ?? DateTime.now(),
+            destinationAddress: order['destinationAddress'] as String?,
+          ),
+        );
+      } else if (status == 'Accepted' || status == 'InProgress') {
+        final travelId = order['travelId'] as String?;
+        if (travelId != null) {
+          emit(
+            NewTravelActiveOrder(
+              travelId: travelId,
+              status: status!,
+            ),
+          );
+        } else {
+          add(const GetCurrentLocation());
+        }
+      } else {
+        // Completed, Cancelled — proceed normally
+        add(const GetCurrentLocation());
+      }
+    } catch (_) {
+      // Network error — proceed anyway
+      add(const GetCurrentLocation());
+    }
+  }
+
+  Future<void> _onCancelPendingOrder(
+    CancelPendingOrder event,
+    Emitter<NewTravelState> emit,
+  ) async {
+    try {
+      await _repository.cancelOrder(event.orderId);
+    } catch (_) {
+      // Even if cancel fails, let the user proceed
+    }
+    add(const GetCurrentLocation());
+  }
+
   Future<void> _onConfirm(
     ConfirmTravel event,
     Emitter<NewTravelState> emit,
   ) async {
     emit(const NewTravelCreating());
+
+    // Conecta ao hub ANTES de criar o pedido: o backend pode despachar para o
+    // primeiro motorista (emitindo DriverContacted) assim que o pedido é
+    // criado, e WaitingPage só monta (e conecta) depois da resposta do REST
+    // — sem isso, esse primeiro evento pode se perder.
+    await _ensureTravelOrdersConnected();
 
     try {
       final request = {
@@ -94,14 +171,36 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
         'passengerLongitude': event.originLng,
       };
 
-      final result = await _repository.createOrder(request);
+      final result = event.orderType == OrderType.normal
+          ? await _repository.createOrder(request) //
+          : await _repository.createPriorityOrder(request);
+
       emit(
         NewTravelCreated(
           orderId: result['orderId'] as String,
         ),
       );
+    } on NoDriversAvailableException catch (e) {
+      emit(
+        NewTravelNoDriversAvailable(
+          partitionAcronym: e.partitionAcronym,
+          message: e.message,
+        ),
+      );
     } catch (e) {
       emit(NewTravelFailure(message: e.toString()));
+    }
+  }
+
+  Future<void> _ensureTravelOrdersConnected() async {
+    try {
+      final token = await _authStorage.getToken();
+      if (token == null) return;
+      final baseUrl = AppConfig.getBaseUrl();
+      await _signalR.connect('travel-orders', '$baseUrl/hubs/travel-orders', token);
+    } catch (_) {
+      // Non-critical — WaitingPage tenta conectar de novo (connect() é
+      // idempotente se já estiver conectado) como fallback.
     }
   }
 

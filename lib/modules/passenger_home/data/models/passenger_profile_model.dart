@@ -4,11 +4,13 @@ class PassengerProfileModel {
   final String passengerId;
   final String fullName;
   final String email;
+  final String? photoUrl;
 
   const PassengerProfileModel({
     required this.passengerId,
     required this.fullName,
     required this.email,
+    this.photoUrl,
   });
 
   factory PassengerProfileModel.fromJson(Map<String, dynamic> json) {
@@ -16,6 +18,7 @@ class PassengerProfileModel {
       passengerId: json['passengerId'] as String,
       fullName: json['fullName'] as String,
       email: json['email'] as String,
+      photoUrl: json['photoUrl'] as String?,
     );
   }
 
@@ -24,6 +27,7 @@ class PassengerProfileModel {
       id: passengerId,
       fullName: fullName,
       email: email,
+      photoUrl: photoUrl,
     );
   }
 }

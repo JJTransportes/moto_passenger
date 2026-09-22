@@ -1,7 +1,14 @@
+// ignore_for_file: must_be_immutable
+
+import 'dart:developer';
+import 'dart:io';
+
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart' hide ReadContext;
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:moto_passenger/core/auth/auth_storage.dart';
 import 'package:moto_passenger/core/location/location_service.dart';
 import 'package:moto_passenger/core/theme/app_theme.dart';
 import 'package:moto_passenger/modules/new_travel/domain/entities/travel_route_entity.dart';
@@ -19,16 +26,32 @@ class NewTravelPage extends StatefulWidget {
 class _NewTravelPageState extends State<NewTravelPage> {
   final _destinationController = TextEditingController();
   GoogleMapController? _mapController;
+  final ValueNotifier<bool> _hasPriorityAccess = ValueNotifier(false);
+
+  OrderType _orderType = OrderType.normal;
 
   LatLng? _currentLocation;
   Set<Marker> _markers = {};
   final Set<Polyline> _polylines = {};
+
+  // Enquanto true, toques no mapa são ignorados — evita abrir várias
+  // "Resumo da Viagem" empilhadas ao tocar em vários pontos antes da
+  // primeira rota calculada terminar/fechar.
+  bool _isSelectingDestination = false;
 
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<NewTravelBloc, NewTravelState>(
       listener: (context, state) {
         switch (state) {
+          case NewTravelPendingOrder(:final orderId):
+            _showPendingOrderModal(orderId);
+          case NewTravelActiveOrder(:final travelId):
+            // Redirect to tracking for active travels
+            Navigator.of(context).pushReplacementNamed(
+              '/new-travel/tracking',
+              arguments: {'travelId': travelId},
+            );
           case NewTravelLocationLoaded(:final position):
             _onLocationLoaded(position);
           case NewTravelLocationError(:final message, :final status):
@@ -54,7 +77,13 @@ class _NewTravelPageState extends State<NewTravelPage> {
                 'orderId': orderId,
               },
             );
+          case NewTravelNoDriversAvailable(:final message):
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            }
+            _showNoDriversDialog(message);
           case NewTravelFailure(:final message):
+            setState(() => _isSelectingDestination = false);
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(message),
@@ -100,11 +129,37 @@ class _NewTravelPageState extends State<NewTravelPage> {
   @override
   void initState() {
     super.initState();
-    BlocProvider.of<NewTravelBloc>(context).add(const GetCurrentLocation());
+    // Check for pending orders first, then proceed to normal flow
+    BlocProvider.of<NewTravelBloc>(context).add(const CheckPendingOrder());
+
+    Future.microtask(() async {
+      await _verifyPriorityAccess();
+    });
+  }
+
+  void _recenterToCurrentLocation() {
+    final position = _currentLocation;
+    if (position == null || _mapController == null) return;
+    _mapController!.animateCamera(CameraUpdate.newLatLngZoom(position, 15));
+  }
+
+  Future<void> _verifyPriorityAccess() async {
+    try {
+      final dio = Modular.get<Dio>();
+      final authStorage = Modular.get<AuthStorage>();
+      final userId = await authStorage.getUserId();
+
+      final response = await dio.get('/api/passengers/$userId/priority');
+
+      _hasPriorityAccess.value = response.statusCode == HttpStatus.ok;
+    } on DioException catch (e) {
+      log(e.message ?? "");
+      return;
+    }
   }
 
   Widget _buildMap(NewTravelState state) {
-    if (state is NewTravelLocationLoading) {
+    if (state is NewTravelCheckingPending || state is NewTravelLocationLoading) {
       return Container(
         color: Colors.grey.shade200,
         child: const Center(child: CircularProgressIndicator()),
@@ -112,21 +167,41 @@ class _NewTravelPageState extends State<NewTravelPage> {
     }
 
     if (_currentLocation != null) {
-      return GoogleMap(
-        initialCameraPosition: CameraPosition(
-          target: _currentLocation!,
-          zoom: 15,
-        ),
-        markers: _markers,
-        polylines: _polylines,
-        onMapCreated: (controller) => _mapController = controller,
-        onTap: (latLng) {
-          BlocProvider.of<NewTravelBloc>(context).add(
-            CalculateRoute(latitude: latLng.latitude, longitude: latLng.longitude),
-          );
-        },
-        myLocationEnabled: true,
-        zoomControlsEnabled: false,
+      return Stack(
+        children: [
+          GoogleMap(
+            initialCameraPosition: CameraPosition(
+              target: _currentLocation!,
+              zoom: 15,
+            ),
+            markers: _markers,
+            polylines: _polylines,
+            onMapCreated: (controller) => _mapController = controller,
+            onTap: _isSelectingDestination
+                ? null
+                : (latLng) {
+                    setState(() => _isSelectingDestination = true);
+                    BlocProvider.of<NewTravelBloc>(context).add(
+                      CalculateRoute(latitude: latLng.latitude, longitude: latLng.longitude),
+                    );
+                  },
+            myLocationEnabled: true,
+            myLocationButtonEnabled: false,
+            zoomControlsEnabled: false,
+          ),
+          Positioned(
+            right: 16,
+            bottom: 16,
+            child: FloatingActionButton(
+              heroTag: 'recenter-location',
+              mini: true,
+              backgroundColor: AppColors.white,
+              foregroundColor: AppColors.primary,
+              onPressed: _recenterToCurrentLocation,
+              child: const Icon(Icons.my_location),
+            ),
+          ),
+        ],
       );
     }
 
@@ -254,11 +329,151 @@ class _NewTravelPageState extends State<NewTravelPage> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (_) => BlocProvider.value(
-        value: BlocProvider.of<NewTravelBloc>(context),
-        child: _RouteBottomSheetContent(
-          route: route,
-          distKm: distKm,
+      builder: (_) => AnimatedBuilder(
+        animation: _hasPriorityAccess,
+        builder: (_, __) {
+          return BlocProvider.value(
+            value: BlocProvider.of<NewTravelBloc>(context),
+            child: _RouteBottomSheetContent(
+              route: route,
+              distKm: distKm,
+              hasPriorityAccess: _hasPriorityAccess.value,
+              orderType: _orderType,
+            ),
+          );
+        },
+      ),
+    ).whenComplete(() {
+      if (mounted) setState(() => _isSelectingDestination = false);
+    });
+  }
+
+  Future<void> _showNoDriversDialog(String message) async {
+    if (!mounted) return;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Nenhum motorista disponível'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+            },
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPendingOrderModal(String orderId) {
+    if (!mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      isDismissible: false,
+      enableDrag: false,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.access_time, color: Colors.orange, size: 28),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Você já tem um pedido pendente',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF4E4E4E),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Existe um pedido de viagem aguardando motorista. '
+              'O que você deseja fazer?',
+              style: TextStyle(
+                fontSize: 14,
+                color: Color(0xFF4E4E4E),
+              ),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF4685C0),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  Modular.to.pop();
+                  Modular.to.pushNamed(
+                    '/new-travel/waiting',
+                    arguments: {'orderId': orderId},
+                  );
+                },
+                child: const Text(
+                  'Aguardar motorista',
+                  style: TextStyle(color: Colors.white, fontSize: 16),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  side: const BorderSide(color: Colors.red),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  BlocProvider.of<NewTravelBloc>(context).add(
+                    CancelPendingOrder(orderId: orderId),
+                  );
+                },
+                child: const Text(
+                  'Cancelar e criar novo',
+                  style: TextStyle(color: Colors.red, fontSize: 16),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  Modular.to.pop();
+                },
+                child: const Text(
+                  'Voltar',
+                  style: TextStyle(color: Color(0xFF4E4E4E), fontSize: 16),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
         ),
       ),
     );
@@ -279,15 +494,24 @@ String _formatTravelTime(int totalMinutes) {
   return '${hours}h ${minutes}min';
 }
 
-class _RouteBottomSheetContent extends StatelessWidget {
+class _RouteBottomSheetContent extends StatefulWidget {
   final TravelRouteEntity route;
   final String distKm;
+  bool hasPriorityAccess;
+  OrderType orderType;
 
-  const _RouteBottomSheetContent({
+  _RouteBottomSheetContent({
     required this.route,
     required this.distKm,
+    required this.hasPriorityAccess,
+    required this.orderType,
   });
 
+  @override
+  State<_RouteBottomSheetContent> createState() => _RouteBottomSheetContentState();
+}
+
+class _RouteBottomSheetContentState extends State<_RouteBottomSheetContent> {
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<NewTravelBloc, NewTravelState>(
@@ -313,7 +537,7 @@ class _RouteBottomSheetContent extends StatelessWidget {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        route.destinationAddress,
+                        widget.route.destinationAddress,
                         style: const TextStyle(color: Color(0xFF4E4E4E)),
                       ),
                     ),
@@ -325,7 +549,7 @@ class _RouteBottomSheetContent extends StatelessWidget {
                     const Icon(Icons.straighten, color: Color(0xFF4685C0), size: 20),
                     const SizedBox(width: 8),
                     Text(
-                      '$distKm km',
+                      '${widget.distKm} km',
                       style: const TextStyle(color: Color(0xFF4E4E4E)),
                     ),
                   ],
@@ -336,10 +560,30 @@ class _RouteBottomSheetContent extends StatelessWidget {
                     const Icon(Icons.timer_outlined, color: Color(0xFF4685C0), size: 20),
                     const SizedBox(width: 8),
                     Text(
-                      _formatTravelTime(route.timeMinutes),
+                      _formatTravelTime(widget.route.timeMinutes),
                       style: const TextStyle(color: Color(0xFF4E4E4E)),
                     ),
                   ],
+                ),
+                Visibility(
+                  visible: widget.hasPriorityAccess,
+                  child: Row(
+                    spacing: 16,
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    children: [
+                      Switch(
+                        value: widget.orderType == OrderType.priority,
+                        onChanged: (value) {
+                          widget.orderType = widget.orderType == OrderType.normal ? OrderType.priority : OrderType.normal;
+                          setState(() {});
+                        },
+                      ),
+                      Text(
+                        'Pedido com prioridade',
+                        style: const TextStyle(color: Color(0xFF4E4E4E)),
+                      ),
+                    ],
+                  ),
                 ),
                 if (isCreating) ...[
                   const Center(
@@ -410,10 +654,11 @@ class _RouteBottomSheetContent extends StatelessWidget {
                               ? null
                               : () => BlocProvider.of<NewTravelBloc>(context).add(
                                   ConfirmTravel(
-                                    originLat: route.originLat,
-                                    originLng: route.originLng,
-                                    destinationLat: route.destinationLat,
-                                    destinationLng: route.destinationLng,
+                                    originLat: widget.route.originLat,
+                                    originLng: widget.route.originLng,
+                                    destinationLat: widget.route.destinationLat,
+                                    destinationLng: widget.route.destinationLng,
+                                    orderType: widget.orderType,
                                   ),
                                 ),
                           child: isCreating
@@ -442,3 +687,5 @@ class _RouteBottomSheetContent extends StatelessWidget {
     );
   }
 }
+
+enum OrderType { normal, priority }

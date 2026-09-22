@@ -1,7 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 
 class Schema {
-  static const currentVersion = 1;
+  static const currentVersion = 2;
 
   static final createStatements = [
     '''
@@ -12,12 +12,13 @@ class Schema {
     ''',
     '''
     CREATE TABLE IF NOT EXISTS auth (
-      id            INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id       TEXT    NOT NULL,
-      access_token  TEXT    NOT NULL,
-      roles         TEXT    NOT NULL,
-      expires_at    TEXT,
-      created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id        TEXT    NOT NULL,
+      access_token   TEXT    NOT NULL,
+      refresh_token  TEXT    DEFAULT '',
+      roles          TEXT    NOT NULL,
+      expires_at     TEXT,
+      created_at     TEXT    NOT NULL DEFAULT (datetime('now'))
     )
     ''',
     '''
@@ -66,7 +67,14 @@ class Schema {
 
   static Future<void> onUpgrade(Database db, int oldVersion,
       int newVersion) async {
-    // Future migrations go here
+    // Migration 1→2: add refresh_token column to auth table
+    if (oldVersion < 2) {
+      try {
+        await db.execute('ALTER TABLE auth ADD COLUMN refresh_token TEXT DEFAULT \'\'');
+      } catch (_) {
+        // Column may already exist — ignore
+      }
+    }
     await db.update(
       'metadata',
       {'value': newVersion.toString()},

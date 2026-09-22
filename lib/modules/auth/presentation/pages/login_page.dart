@@ -1,11 +1,12 @@
-import 'dart:io';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart' hide ReadContext;
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:moto_passenger/core/brand/i_brand_cache_service.dart';
 import 'package:moto_passenger/core/theme/app_theme.dart';
+import 'package:moto_passenger/core/utils/validators.dart' as validators;
+import 'package:moto_passenger/modules/auth/domain/entities/user_entity.dart';
 import 'package:moto_passenger/modules/auth/presentation/blocs/login_bloc.dart';
 import 'package:moto_passenger/widgets/app_button.dart';
 import 'package:moto_passenger/widgets/app_text_field.dart';
@@ -24,22 +25,20 @@ class _LoginPageState extends State<LoginPage> {
 
   String? _emailError;
   String? _passwordError;
-  String? _brandImagePath;
+  bool _serverErrorBlocked = false;
 
   @override
   void initState() {
     super.initState();
-    _loadBrandImage();
+    _emailController.addListener(_onFieldsChanged);
+    _passwordController.addListener(_onFieldsChanged);
   }
 
-  Future<void> _loadBrandImage() async {
-    final path = await Modular.get<IBrandCacheService>().getBrandImagePath();
-    if (mounted) {
-      setState(() {
-        _brandImagePath = path;
-      });
-    }
-  }
+  void _onFieldsChanged() => setState(() => _serverErrorBlocked = false);
+
+  bool get _isFormFilled =>
+      validators.validateEmail(_emailController.text) == null &&
+      _passwordController.text.isNotEmpty;
 
   @override
   void dispose() {
@@ -76,6 +75,10 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
+  Future<void> _onLoginSuccess(BuildContext context, UserEntity user) async {
+    Navigator.of(context).pushReplacementNamed('/usage-terms-guard');
+  }
+
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
@@ -83,7 +86,9 @@ class _LoginPageState extends State<LoginPage> {
     return BlocConsumer<LoginBloc, LoginState>(
       listener: (context, state) {
         if (state is LoginSuccess) {
-          Navigator.of(context).pushReplacementNamed('/home');
+          _onLoginSuccess(context, state.user);
+        } else if (state is LoginFailure) {
+          setState(() => _serverErrorBlocked = true);
         }
       },
       builder: (context, state) {
@@ -96,7 +101,7 @@ class _LoginPageState extends State<LoginPage> {
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 36),
               child: Column(
-                spacing: size.height * 0.1,
+                spacing: size.height * 0.016,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   GradientText(
@@ -107,50 +112,69 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  _buildBrandImage(),
+                  _buildLogo(),
                   Column(
                     spacing: 16,
                     children: [
                       AppTextField(
-                    label: 'E-mail',
-                    hint: 'Informe seu e-mail',
-                    controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    errorText: _emailError,
+                        label: 'E-mail',
+                        hint: 'Informe seu e-mail',
+                        controller: _emailController,
+                        keyboardType: TextInputType.emailAddress,
+                        errorText: _emailError,
                       ),
-                  AppTextField(
-                    label: 'Senha',
-                    hint: 'Informe sua senha',
-                    controller: _passwordController,
-                    obscureText: true,
-                    errorText: _passwordError,
+                      AppTextField(
+                        label: 'Senha',
+                        hint: 'Informe sua senha',
+                        controller: _passwordController,
+                        obscureText: true,
+                        enableVisibilityToggle: true,
+                        errorText: _passwordError,
                       ),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: () => Navigator.of(context).pushNamed('/recovery'),
-                      child: Text(
-                        'Esqueci minha senha',
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          color: AppColors.primary,
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: () => Navigator.of(context).pushNamed('/recovery'),
+                          child: Text(
+                            'Esqueci minha senha',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: AppColors.primary,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-                  if (errorMessage != null) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      errorMessage,
-                      style: const TextStyle(
-                        color: Colors.red,
-                        fontSize: 12,
+                      if (errorMessage != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          errorMessage,
+                          style: const TextStyle(
+                            color: Colors.red,
+                            fontSize: 12,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                      AppButton(
+                        label: 'Entrar',
+                        loading: isLoading,
+                        onPressed: _isFormFilled && !_serverErrorBlocked ? _submit : null,
                       ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                  const SizedBox(height: 24),
-                      AppButton(label: 'Entrar', loading: isLoading, onPressed: _submit,),
+                      const SizedBox(height: 16),
+                      Align(
+                        alignment: Alignment.center,
+                        child: TextButton(
+                          onPressed: isLoading ? null : () => Navigator.of(context).pushNamed('/register'),
+                          child: Text(
+                            'Criar conta',
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ],
@@ -162,18 +186,13 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  Widget _buildBrandImage() {
-    if (_brandImagePath != null) {
-      return Image.file(File(_brandImagePath!), width: 224, height: 90, fit: BoxFit.contain, errorBuilder: (_, __, ___) => _buildDefaultLogo());
-    }
-    return _buildDefaultLogo();
-  }
+  Widget _buildLogo() {
+    final size = MediaQuery.sizeOf(context);
 
-  Widget _buildDefaultLogo() {
     return Image.asset(
-      'assets/images/logo.jpeg',
-      width: 224,
-      height: 90,
+      'assets/images/moto_passenger_logo.png',
+      height: size.height * 0.4,
+      width: size.width * 0.4,
       fit: BoxFit.contain,
       errorBuilder: (_, __, ___) => const SizedBox(width: 224, height: 90, child: Placeholder()),
     );

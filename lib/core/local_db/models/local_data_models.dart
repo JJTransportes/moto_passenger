@@ -3,17 +3,20 @@ import 'package:moto_passenger/modules/passenger_home/domain/entities/travel_sum
 class AuthLocalData {
   final String userId;
   final String accessToken;
+  final String refreshToken;
   final List<String> roles;
 
   AuthLocalData({
     required this.userId,
     required this.accessToken,
+    this.refreshToken = '',
     required this.roles,
   });
 
   factory AuthLocalData.fromMap(Map<String, dynamic> map) => AuthLocalData(
         userId: map['user_id'] as String,
         accessToken: map['access_token'] as String,
+        refreshToken: map['refresh_token'] as String? ?? '',
         roles: (map['roles'] as String)
             .split(',')
             .where((r) => r.isNotEmpty)

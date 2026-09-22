@@ -4,9 +4,17 @@ import 'package:signalr_netcore/signalr_client.dart';
 class SignalRService {
   final _connections = <String, HubConnection>{};
 
+  /// Último payload de `DriverContacted` recebido, independente de haver um
+  /// listener inscrito no stream no momento — cobre o caso em que o backend
+  /// despacha para o primeiro motorista antes da tela que exibe esse evento
+  /// (WaitingPage) sequer ter montado e assinado o stream.
+  Map<String, dynamic>? _lastDriverContacted;
+  Map<String, dynamic>? get lastDriverContacted => _lastDriverContacted;
+
   final _newOrderController = StreamController<Map<String, dynamic>>.broadcast();
+  final _driverContactedController = StreamController<Map<String, dynamic>>.broadcast();
   final _orderAcceptedController = StreamController<Map<String, dynamic>>.broadcast();
-  final _noDriversAvailableController = StreamController<Map<String, dynamic>>.broadcast();
+  final _orderCancelledController = StreamController<Map<String, dynamic>>.broadcast();
   final _travelStartedController = StreamController<Map<String, dynamic>>.broadcast();
   final _travelCompletedController = StreamController<Map<String, dynamic>>.broadcast();
   final _travelCancelledController = StreamController<Map<String, dynamic>>.broadcast();
@@ -17,8 +25,9 @@ class SignalRService {
   final _closedController = StreamController<void>.broadcast();
 
   Stream<Map<String, dynamic>> get onNewOrder => _newOrderController.stream;
+  Stream<Map<String, dynamic>> get onDriverContacted => _driverContactedController.stream;
   Stream<Map<String, dynamic>> get onOrderAccepted => _orderAcceptedController.stream;
-  Stream<Map<String, dynamic>> get onNoDriversAvailable => _noDriversAvailableController.stream;
+  Stream<Map<String, dynamic>> get onOrderCancelled => _orderCancelledController.stream;
   Stream<Map<String, dynamic>> get onTravelStarted => _travelStartedController.stream;
   Stream<Map<String, dynamic>> get onTravelCompleted => _travelCompletedController.stream;
   Stream<Map<String, dynamic>> get onTravelCancelled => _travelCancelledController.stream;
@@ -28,10 +37,19 @@ class SignalRService {
   Stream<void> get onReconnected => _reconnectedController.stream;
   Stream<void> get onClosed => _closedController.stream;
 
+  /// Se já existe uma conexão viva (`Connected`) para [hubName].
+  bool isConnected(String hubName) =>
+      _connections[hubName]?.state == HubConnectionState.Connected;
+
   /// Conecta a um hub específico, identificado por [hubName].
-  /// Se já existir uma conexão com o mesmo nome, ela é recriada.
-  /// Não afeta conexões de outros hubs.
+  /// Se já existir uma conexão *viva* com o mesmo nome, não faz nada — evita
+  /// que uma chamada defensiva (ex.: de uma tela que monta depois de outra
+  /// já ter conectado) derrube uma conexão em uso e cause perda de eventos
+  /// na troca. Se a conexão existente não estiver mais `Connected`, é
+  /// recriada normalmente.
   Future<void> connect(String hubName, String hubUrl, String accessToken) async {
+    if (isConnected(hubName)) return;
+
     await _connections[hubName]?.stop();
     _connections.remove(hubName);
 
@@ -71,9 +89,16 @@ class SignalRService {
   }
 
   /// Envia um comando 'DenyOrder' para o hub de travel-orders.
-  Future<void> denyOrder(String travelId) async {
+  Future<void> denyOrder(String orderId) async {
     final conn = _connections['travel-orders'];
-    await conn?.invoke('DenyOrder', args: [travelId]);
+    await conn?.invoke('DenyOrder', args: [orderId]);
+  }
+
+  /// Envia um comando 'CancelOrder' para o hub de travel-orders.
+  /// Usado pelo passageiro para cancelar seu proprio pedido.
+  Future<void> cancelOrder(String orderId) async {
+    final conn = _connections['travel-orders'];
+    await conn?.invoke('CancelOrder', args: [orderId]);
   }
 
   void _registerHubHandlers(HubConnection connection, String hubName) {
@@ -84,14 +109,21 @@ class SignalRService {
             _newOrderController.add(args.first as Map<String, dynamic>);
           }
         });
+        connection.on('DriverContacted', (args) {
+          if (args != null && args.isNotEmpty) {
+            final data = args.first as Map<String, dynamic>;
+            _lastDriverContacted = data;
+            _driverContactedController.add(data);
+          }
+        });
         connection.on('OrderAccepted', (args) {
           if (args != null && args.isNotEmpty) {
             _orderAcceptedController.add(args.first as Map<String, dynamic>);
           }
         });
-        connection.on('NoDriversAvailable', (args) {
+        connection.on('OrderCancelled', (args) {
           if (args != null && args.isNotEmpty) {
-            _noDriversAvailableController.add(args.first as Map<String, dynamic>);
+            _orderCancelledController.add(args.first as Map<String, dynamic>);
           }
         });
         break;
@@ -143,8 +175,9 @@ class SignalRService {
   void dispose() {
     disconnectAll();
     _newOrderController.close();
+    _driverContactedController.close();
     _orderAcceptedController.close();
-    _noDriversAvailableController.close();
+    _orderCancelledController.close();
     _travelStartedController.close();
     _travelCompletedController.close();
     _travelCancelledController.close();

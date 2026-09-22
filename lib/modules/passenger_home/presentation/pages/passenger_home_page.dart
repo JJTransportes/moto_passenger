@@ -1,5 +1,13 @@
+import 'dart:async';
+import 'dart:developer';
+
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_modular/flutter_modular.dart';
+import 'package:moto_passenger/core/auth/auth_storage.dart';
+import 'package:moto_passenger/core/location/location_service.dart';
+import 'package:moto_passenger/core/navigation/route_observer.dart';
 import 'package:moto_passenger/core/theme/app_theme.dart';
 import 'package:moto_passenger/modules/passenger_home/presentation/blocs/passenger_home_bloc.dart';
 import 'package:moto_passenger/modules/passenger_home/presentation/blocs/passenger_home_event.dart';
@@ -13,7 +21,9 @@ class PassengerHomePage extends StatefulWidget {
   State<PassengerHomePage> createState() => _PassengerHomePageState();
 }
 
-class _PassengerHomePageState extends State<PassengerHomePage> with PassengerHomeMixin {
+class _PassengerHomePageState extends State<PassengerHomePage> with PassengerHomeMixin, RouteAware {
+  Timer? _passengerPositionTimer;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -37,7 +47,11 @@ class _PassengerHomePageState extends State<PassengerHomePage> with PassengerHom
           },
         ),
       ),
-      floatingActionButton: homeFab(),
+      floatingActionButton: BlocBuilder<PassengerHomeBloc, PassengerHomeState>(
+        builder: (context, state) => homeFab(
+          hasActiveTravel: state is PassengerHomeLoaded && state.currentTravel != null,
+        ),
+      ),
     );
   }
 
@@ -45,5 +59,56 @@ class _PassengerHomePageState extends State<PassengerHomePage> with PassengerHom
   void initState() {
     super.initState();
     BlocProvider.of<PassengerHomeBloc>(context).add(const LoadPassengerHome());
+
+    _passengerPositionTimer = Timer.periodic(
+      const Duration(seconds: 10),
+      (_) => _updatePassengerPosition(),
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    appRouteObserver.subscribe(this, ModalRoute.of(context)! as PageRoute);
+  }
+
+  @override
+  void dispose() {
+    appRouteObserver.unsubscribe(this);
+    _passengerPositionTimer?.cancel();
+
+    super.dispose();
+  }
+
+  @override
+  void didPopNext() {
+    // Voltou pra Home depois de uma tela por cima ser fechada (nova
+    // viagem cancelada/criada, rastreamento, etc.) — refaz o fetch sempre,
+    // sem depender de pull-to-refresh manual ou de cada chamador lembrar de
+    // disparar um refresh.
+    BlocProvider.of<PassengerHomeBloc>(context).add(const RefreshPassengerHome());
+  }
+
+  Future<void> _updatePassengerPosition() async {
+    try {
+      final dio = Modular.get<Dio>();
+      final authStorage = Modular.get<AuthStorage>();
+      final localtionService = Modular.get<LocationService>();
+      final position = await localtionService.getCurrentPosition();
+      final userId = await authStorage.getUserId();
+
+      final response = await dio.post(
+        '/api/positions/passengers/$userId',
+        data: {
+          "latitude": position.position?.latitude,
+          "longitude": position.position?.longitude,
+        },
+      );
+
+      log('${response.statusCode}');
+    } on DioException catch (e) {
+      log(e.message ?? "");
+      return;
+    }
   }
 }

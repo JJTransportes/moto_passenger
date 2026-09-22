@@ -1,4 +1,5 @@
 import 'package:moto_passenger/core/maps/places_autocomplete_service.dart';
+import 'package:moto_passenger/modules/new_travel/presentation/pages/new_travel_page.dart';
 
 sealed class NewTravelEvent {
   const NewTravelEvent();
@@ -35,11 +36,23 @@ class ConfirmTravel extends NewTravelEvent {
   final double originLng;
   final double destinationLat;
   final double destinationLng;
+  final OrderType orderType;
 
   const ConfirmTravel({
     required this.originLat,
     required this.originLng,
     required this.destinationLat,
     required this.destinationLng,
+    required this.orderType,
   });
+}
+
+class CheckPendingOrder extends NewTravelEvent {
+  const CheckPendingOrder();
+}
+
+class CancelPendingOrder extends NewTravelEvent {
+  final String orderId;
+
+  const CancelPendingOrder({required this.orderId});
 }

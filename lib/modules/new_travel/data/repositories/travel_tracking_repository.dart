@@ -37,12 +37,21 @@ class TravelTrackingRepository implements ITravelTrackingRepository {
         status = TravelStatus.pending;
     }
 
-    // Extract destination coordinates from first route
+    // Extract destination coordinates from the correct route.
+    // After travel-flow-refinement: routes[1] = passenger→destination (trip, sequenceIndex=1).
+    // Before: routes[0] = passenger→destination (single route, sequenceIndex=0).
+    // Try sequenceIndex==1 first, fallback to routes[0] for backward compatibility.
     final routes = data['routes'] as List?;
     double? destLat, destLng;
+    String? routePolyline;
     if (routes != null && routes.isNotEmpty) {
-      destLat = (routes[0]['destinationLatitude'] as num?)?.toDouble();
-      destLng = (routes[0]['destinationLongitude'] as num?)?.toDouble();
+      final destRoute = routes.cast<Map<String, dynamic>>().firstWhere(
+        (r) => r['sequenceIndex'] == 1,
+        orElse: () => routes.first as Map<String, dynamic>,
+      );
+      destLat = (destRoute['destinationLatitude'] as num?)?.toDouble();
+      destLng = (destRoute['destinationLongitude'] as num?)?.toDouble();
+      routePolyline = destRoute['encodedPolyline'] as String?;
     }
 
     return TravelTrackingEntity(
@@ -55,8 +64,10 @@ class TravelTrackingRepository implements ITravelTrackingRepository {
       finishedAt: DateTime.tryParse(data['finishedAt']?.toString() ?? ''),
       cancelledAt: DateTime.tryParse(data['cancelledAt']?.toString() ?? ''),
       cancellationReason: data['cancellationReason'] as String?,
+      driverId: data['driverId'] as String?,
       destinationLatitude: destLat,
       destinationLongitude: destLng,
+      routePolyline: routePolyline,
     );
   }
 
@@ -67,13 +78,18 @@ class TravelTrackingRepository implements ITravelTrackingRepository {
 
   @override
   Future<DriverInfoEntity> getDriverProfile(String driverId) async {
+    // Backend response (DriverProfileResponse) uses "id"/"name", not
+    // "driverId"/"fullName" — a previous mismatch here meant this always fell
+    // back to a generic name and could throw when "driverId" was missing.
     final data = await _datasource.getDriverProfile(driverId);
     return DriverInfoEntity(
-      driverId: data['driverId'] as String,
-      fullName: data['fullName'] as String? ?? 'Motorista',
+      driverId: data['id'] as String? ?? driverId,
+      fullName: data['name'] as String? ?? 'Motorista',
+      photoUrl: data['photoUrl'] as String?,
+      vehicleBrand: data['vehicle']?['brand'] as String?,
       vehicleModel: data['vehicle']?['model'] as String?,
       vehiclePlate: data['vehicle']?['plate'] as String?,
-      vehicleColor: data['vehicle']?['color'] as String?,
+      travelCount: data['travelCount'] as int?,
     );
   }
 }

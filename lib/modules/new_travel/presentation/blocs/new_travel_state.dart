@@ -67,8 +67,46 @@ class NewTravelCreated extends NewTravelState {
   });
 }
 
+class NewTravelNoDriversAvailable extends NewTravelState {
+  final String partitionAcronym;
+  final String message;
+
+  const NewTravelNoDriversAvailable({
+    required this.partitionAcronym,
+    required this.message,
+  });
+}
+
 class NewTravelFailure extends NewTravelState {
   final String message;
 
   const NewTravelFailure({required this.message});
+}
+
+class NewTravelCheckingPending extends NewTravelState {
+  const NewTravelCheckingPending();
+}
+
+class NewTravelPendingOrder extends NewTravelState {
+  final String orderId;
+  final String travelId;
+  final DateTime createdAt;
+  final String? destinationAddress;
+
+  const NewTravelPendingOrder({
+    required this.orderId,
+    required this.travelId,
+    required this.createdAt,
+    this.destinationAddress,
+  });
+}
+
+class NewTravelActiveOrder extends NewTravelState {
+  final String travelId;
+  final String status;
+
+  const NewTravelActiveOrder({
+    required this.travelId,
+    required this.status,
+  });
 }
