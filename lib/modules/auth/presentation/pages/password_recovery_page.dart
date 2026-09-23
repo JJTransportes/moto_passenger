@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_modular/flutter_modular.dart' hide ModularWatchExtension;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:moto_passenger/core/theme/app_theme.dart';
+import 'package:moto_passenger/core/utils/validators.dart' as validators;
 import 'package:moto_passenger/modules/auth/presentation/blocs/password_recovery_bloc.dart';
 import 'package:moto_passenger/widgets/app_button.dart';
 import 'package:moto_passenger/widgets/app_text_field.dart';
@@ -17,16 +18,58 @@ class PasswordRecoveryPage extends StatefulWidget {
 
 class _PasswordRecoveryPageState extends State<PasswordRecoveryPage> {
   final _emailController = TextEditingController();
+  final _confirmEmailController = TextEditingController();
+
+  String? _localError;
+  String? _emailServerError;
+
+  @override
+  void initState() {
+    super.initState();
+    _emailController.addListener(_onEmailChanged);
+    _confirmEmailController.addListener(_onFieldsChanged);
+  }
+
+  void _onFieldsChanged() => setState(() {});
+
+  void _onEmailChanged() {
+    _emailServerError = null;
+    setState(() {});
+  }
+
+  bool get _isFormFilled =>
+      validators.validateEmail(_emailController.text) == null &&
+      _confirmEmailController.text.trim() == _emailController.text.trim();
+
+  String? get _confirmEmailMismatch {
+    final email = _emailController.text.trim();
+    final confirmEmail = _confirmEmailController.text.trim();
+    if (email.isEmpty || confirmEmail.isEmpty) return null;
+    if (email == confirmEmail) return null;
+    return 'Os e-mails não coincidem';
+  }
 
   @override
   void dispose() {
     _emailController.dispose();
+    _confirmEmailController.dispose();
     super.dispose();
   }
 
   void _submit() {
     final email = _emailController.text.trim();
-    if (email.isEmpty) return;
+    final confirmEmail = _confirmEmailController.text.trim();
+
+    if (email.isEmpty || confirmEmail.isEmpty) {
+      setState(() => _localError = 'Confirme seu e-mail');
+      return;
+    }
+    if (email != confirmEmail) {
+      setState(() => _localError = 'Os e-mails não coincidem');
+      return;
+    }
+
+    setState(() => _localError = null);
     context.read<PasswordRecoveryBloc>().add(RequestCodeSubmitted(email));
   }
 
@@ -35,15 +78,20 @@ class _PasswordRecoveryPageState extends State<PasswordRecoveryPage> {
     return Scaffold(
       backgroundColor: AppColors.white,
       body: SafeArea(
-        child: BlocBuilder<PasswordRecoveryBloc, PasswordRecoveryState>(
-          builder: (context, state) {
+        child: BlocConsumer<PasswordRecoveryBloc, PasswordRecoveryState>(
+          listener: (context, state) {
             if (state is PasswordRecoverySent) {
-              return _SuccessView(email: state.email);
+              Modular.to.pushNamed(
+                '/verify-code',
+                arguments: {'email': state.email},
+              );
+            } else if (state is PasswordRecoveryError) {
+              setState(() => _emailServerError = state.message);
             }
-
+          },
+          builder: (context, state) {
             final isLoading = state is PasswordRecoveryLoading;
-            final errorMessage =
-                state is PasswordRecoveryError ? state.message : null;
+            final errorMessage = _localError;
 
             return Padding(
               padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 36),
@@ -81,6 +129,15 @@ class _PasswordRecoveryPageState extends State<PasswordRecoveryPage> {
                         hint: 'Informe seu e-mail',
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
+                        errorText: _emailServerError,
+                      ),
+                      const SizedBox(height: 12),
+                      AppTextField(
+                        label: 'Confirmar e-mail',
+                        hint: 'Repita seu e-mail',
+                        controller: _confirmEmailController,
+                        keyboardType: TextInputType.emailAddress,
+                        errorText: _confirmEmailMismatch,
                       ),
                       if (errorMessage != null) ...[
                         const SizedBox(height: 12),
@@ -98,62 +155,13 @@ class _PasswordRecoveryPageState extends State<PasswordRecoveryPage> {
                   AppButton(
                     label: 'Enviar',
                     loading: isLoading,
-                    onPressed: _submit,
+                    onPressed: _isFormFilled && _emailServerError == null ? _submit : null,
                   ),
                 ],
               ),
             );
           },
         ),
-      ),
-    );
-  }
-}
-
-class _SuccessView extends StatelessWidget {
-  final String email;
-
-  const _SuccessView({required this.email});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 36),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.email_outlined, color: AppColors.primary, size: 64),
-          const SizedBox(height: 24),
-          Text(
-            'Se o e-mail estiver cadastrado, você receberá um código de verificação em instantes.',
-            style: GoogleFonts.inter(
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
-              color: Colors.black,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 32),
-          AppButton(
-            label: 'Já tenho o código',
-            onPressed: () => Modular.to.pushNamed(
-              '/reset-password',
-              arguments: {'email': email},
-            ),
-          ),
-          const SizedBox(height: 16),
-          TextButton(
-            onPressed: () => Modular.to.navigate('/login'),
-            child: Text(
-              'Voltar ao login',
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: AppColors.primary,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

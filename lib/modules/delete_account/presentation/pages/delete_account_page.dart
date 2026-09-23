@@ -6,6 +6,7 @@ import 'package:moto_passenger/core/network/signalr_service.dart';
 import 'package:moto_passenger/modules/delete_account/presentation/blocs/delete_account_bloc.dart';
 import 'package:moto_passenger/modules/delete_account/presentation/blocs/delete_account_event.dart';
 import 'package:moto_passenger/modules/delete_account/presentation/blocs/delete_account_state.dart';
+import 'package:moto_passenger/modules/profile_configuration/presentation/widgets/confirm_password_dialog.dart';
 
 class DeleteAccountPage extends StatefulWidget {
   const DeleteAccountPage({super.key});
@@ -15,45 +16,10 @@ class DeleteAccountPage extends StatefulWidget {
 }
 
 class _DeleteAccountPageState extends State<DeleteAccountPage> {
-  int _step = 0; // 0 = warning, 1 = password
-  final _passwordController = TextEditingController();
-  bool _isPasswordValid = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _passwordController.addListener(_onPasswordChanged);
-  }
-
-  @override
-  void dispose() {
-    _passwordController.dispose();
-    super.dispose();
-  }
-
-  void _onPasswordChanged() {
-    final isValid = _passwordController.text.isNotEmpty;
-    if (isValid != _isPasswordValid) {
-      setState(() => _isPasswordValid = isValid);
-    }
-  }
-
-  void _advanceToPasswordStep() {
-    setState(() => _step = 1);
-  }
-
-  void _goBack() {
-    if (_step == 0) {
-      Navigator.of(context).pop();
-    } else {
-      setState(() => _step = 0);
-    }
-  }
-
-  void _onConfirmDelete() {
-    context.read<DeleteAccountBloc>().add(
-          SubmitDeletion(_passwordController.text),
-        );
+  Future<void> _onContinueTapped() async {
+    final password = await showConfirmPasswordDialog(context);
+    if (password == null || !mounted) return;
+    context.read<DeleteAccountBloc>().add(SubmitDeletion(password));
   }
 
   Future<void> _handleSuccess() async {
@@ -86,57 +52,47 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (_) => context.read<DeleteAccountBloc>(),
-      child: PopScope(
-        canPop: _step == 0,
-        onPopInvokedWithResult: (didPop, _) {
-          if (!didPop && _step == 1) {
-            _goBack();
-          }
-        },
-        child: Scaffold(
-          appBar: AppBar(
-            title: Text(
-              _step == 0 ? 'Excluir conta' : 'Confirme sua senha',
-            ),
-            backgroundColor: Colors.white,
-            foregroundColor: const Color(0xFF4E4E4E),
-            elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back),
-              onPressed: _goBack,
-            ),
-          ),
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Excluir conta'),
           backgroundColor: Colors.white,
-          body: BlocListener<DeleteAccountBloc, DeleteAccountState>(
-            listener: (context, state) {
-              if (state is DeleteAccountSuccess) {
-                _handleSuccess();
-              }
-              if (state is DeleteAccountError) {
-                final exception = switch (state.type) {
-                  DeleteAccountErrorType.invalidPassword =>
-                    UnauthorizedException(state.message),
-                  DeleteAccountErrorType.activeTravels =>
-                    ValidationException(state.message),
-                  DeleteAccountErrorType.other =>
-                    Exception(state.message),
-                };
-                _showError(exception);
-              }
-            },
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: _step == 0
-                  ? _buildWarningStep()
-                  : _buildPasswordStep(),
-            ),
+          foregroundColor: const Color(0xFF4E4E4E),
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => Navigator.of(context).pop(),
           ),
+        ),
+        backgroundColor: Colors.white,
+        body: BlocConsumer<DeleteAccountBloc, DeleteAccountState>(
+          listener: (context, state) {
+            if (state is DeleteAccountSuccess) {
+              _handleSuccess();
+            }
+            if (state is DeleteAccountError) {
+              final exception = switch (state.type) {
+                DeleteAccountErrorType.invalidPassword =>
+                  UnauthorizedException(state.message),
+                DeleteAccountErrorType.activeTravels =>
+                  ValidationException(state.message),
+                DeleteAccountErrorType.other => Exception(state.message),
+              };
+              _showError(exception);
+            }
+          },
+          builder: (context, state) {
+            final isLoading = state is DeleteAccountLoading;
+            return Padding(
+              padding: const EdgeInsets.all(24),
+              child: _buildWarningStep(isLoading),
+            );
+          },
         ),
       ),
     );
   }
 
-  Widget _buildWarningStep() {
+  Widget _buildWarningStep(bool isLoading) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -166,26 +122,36 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
-            onPressed: _advanceToPasswordStep,
+            onPressed: isLoading ? null : _onContinueTapped,
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
+              disabledBackgroundColor: Colors.grey.shade300,
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
               ),
             ),
-            child: const Text(
-              'Continuar',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
+            child: isLoading
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Text(
+                    'Continuar',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
           ),
         ),
         const SizedBox(height: 12),
         SizedBox(
           width: double.infinity,
           child: OutlinedButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: isLoading ? null : () => Navigator.of(context).pop(),
             style: OutlinedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(
@@ -199,85 +165,6 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildPasswordStep() {
-    return BlocBuilder<DeleteAccountBloc, DeleteAccountState>(
-      builder: (context, state) {
-        final isLoading = state is DeleteAccountLoading;
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Esta ação é irreversível. Digite sua senha atual '
-              'para confirmar a exclusão da sua conta.',
-              style: TextStyle(fontSize: 16, color: Color(0xFF4E4E4E)),
-            ),
-            const SizedBox(height: 24),
-            TextField(
-              controller: _passwordController,
-              obscureText: true,
-              enabled: !isLoading,
-              decoration: const InputDecoration(
-                labelText: 'Senha',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.lock_outline),
-              ),
-            ),
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: (!_isPasswordValid || isLoading)
-                    ? null
-                    : _onConfirmDelete,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  foregroundColor: Colors.white,
-                  disabledBackgroundColor: Colors.grey.shade300,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: isLoading
-                    ? const SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Text(
-                        'Confirmar exclusão',
-                        style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w600),
-                      ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: isLoading ? null : _goBack,
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: const Text(
-                  'Cancelar',
-                  style: TextStyle(fontSize: 16),
-                ),
-              ),
-            ),
-          ],
-        );
-      },
     );
   }
 }

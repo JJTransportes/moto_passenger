@@ -16,24 +16,23 @@ void main() {
     mockUsecase = MockConfirmPasswordResetUsecase();
   });
 
-  const email = 'maria@moto.com';
+  const resetToken = 'token-abc';
 
   PasswordResetBloc buildBloc() =>
-      PasswordResetBloc(mockUsecase, email: email);
+      PasswordResetBloc(mockUsecase, resetToken: resetToken);
 
   group('PasswordResetBloc', () {
     blocTest<PasswordResetBloc, PasswordResetState>(
       'emite [Submitting, Success] em caso de sucesso',
       build: () {
         when(() => mockUsecase.call(
-              email: any(named: 'email'),
-              code: any(named: 'code'),
+              resetToken: any(named: 'resetToken'),
               newPassword: any(named: 'newPassword'),
             )).thenAnswer((_) async => Success(unit));
         return buildBloc();
       },
       act: (bloc) => bloc.add(
-        const ResetConfirmSubmitted(code: '123456', newPassword: 'NovaSenha!'),
+        const ResetConfirmSubmitted(newPassword: 'NovaSenha!'),
       ),
       expect: () => const [
         PasswordResetSubmitting(),
@@ -41,8 +40,7 @@ void main() {
       ],
       verify: (_) {
         verify(() => mockUsecase.call(
-              email: email,
-              code: '123456',
+              resetToken: resetToken,
               newPassword: 'NovaSenha!',
             )).called(1);
       },
@@ -52,20 +50,19 @@ void main() {
       'emite Error com codeConsumed:true no 409 (ConflictException)',
       build: () {
         when(() => mockUsecase.call(
-              email: any(named: 'email'),
-              code: any(named: 'code'),
+              resetToken: any(named: 'resetToken'),
               newPassword: any(named: 'newPassword'),
             )).thenAnswer(
-          (_) async => Failure(const ConflictException('Este código já foi utilizado.')),
+          (_) async => Failure(const ConflictException('Este token já foi utilizado.')),
         );
         return buildBloc();
       },
       act: (bloc) => bloc.add(
-        const ResetConfirmSubmitted(code: '123456', newPassword: 'NovaSenha!'),
+        const ResetConfirmSubmitted(newPassword: 'NovaSenha!'),
       ),
       expect: () => const [
         PasswordResetSubmitting(),
-        PasswordResetError('Este código já foi utilizado.', codeConsumed: true),
+        PasswordResetError('Este token já foi utilizado.', codeConsumed: true),
       ],
     );
 
@@ -73,20 +70,19 @@ void main() {
       'emite Error com codeConsumed:false no 400 (ValidationException)',
       build: () {
         when(() => mockUsecase.call(
-              email: any(named: 'email'),
-              code: any(named: 'code'),
+              resetToken: any(named: 'resetToken'),
               newPassword: any(named: 'newPassword'),
             )).thenAnswer(
-          (_) async => Failure(const ValidationException('Invalid or expired code.')),
+          (_) async => Failure(const ValidationException('Invalid or expired token.')),
         );
         return buildBloc();
       },
       act: (bloc) => bloc.add(
-        const ResetConfirmSubmitted(code: '000000', newPassword: 'x'),
+        const ResetConfirmSubmitted(newPassword: 'x'),
       ),
       expect: () => const [
         PasswordResetSubmitting(),
-        PasswordResetError('Invalid or expired code.', codeConsumed: false),
+        PasswordResetError('Invalid or expired token.', codeConsumed: false),
       ],
     );
   });
