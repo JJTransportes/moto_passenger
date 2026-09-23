@@ -37,6 +37,21 @@ void main() {
     );
 
     blocTest<PasswordRecoveryBloc, PasswordRecoveryState>(
+      'emite [Loading, Error] com a mensagem do servidor no 404 (e-mail não cadastrado)',
+      build: () {
+        when(() => mockUsecase.call(any())).thenAnswer(
+          (_) async => Failure(const NotFoundException('Email não cadastrado.')),
+        );
+        return PasswordRecoveryBloc(mockUsecase);
+      },
+      act: (bloc) => bloc.add(const RequestCodeSubmitted(email)),
+      expect: () => const [
+        PasswordRecoveryLoading(),
+        PasswordRecoveryError('Email não cadastrado.'),
+      ],
+    );
+
+    blocTest<PasswordRecoveryBloc, PasswordRecoveryState>(
       'emite [Loading, Error] com a mensagem de rate limit no 429',
       build: () {
         when(() => mockUsecase.call(any())).thenAnswer(

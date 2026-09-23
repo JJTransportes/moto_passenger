@@ -62,7 +62,11 @@ String? validateFullName(String value) {
 
 String? validateEmail(String email) {
   if (email.trim().isEmpty) return 'E-mail é obrigatório.';
-  if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email)) {
+  if (!RegExp(
+    r"^[a-zA-Z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-zA-Z0-9!#$%&'*+/=?^_`{|}~-]+)*"
+    r'@[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?'
+    r'(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?)+$',
+  ).hasMatch(email)) {
     return 'E-mail inválido.';
   }
   if (email.length > 100) return 'E-mail deve ter no máximo 100 caracteres.';

@@ -22,12 +22,17 @@ class PasswordRecoveryBloc extends Bloc<PasswordRecoveryEvent, PasswordRecoveryS
     final result = await _requestPasswordResetUsecase.call(event.email);
 
     result.fold(
-      // Sucesso inclui o caso 404 (e-mail não cadastrado), tratado como sucesso
-      // no datasource por design anti-enumeração.
       (_) => emit(PasswordRecoverySent(event.email)),
       (error) {
         final message = switch (error) {
+          // 404: e-mail não cadastrado (ou cadastrado só com outra role) —
+          // exposto de propósito, decisão de segurança do backend (não é
+          // mais anti-enumeração). Ver .sdd/checklist-email-nao-cadastrado.md.
+          NotFoundException() => error.message,
           RateLimitedException() => error.message,
+          // 403: conta ainda não aprovada pelo GlobalAdmin. Ver
+          // BACKEND_CHANGES_TODO.md.
+          ForbiddenException() => error.message,
           _ => 'Erro ao enviar o código. Verifique sua conexão e tente novamente.',
         };
         emit(PasswordRecoveryError(message));
