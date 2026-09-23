@@ -5,8 +5,10 @@ workflows:
     instance_type: mac_mini_m2
 
     triggering:
-      events:
-      - push
+      events: []
+      # push trigger temporarily disabled while this pipeline is being reconstructed
+      # in a working branch — re-add "- push" under events when ready to resume
+      # automatic builds/publishing on android_release.
       branch_patterns:
       - pattern: "android_release"
       - include: true
@@ -19,6 +21,10 @@ workflows:
       - release
       android_signing:
       - moto_passenger_keystore
+
+    cache:
+      cache_paths:
+      - $HOME/.pub-cache
 
     scripts:
     - name: Set up local.properties
@@ -58,9 +64,11 @@ workflows:
     publishing:
       email:
         recipients:
-        - dev.jr.s.engineer@gmail.com
+        - comercialpepiviagens@gmail.com
+        - igoralmeidarossi@gmail.com
+        - marcospl.nascimento12@gmail.com
         notify:
-          success: false
+          success: true
           failure: true
 
       google_play:
