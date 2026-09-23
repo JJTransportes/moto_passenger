@@ -132,6 +132,26 @@ Os nomes dos checks que aparecem no GitHub (pra marcar como obrigatório nas bra
 1. Nunca edite `codemagic.yaml` direto em `android_staging`/`android_release` via branch solta — sempre `dev` → PR → merge.
 2. Se a mudança for específica de pipeline (não é feature de app), ainda assim prefira fazer via PR normal a partir de uma branch de trabalho mergeada em `dev` primeiro — mantém o histórico da `dev` como fonte única da verdade.
 3. Depois de qualquer mudança no `codemagic.yaml`, teste rodando `flutter test` localmente antes de abrir o PR — o pipeline já vai rodar de novo, mas economiza um ciclo de build se algo quebrar.
+4. **Nunca dispare um build manual no Codemagic ("Start new build") sem checar duas vezes qual branch está selecionada.** Foi exatamente isso que causou o incidente da seção 2.8 — build manual apontado pra uma branch de trabalho antiga em vez de `android_release`.
+
+### 2.8 Incidente registrado: produção publicada com código desatualizado (22-23/09/2026)
+
+**O que aconteceu**: a sprint de correções de segurança e funcionalidades (trabalhada na branch `hotfix-login`, ~09/09 a 18/09) foi mergeada em `main` e `android_staging`, mas **nunca chegou a `android_release` nem a `dev`**. Ninguém notou porque não havia processo de verificação. Enquanto isso:
+
+- O bug de trigger invertido (`include: false`, ver "Perguntas frequentes") fez o Codemagic disparar automaticamente um build de **produção** a partir de uma branch de trabalho velha (`fix-android-release-pipeline` / commit anterior à sprint), publicando código desatualizado — **sem a sprint de segurança** — direto na Google Play (build 45 do passageiro).
+- Um build manual também foi disparado depois apontando pra branch errada (mesmo tipo de engano), reforçando o mesmo problema.
+
+**Como foi detectado**: verificação simples com `git merge-base --is-ancestor <commit-da-sprint> origin/android_release` — se o resultado for "não é ancestral", a branch de produção não tem aquele commit. Vale rodar esse teste sempre que houver dúvida sobre se uma branch está atualizada:
+
+```bash
+git merge-base --is-ancestor <hash-do-commit> origin/<branch> && echo "presente" || echo "AUSENTE"
+```
+
+Como reforço, também dá pra verificar diretamente se um arquivo específico introduzido pela mudança existe na branch (`git show origin/<branch>:<caminho/do/arquivo>`), já que squash-merges no GitHub podem quebrar a checagem de ancestralidade mesmo com o conteúdo presente.
+
+**Correção aplicada**: merge de reconciliação `android_staging → android_release` (que por sua vez já continha `hotfix-login` + as correções de pipeline), preservando manualmente `pubspec.yaml` (versão `2.0.0`, não a `1.0.0` de staging) e `codemagic.yaml` (config de publicação de produção, não a de staging) — esses dois arquivos sempre entram em conflito nesse tipo de merge porque staging e release têm valores intencionalmente diferentes.
+
+**Lição pro futuro**: sempre que `hotfix-*`/features forem mergeados fora do fluxo `dev` normal (direto em `main`, por urgência), é preciso **também** trazer esse conteúdo pra `dev` (e daí pra `android_staging`/`android_release`) manualmente — senão a `dev` fica desatualizada silenciosamente e a proteção de branch (seção 2.5/2.6) não detecta isso, porque ela só verifica a *origem* do PR, não se o *conteúdo* está completo.
 
 ---
 
@@ -139,14 +159,39 @@ Os nomes dos checks que aparecem no GitHub (pra marcar como obrigatório nas bra
 
 O pipeline de iOS ainda **não** está no mesmo nível de maturidade/proteção do Android. Motivo: a conta Apple Developer usada para publicar os apps estava cadastrada como Pessoa Física, e precisou passar por um processo de migração pra conta empresarial (Organização) junto à Apple, que envolveu:
 
-- Documentação da empresa (CNPJ, Contrato Social, identidade do responsável legal)
-- Bloqueio temporário do portal de Certificates, Identifiers & Profiles durante a migração
-- Descoberta de que os Bundle IDs originais (sem sufixo `App`) estavam presos numa conta antiga inacessível, exigindo registro de IDs novos
+- Documentação da empresa (CNPJ, Contrato Social, identidade do responsável legal — enviada, Enrollment ID `DKTT8PQV38`, em análise pela Apple)
+- Bloqueio temporário do portal de Certificates, Identifiers & Profiles durante a migração (App Store Connect em si continua acessível)
+- Descoberta de que os Bundle IDs originais (`motoDriver`, `motoPassenger`, sem sufixo) estavam presos numa conta antiga (`coronell@...`) inacessível para transferência (Apple só permite transferir apps já aprovados pelo menos uma vez em review — os antigos foram rejeitados, nunca aprovados), exigindo registro de IDs novos (`motoDriverApp`, `motoPassengerApp`)
 
-Enquanto a migração não conclui, os workflows `ios_staging`/`ios_release`/`ios_pre_release` (Codemagic) não conseguem gerar certificado/perfil de assinatura novo. Assim que a Apple aprovar, os próximos passos são:
-1. Gerar certificado + API Key na conta nova
-2. Validar build de homologação ponta a ponta
-3. Replicar neste repositório o mesmo pacote de proteção que já existe no Android (branch protection, Actions de `enforce-dev-source`/`block-pipeline-branch-merge`, trigger correto no `codemagic.yaml`)
+### Concluído (não depende da aprovação da Apple)
+
+- [x] Apps criados no App Store Connect (Motô Driver e Motô Passageiro), com os novos Bundle IDs
+- [x] Ícone 1024×1024 já embutido no projeto Xcode dos dois apps (`Assets.xcassets/AppIcon.appiconset`) — não precisa de upload manual, a Apple extrai do build automaticamente assim que um for enviado
+- [x] Screenshots de iPhone enviados nos dois apps
+- [x] Textos completos (nome, subtítulo, descrição, palavras-chave, texto promocional, copyright) nos dois apps
+- [x] Categoria e direitos de conteúdo configurados
+- [x] Privacidade do app (declaração de coleta de dados) preenchida nos dois — ver tabela abaixo
+- [x] Classificação etária preenchida (resultado: +4, sem conteúdo sensível)
+- [x] Preço (grátis) e disponibilidade (Brasil apenas, Mac/Vision Pro desativados) configurados
+- [x] Conta de teste para a equipe de revisão da Apple configurada nos dois apps (contas de produção, já aprovadas — ver abaixo)
+
+**Contas de teste usadas na revisão** (produção, `is_active = true`, já aprovadas via painel admin):
+- Motorista: `junior.motorista@moto.com`
+- Passageiro: `junior.passageiro@moto.com`
+
+**Declaração de privacidade aplicada nos dois apps** (Nome, E-mail, Localização precisa, Foto de perfil, IDs, Interações com o produto, Outros dados = CPF/RG/CNH/matrícula/placa — todos "Não" para rastreamento; "vinculado à identidade" varia por campo, ver histórico de conversa/commits se precisar do detalhe exato por campo).
+
+### Pendente (bloqueado até a Apple aprovar a migração)
+
+- [ ] Aprovação da Apple sobre o Enrollment `DKTT8PQV38`
+- [ ] Gerar certificado + perfil de provisionamento na conta nova
+- [ ] Gerar/atualizar API Key de integração do Codemagic com a conta Apple nova
+- [ ] Anexar um build assinado em cada app no App Store Connect (hoje aparecem com ícone genérico — só resolve com o primeiro build real)
+- [ ] Validar build de homologação (`ios_staging`) ponta a ponta nos dois apps
+- [ ] Validar/testar `ios_release` e `ios_pre_release` (nunca foram validados)
+- [ ] Reativar gatilho de push nos workflows iOS (`events: []` hoje desligado de propósito)
+- [ ] Replicar neste repositório o mesmo pacote de proteção que já existe no Android (branch protection, Actions de `enforce-dev-source`/`block-pipeline-branch-merge`, trigger correto no `codemagic.yaml`)
+- [ ] Enviar os apps pra revisão da Apple assim que houver build
 
 ---
 
@@ -163,3 +208,9 @@ Comportamento esperado — corrija o teste (ou o código) e tente de novo. Não 
 
 **"Como funciona o número de versão (`versionCode`)?"**
 É automático — não edite manualmente no `pubspec.yaml` esperando que isso defina a versão publicada. O `codemagic.yaml` consulta o Google Play e usa sempre o maior número já visto +1, então builds em qualquer track nunca colidem.
+
+**"Preciso rodar um build manual no Codemagic ('Start new build'), como faço com segurança?"**
+Builds manuais **ignoram completamente** `events` e `branch_patterns` do `codemagic.yaml` — a proteção de trigger automático não vale pra eles. Antes de clicar em "Start new build": (1) confira a branch selecionada no dropdown é exatamente a que você quer (`android_release`, não uma branch de trabalho antiga), (2) confirme que essa branch tem o código atualizado (`git log origin/<branch> -3` ou o teste de ancestralidade da seção 2.8), (3) só então rode. Foi um build manual na branch errada que causou o incidente da seção 2.8.
+
+**"Como sei se uma branch está com o código mais atual, sem confiar só no nome dela?"**
+Não confie no nome — confirme pelo conteúdo. Rode `git diff origin/<branch-A> origin/<branch-B> --stat`; se a única diferença for `pubspec.yaml` e `codemagic.yaml`, as branches estão sincronizadas em termos de código de app (é o padrão esperado entre `android_staging` e `android_release`). Se aparecerem arquivos de `lib/` na lista, alguma das duas está desatualizada.
