@@ -16,11 +16,14 @@ class AppButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDisabled = !loading && onPressed == null;
+
     return SizedBox(
       width: double.infinity,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          gradient: AppGradients.primary,
+          gradient: isDisabled ? null : AppGradients.primary,
+          color: isDisabled ? Colors.grey.shade400 : null,
           borderRadius: BorderRadius.circular(4),
         ),
         child: ElevatedButton(

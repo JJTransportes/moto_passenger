@@ -7,6 +7,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:moto_passenger/core/auth/auth_storage.dart';
 import 'package:moto_passenger/core/config/app_config.dart';
 import 'package:moto_passenger/core/local_db/repositories/travel_local_repository.dart';
+import 'package:moto_passenger/core/location/location_service.dart';
 import 'package:moto_passenger/core/maps/polyline_decoder.dart';
 import 'package:moto_passenger/core/network/signalr_service.dart';
 import 'package:moto_passenger/modules/new_travel/domain/entities/travel_tracking_entity.dart';
@@ -42,21 +43,33 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
   double? _lastDriverLat;
   double? _lastDriverLng;
   String? _authToken;
+  LatLng? _myLocation;
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: const Text('Minha Viagem', style: TextStyle(color: Color(0xFF4E4E4E))),
+    // Esta página normalmente chega via pushReplacementNamed por cima de
+    // NewTravelPage (WaitingPage -> Tracking é uma substituição, não um
+    // push novo) — a pilha de navegação ainda tem NewTravelPage embaixo. Um
+    // pop simples (header ou gesto do sistema) caía nela, permitindo pedir
+    // uma segunda corrida por cima da que já está em andamento. Por isso o
+    // voltar aqui sempre vai direto pra Home, nunca faz pop normal.
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _returnToHome();
+      },
+      child: Scaffold(
         backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF4E4E4E)),
-          onPressed: () => Modular.to.pop(),
+        appBar: AppBar(
+          title: const Text('Minha Viagem', style: TextStyle(color: Color(0xFF4E4E4E))),
+          backgroundColor: Colors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Color(0xFF4E4E4E)),
+            onPressed: _returnToHome,
+          ),
         ),
-      ),
-      body: BlocListener<TravelTrackingBloc, TravelTrackingState>(
+        body: BlocListener<TravelTrackingBloc, TravelTrackingState>(
         listenWhen: (previous, current) => current is TravelTrackingAccepted || current is TravelTrackingInProgress,
         listener: (context, state) {
           final lat = switch (state) {
@@ -135,6 +148,7 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
           },
         ),
       ),
+      ),
     );
   }
 
@@ -159,6 +173,22 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _connectAndLoad();
     });
+    _loadMyLocation();
+  }
+
+  Future<void> _loadMyLocation() async {
+    final result = await Modular.get<LocationService>().getCurrentPosition();
+    if (result.isGranted && result.position != null && mounted) {
+      setState(() {
+        _myLocation = LatLng(result.position!.latitude, result.position!.longitude);
+      });
+    }
+  }
+
+  void _recenterToMyLocation() {
+    final position = _myLocation;
+    if (position == null || _mapController == null) return;
+    _mapController!.animateCamera(CameraUpdate.newLatLngZoom(position, 15));
   }
 
   Widget _buildWithMap({
@@ -219,7 +249,20 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
           markers: markers,
           polylines: polylines,
           zoomControlsEnabled: false,
-          myLocationEnabled: false,
+          myLocationEnabled: true,
+          myLocationButtonEnabled: false,
+        ),
+        Positioned(
+          right: 16,
+          top: 16,
+          child: FloatingActionButton(
+            heroTag: 'recenter-my-location',
+            mini: true,
+            backgroundColor: Colors.white,
+            foregroundColor: const Color(0xFF4685C0),
+            onPressed: _recenterToMyLocation,
+            child: const Icon(Icons.my_location),
+          ),
         ),
         Positioned(
           left: 0,
@@ -524,7 +567,27 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
     );
   }
 
-  void _cancelTravel() {
+  Future<void> _cancelTravel() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancelar viagem'),
+        content: const Text('Deseja realmente cancelar esta viagem?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Não'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Sim, cancelar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
     context.read<TravelTrackingBloc>().add(CancelTravel(widget.travelId));
   }
 
@@ -615,6 +678,14 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
 
   void _goHome() {
     Modular.get<TravelLocalRepository>().clearTravels();
+    Modular.to.navigate('/home');
+  }
+
+  /// Volta pra Home sem limpar o cache de viagens — usado pelo botão/gesto
+  /// de voltar enquanto a viagem ainda está em andamento (Accepted/
+  /// InProgress); diferente de [_goHome], que só faz sentido quando a
+  /// viagem já terminou (Completed/Cancelled).
+  void _returnToHome() {
     Modular.to.navigate('/home');
   }
 }

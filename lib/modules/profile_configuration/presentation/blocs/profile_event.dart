@@ -10,8 +10,9 @@ final class LoadProfile extends ProfileEvent {
 }
 
 final class SaveProfile extends ProfileEvent {
+  final String userId;
   final UpdateProfileRequest request;
-  SaveProfile(this.request);
+  SaveProfile(this.userId, this.request);
 }
 
 final class UploadPhoto extends ProfileEvent {
@@ -21,7 +22,8 @@ final class UploadPhoto extends ProfileEvent {
 }
 
 final class RemovePhoto extends ProfileEvent {
-  const RemovePhoto();
+  final String userId;
+  const RemovePhoto(this.userId);
 }
 
 final class DiscardChanges extends ProfileEvent {

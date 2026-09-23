@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart' hide ReadContext;
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:moto_passenger/core/theme/app_theme.dart';
+import 'package:moto_passenger/core/utils/validators.dart' as validators;
 import 'package:moto_passenger/modules/auth/domain/entities/user_entity.dart';
 import 'package:moto_passenger/modules/auth/presentation/blocs/login_bloc.dart';
 import 'package:moto_passenger/widgets/app_button.dart';
@@ -24,6 +25,20 @@ class _LoginPageState extends State<LoginPage> {
 
   String? _emailError;
   String? _passwordError;
+  bool _serverErrorBlocked = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _emailController.addListener(_onFieldsChanged);
+    _passwordController.addListener(_onFieldsChanged);
+  }
+
+  void _onFieldsChanged() => setState(() => _serverErrorBlocked = false);
+
+  bool get _isFormFilled =>
+      validators.validateEmail(_emailController.text) == null &&
+      _passwordController.text.isNotEmpty;
 
   @override
   void dispose() {
@@ -72,6 +87,8 @@ class _LoginPageState extends State<LoginPage> {
       listener: (context, state) {
         if (state is LoginSuccess) {
           _onLoginSuccess(context, state.user);
+        } else if (state is LoginFailure) {
+          setState(() => _serverErrorBlocked = true);
         }
       },
       builder: (context, state) {
@@ -141,7 +158,7 @@ class _LoginPageState extends State<LoginPage> {
                       AppButton(
                         label: 'Entrar',
                         loading: isLoading,
-                        onPressed: _submit,
+                        onPressed: _isFormFilled && !_serverErrorBlocked ? _submit : null,
                       ),
                       const SizedBox(height: 16),
                       Align(

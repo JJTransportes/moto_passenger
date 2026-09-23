@@ -1,7 +1,10 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:moto_passenger/core/auth/auth_storage.dart';
+import 'package:moto_passenger/core/config/app_config.dart';
 import 'package:moto_passenger/core/location/location_service.dart';
 import 'package:moto_passenger/core/maps/i_places_autocomplete_service.dart';
+import 'package:moto_passenger/core/network/signalr_service.dart';
 import 'package:moto_passenger/modules/new_travel/data/datasources/new_travel_datasource.dart';
 import 'package:moto_passenger/modules/new_travel/data/repositories/new_travel_repository.dart';
 import 'package:moto_passenger/modules/new_travel/domain/entities/travel_route_entity.dart';
@@ -13,6 +16,8 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
   final NewTravelRepository _repository;
   final LocationService _locationService;
   final IPlacesAutocompleteService _placesService;
+  final SignalRService _signalR;
+  final AuthStorage _authStorage;
 
   /// Persisted across state changes so route calculation always has an origin.
   LatLng? _currentPosition;
@@ -21,6 +26,8 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
     this._repository,
     this._locationService,
     this._placesService,
+    this._signalR,
+    this._authStorage,
   ) : super(const NewTravelCheckingPending()) {
     on<CheckPendingOrder>(_onCheckPendingOrder);
     on<CancelPendingOrder>(_onCancelPendingOrder);
@@ -150,6 +157,12 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
   ) async {
     emit(const NewTravelCreating());
 
+    // Conecta ao hub ANTES de criar o pedido: o backend pode despachar para o
+    // primeiro motorista (emitindo DriverContacted) assim que o pedido é
+    // criado, e WaitingPage só monta (e conecta) depois da resposta do REST
+    // — sem isso, esse primeiro evento pode se perder.
+    await _ensureTravelOrdersConnected();
+
     try {
       final request = {
         'destinationLatitude': event.destinationLat,
@@ -176,6 +189,18 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
       );
     } catch (e) {
       emit(NewTravelFailure(message: e.toString()));
+    }
+  }
+
+  Future<void> _ensureTravelOrdersConnected() async {
+    try {
+      final token = await _authStorage.getToken();
+      if (token == null) return;
+      final baseUrl = AppConfig.getBaseUrl();
+      await _signalR.connect('travel-orders', '$baseUrl/hubs/travel-orders', token);
+    } catch (_) {
+      // Non-critical — WaitingPage tenta conectar de novo (connect() é
+      // idempotente se já estiver conectado) como fallback.
     }
   }
 

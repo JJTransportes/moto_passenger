@@ -161,40 +161,22 @@ class TravelTrackingBloc extends Bloc<TravelTrackingEvent, TravelTrackingState> 
     }
   }
 
+  /// `LoadTravel` pode ser disparado mais de uma vez para o mesmo travelId —
+  /// cada recriação da página (ex.: usuário voltando e reentrando na tela
+  /// via gesto do Android) dispara isso de novo no mesmo bloc. As respostas
+  /// dessas chamadas HTTP concorrentes podem voltar fora de ordem, então
+  /// delega pra `_updateStateFromTravel`, que já sabe ignorar dados
+  /// desatualizados e nunca regredir de InProgress pra Accepted/Pending —
+  /// sem isso, uma resposta atrasada de uma chamada anterior sobrescrevia o
+  /// estado atual (e resetava a localização do motorista no mapa).
   Future<void> _onLoadTravel(LoadTravel event, Emitter<TravelTrackingState> emit) async {
-    emit(const TravelTrackingLoading());
+    if (state is TravelTrackingInitial) {
+      emit(const TravelTrackingLoading());
+    }
 
     try {
       final travel = await _repository.getTravel(event.travelId);
-
-      switch (travel.status) {
-        case TravelStatus.pending:
-          emit(TravelTrackingPending(travelId: travel.travelId, orderId: travel.orderId));
-        case TravelStatus.accepted:
-          final driver = await _resolveDriver(travel.driverId, travel.driver);
-          emit(TravelTrackingAccepted(
-            travelId: travel.travelId,
-            driver: driver,
-            destinationLatitude: travel.destinationLatitude,
-            destinationLongitude: travel.destinationLongitude,
-            routePolyline: travel.routePolyline,
-            requestedAt: travel.createdAt,
-          ));
-        case TravelStatus.inProgress:
-          final driver = await _resolveDriver(travel.driverId, travel.driver);
-          emit(TravelTrackingInProgress(
-            travelId: travel.travelId,
-            driver: driver,
-            destinationLatitude: travel.destinationLatitude,
-            destinationLongitude: travel.destinationLongitude,
-            routePolyline: travel.routePolyline,
-            requestedAt: travel.createdAt,
-          ));
-        case TravelStatus.completed:
-          emit(TravelTrackingCompleted(travelId: travel.travelId));
-        case TravelStatus.cancelled:
-          emit(TravelTrackingCancelled(travelId: travel.travelId, reason: travel.cancellationReason));
-      }
+      await _updateStateFromTravel(travel, emit);
 
       // Start polling for non-terminal statuses
       if (travel.status != TravelStatus.completed &&
@@ -202,19 +184,32 @@ class TravelTrackingBloc extends Bloc<TravelTrackingEvent, TravelTrackingState> 
         _startPolling(event.travelId);
       }
     } catch (e) {
-      emit(TravelTrackingFailure(message: e.toString()));
+      if (state is TravelTrackingInitial || state is TravelTrackingLoading) {
+        emit(TravelTrackingFailure(message: e.toString()));
+      }
     }
   }
 
   Future<void> _onOrderAccepted(TravelOrderAccepted event, Emitter<TravelTrackingState> emit) async {
     final currentState = state;
-    // Preserve destination coordinates from current state if available
-    final destLat = currentState is TravelTrackingPending ? null
-        : (currentState is TravelTrackingAccepted ? currentState.destinationLatitude : null);
-    final destLng = currentState is TravelTrackingPending ? null
-        : (currentState is TravelTrackingAccepted ? currentState.destinationLongitude : null);
-    final routePolyline = currentState is TravelTrackingAccepted ? currentState.routePolyline : null;
-    final requestedAt = currentState is TravelTrackingAccepted ? currentState.requestedAt : null;
+
+    // "Pedido aceito" só é uma transição válida saindo de Pending (fluxo
+    // normal: pedido pendente -> motorista aceita). O hub de SignalR pode
+    // reenviar/duplicar esse evento ao reconectar (ex.: usuário reentrando
+    // na tela várias vezes via swipe-back, o que reconecta o hub a cada
+    // vez) — nesse caso o estado atual já não é mais Pending (é
+    // Initial/Loading numa página recriada do zero, ou já Accepted/
+    // InProgress), então o evento é redundante/atrasado e precisa ser
+    // ignorado. Sem essa guarda, ele reemitia Accepted com
+    // destinationLatitude/driverLatitude nulos (currentState não era
+    // Accepted pra preservar essas coordenadas), jogando o mapa pro
+    // fallback de São Paulo até o LoadTravel corrigir pra InProgress.
+    if (currentState is! TravelTrackingPending) return;
+
+    const destLat = null;
+    const destLng = null;
+    const routePolyline = null;
+    const requestedAt = null;
 
     try {
       final driverId = event.data['driverId'] as String?;

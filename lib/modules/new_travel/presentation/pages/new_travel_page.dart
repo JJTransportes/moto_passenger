@@ -34,6 +34,11 @@ class _NewTravelPageState extends State<NewTravelPage> {
   Set<Marker> _markers = {};
   final Set<Polyline> _polylines = {};
 
+  // Enquanto true, toques no mapa são ignorados — evita abrir várias
+  // "Resumo da Viagem" empilhadas ao tocar em vários pontos antes da
+  // primeira rota calculada terminar/fechar.
+  bool _isSelectingDestination = false;
+
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<NewTravelBloc, NewTravelState>(
@@ -78,6 +83,7 @@ class _NewTravelPageState extends State<NewTravelPage> {
             }
             _showNoDriversDialog(message);
           case NewTravelFailure(:final message):
+            setState(() => _isSelectingDestination = false);
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(message),
@@ -131,6 +137,12 @@ class _NewTravelPageState extends State<NewTravelPage> {
     });
   }
 
+  void _recenterToCurrentLocation() {
+    final position = _currentLocation;
+    if (position == null || _mapController == null) return;
+    _mapController!.animateCamera(CameraUpdate.newLatLngZoom(position, 15));
+  }
+
   Future<void> _verifyPriorityAccess() async {
     try {
       final dio = Modular.get<Dio>();
@@ -155,21 +167,41 @@ class _NewTravelPageState extends State<NewTravelPage> {
     }
 
     if (_currentLocation != null) {
-      return GoogleMap(
-        initialCameraPosition: CameraPosition(
-          target: _currentLocation!,
-          zoom: 15,
-        ),
-        markers: _markers,
-        polylines: _polylines,
-        onMapCreated: (controller) => _mapController = controller,
-        onTap: (latLng) {
-          BlocProvider.of<NewTravelBloc>(context).add(
-            CalculateRoute(latitude: latLng.latitude, longitude: latLng.longitude),
-          );
-        },
-        myLocationEnabled: true,
-        zoomControlsEnabled: false,
+      return Stack(
+        children: [
+          GoogleMap(
+            initialCameraPosition: CameraPosition(
+              target: _currentLocation!,
+              zoom: 15,
+            ),
+            markers: _markers,
+            polylines: _polylines,
+            onMapCreated: (controller) => _mapController = controller,
+            onTap: _isSelectingDestination
+                ? null
+                : (latLng) {
+                    setState(() => _isSelectingDestination = true);
+                    BlocProvider.of<NewTravelBloc>(context).add(
+                      CalculateRoute(latitude: latLng.latitude, longitude: latLng.longitude),
+                    );
+                  },
+            myLocationEnabled: true,
+            myLocationButtonEnabled: false,
+            zoomControlsEnabled: false,
+          ),
+          Positioned(
+            right: 16,
+            bottom: 16,
+            child: FloatingActionButton(
+              heroTag: 'recenter-location',
+              mini: true,
+              backgroundColor: AppColors.white,
+              foregroundColor: AppColors.primary,
+              onPressed: _recenterToCurrentLocation,
+              child: const Icon(Icons.my_location),
+            ),
+          ),
+        ],
       );
     }
 
@@ -311,7 +343,9 @@ class _NewTravelPageState extends State<NewTravelPage> {
           );
         },
       ),
-    );
+    ).whenComplete(() {
+      if (mounted) setState(() => _isSelectingDestination = false);
+    });
   }
 
   Future<void> _showNoDriversDialog(String message) async {

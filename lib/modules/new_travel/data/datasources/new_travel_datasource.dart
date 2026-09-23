@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:moto_passenger/core/errors/exceptions.dart';
 
 abstract class INewTravelDatasource {
   Future<Map<String, dynamic>> createOrder(Map<String, dynamic> request);
@@ -40,6 +41,20 @@ class NewTravelDatasource implements INewTravelDatasource {
           );
         }
       }
+      if (e.response?.statusCode == 429) {
+        throw RateLimitedException(
+          _extractErrorMessage(e) ??
+              'Muitos pedidos de corrida em pouco tempo. Aguarde alguns minutos e tente novamente.',
+        );
+      }
+      if (e.response?.statusCode == 400) {
+        throw ValidationException(
+          _extractErrorMessage(e) ?? 'Dados inválidos para criar a viagem.',
+        );
+      }
+      if ((e.response?.statusCode ?? 0) >= 500) {
+        throw const ServerException();
+      }
       throw Exception(e.message ?? 'Erro ao criar viagem');
     }
   }
@@ -58,6 +73,20 @@ class NewTravelDatasource implements INewTravelDatasource {
             message: body['message'] as String? ?? 'Nenhum motorista disponível',
           );
         }
+      }
+      if (e.response?.statusCode == 429) {
+        throw RateLimitedException(
+          _extractErrorMessage(e) ??
+              'Muitos pedidos de corrida em pouco tempo. Aguarde alguns minutos e tente novamente.',
+        );
+      }
+      if (e.response?.statusCode == 400) {
+        throw ValidationException(
+          _extractErrorMessage(e) ?? 'Dados inválidos para criar a viagem.',
+        );
+      }
+      if ((e.response?.statusCode ?? 0) >= 500) {
+        throw const ServerException();
       }
       throw Exception(e.message ?? 'Erro ao criar viagem');
     }
@@ -87,5 +116,13 @@ class NewTravelDatasource implements INewTravelDatasource {
       }
       throw Exception(e.message ?? 'Erro ao cancelar pedido');
     }
+  }
+
+  String? _extractErrorMessage(DioException e) {
+    final data = e.response?.data;
+    if (data is Map && data['error'] is String) {
+      return data['error'] as String;
+    }
+    return null;
   }
 }

@@ -1,4 +1,5 @@
 import 'package:result_dart/result_dart.dart';
+import 'package:moto_passenger/modules/auth/domain/entities/password_policy_entity.dart';
 import 'package:moto_passenger/modules/auth/domain/entities/user_entity.dart';
 
 abstract class IAuthRepository {
@@ -8,9 +9,15 @@ abstract class IAuthRepository {
 
   AsyncResult<Unit> requestPasswordReset(String email);
 
-  AsyncResult<Unit> confirmPasswordReset({
+  AsyncResult<String> verifyPasswordResetCode({
     required String email,
     required String code,
+  });
+
+  AsyncResult<Unit> confirmPasswordReset({
+    required String resetToken,
     required String newPassword,
   });
+
+  AsyncResult<PasswordPolicy> getPasswordPolicy();
 }
