@@ -1,7 +1,9 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_modular/flutter_modular.dart';
+import 'package:moto_passenger/core/auth/auth_storage.dart';
 import 'package:moto_passenger/core/location/location_service.dart';
 import 'package:moto_passenger/core/maps/i_places_autocomplete_service.dart';
+import 'package:moto_passenger/core/network/signalr_service.dart';
 import 'package:moto_passenger/modules/common_module.dart';
 import 'package:moto_passenger/modules/new_travel/data/datasources/new_travel_datasource.dart';
 import 'package:moto_passenger/modules/new_travel/data/datasources/travel_tracking_datasource.dart';
@@ -28,6 +30,8 @@ class NewTravelModule extends Module {
         Modular.get<NewTravelRepository>(),
         Modular.get<LocationService>(),
         Modular.get<IPlacesAutocompleteService>(),
+        Modular.get<SignalRService>(),
+        Modular.get<AuthStorage>(),
       ),
     );
     i.add<ITravelTrackingDatasource>(TravelTrackingDatasource.new);
