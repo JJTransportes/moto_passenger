@@ -48,6 +48,8 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
         return 'Permissão de localização negada permanentemente. Ative nas configurações do app.';
       case LocationStatus.granted:
         return 'Erro ao obter localização.';
+      case LocationStatus.timeout:
+        return 'Não foi possível obter sua localização. Verifique se o GPS está ativado e tente novamente.';
     }
   }
 

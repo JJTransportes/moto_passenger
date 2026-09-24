@@ -316,6 +316,14 @@ class _NewTravelPageState extends State<NewTravelPage> {
               },
               child: const Text('Configurações'),
             ),
+          if (status == LocationStatus.timeout)
+            TextButton(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                BlocProvider.of<NewTravelBloc>(context).add(const GetCurrentLocation());
+              },
+              child: const Text('Tentar novamente'),
+            ),
         ],
       ),
     );
