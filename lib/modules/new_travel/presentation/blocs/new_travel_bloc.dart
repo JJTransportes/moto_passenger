@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:moto_passenger/core/auth/auth_storage.dart';
@@ -21,6 +23,14 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
 
   /// Persisted across state changes so route calculation always has an origin.
   LatLng? _currentPosition;
+
+  // PSG-09: o transformer padrão do Bloc processa eventos concorrentemente
+  // (sem fila) — um duplo toque em "Solicitar Viagem" dispara dois
+  // `ConfirmTravel` que rodam `_onConfirm` em paralelo, criando dois
+  // pedidos. A UI já desabilita o botão durante `NewTravelCreating`, mas só
+  // depois do rebuild; essa guarda é síncrona, checada antes de qualquer
+  // `await` dentro do próprio handler.
+  bool _confirmInFlight = false;
 
   NewTravelBloc(
     this._repository,
@@ -157,6 +167,8 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
     ConfirmTravel event,
     Emitter<NewTravelState> emit,
   ) async {
+    if (_confirmInFlight) return;
+    _confirmInFlight = true;
     emit(const NewTravelCreating());
 
     // Conecta ao hub ANTES de criar o pedido: o backend pode despachar para o
@@ -191,6 +203,8 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
       );
     } catch (e) {
       emit(NewTravelFailure(message: e.toString()));
+    } finally {
+      _confirmInFlight = false;
     }
   }
 
@@ -199,7 +213,16 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
       final token = await _authStorage.getToken();
       if (token == null) return;
       final baseUrl = AppConfig.getBaseUrl();
-      await _signalR.connect('travel-orders', '$baseUrl/hubs/travel-orders', token);
+      // Sem timeout aqui, um handshake do SignalR que trava (rede lenta,
+      // proxy/firewall em homologação) travava _onConfirm pra sempre ANTES
+      // de sequer chamar createOrder — a tela ficava presa em "Solicitando
+      // viagem..." sem erro nem sucesso, sem alternativa a não ser fechar o
+      // app. Essa conexão é só uma otimização (evita perder o primeiro
+      // DriverContacted); se não conectar a tempo, segue o fluxo mesmo
+      // assim — WaitingPage tenta de novo ao montar.
+      await _signalR
+          .connect('travel-orders', '$baseUrl/hubs/travel-orders', token)
+          .timeout(const Duration(seconds: 5));
     } catch (_) {
       // Non-critical — WaitingPage tenta conectar de novo (connect() é
       // idempotente se já estiver conectado) como fallback.

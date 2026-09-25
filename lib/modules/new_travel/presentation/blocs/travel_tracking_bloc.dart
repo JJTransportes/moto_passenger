@@ -17,6 +17,7 @@ class TravelTrackingBloc extends Bloc<TravelTrackingEvent, TravelTrackingState> 
   static const int _maxFailuresBeforeBackoff = 3;
 
   TravelTrackingBloc(this._repository) : super(const TravelTrackingInitial()) {
+    print('[DIAG] bloc CREATED hash=$hashCode');
     on<LoadTravel>(_onLoadTravel);
     on<CancelTravel>(_onCancelTravel);
     on<TravelOrderAccepted>(_onOrderAccepted);
@@ -26,6 +27,7 @@ class TravelTrackingBloc extends Bloc<TravelTrackingEvent, TravelTrackingState> 
     on<PollTravelStatus>(_onPollTravelStatus);
     on<DriverLocationUpdated>(_onDriverLocationUpdated);
     on<DistanceUpdated>(_onDistanceUpdated);
+    on<PollingPaused>(_onPollingPaused);
   }
 
   @override
@@ -36,20 +38,16 @@ class TravelTrackingBloc extends Bloc<TravelTrackingEvent, TravelTrackingState> 
 
   // ─── Driver profile resolution ──────────────────────────────────────────
 
-  /// Fetches the driver's full profile (name, photo, vehicle, trip count) the
-  /// first time a driverId shows up, and reuses it afterwards — GET
-  /// /api/travels/{id} (used by both the initial load and polling) only
-  /// returns driverId/name, not photo/vehicle/travelCount, so those need a
-  /// separate GET /api/drivers/{id} call, same one the SignalR "order
-  /// accepted" path already made.
-  Future<DriverInfoEntity?> _resolveDriver(String? driverId, DriverInfoEntity? existing) async {
-    if (driverId == null) return existing;
-    if (existing != null && existing.driverId == driverId) return existing;
-    try {
-      return await _repository.getDriverProfile(driverId);
-    } catch (_) {
-      return existing;
-    }
+  /// GET /api/travels/{id} já vem com nome/foto/veículo do motorista
+  /// embutidos (backend) — não busca mais nada à parte via GET
+  /// /api/drivers/{id}, que hoje exige papel GlobalAdmin (fechamos o IDOR
+  /// que deixava qualquer autenticado ler o perfil completo de qualquer
+  /// motorista) e sempre retornava 403 pra um passageiro. Puramente
+  /// síncrono: prioriza o que veio na viagem mais recente, cai pro que já
+  /// tinha se por algum motivo não vier (ex.: evento de SignalR sem dados
+  /// completos, coberto no próximo poll/load).
+  DriverInfoEntity? _resolveDriver(DriverInfoEntity? fromTravel, DriverInfoEntity? existing) {
+    return fromTravel ?? existing;
   }
 
   // ─── Polling ───────────────────────────────────────────────────────────
@@ -66,6 +64,10 @@ class TravelTrackingBloc extends Bloc<TravelTrackingEvent, TravelTrackingState> 
     _pollTimer?.cancel();
     _pollTimer = null;
     _pollFailCount = 0;
+  }
+
+  Future<void> _onPollingPaused(PollingPaused event, Emitter<TravelTrackingState> emit) async {
+    _stopPolling();
   }
 
   Future<void> _onPollTravelStatus(PollTravelStatus event, Emitter<TravelTrackingState> emit) async {
@@ -95,9 +97,13 @@ class TravelTrackingBloc extends Bloc<TravelTrackingEvent, TravelTrackingState> 
   /// to an earlier status (e.g., if already Accepted, polling Pending is ignored).
   Future<void> _updateStateFromTravel(TravelTrackingEntity travel, Emitter<TravelTrackingState> emit) async {
     final currentState = state;
+    print('[DIAG] _updateStateFromTravel hash=$hashCode currentState=${currentState.runtimeType} travelStatus=${travel.status} isClosed=$isClosed');
 
     // Never regress from terminal states
-    if (currentState is TravelTrackingCompleted || currentState is TravelTrackingCancelled) return;
+    if (currentState is TravelTrackingCompleted || currentState is TravelTrackingCancelled) {
+      print('[DIAG] guard: terminal state, ignoring');
+      return;
+    }
 
     // Never go backwards in the lifecycle
     if (currentState is TravelTrackingAccepted && travel.status == TravelStatus.pending) return;
@@ -117,7 +123,7 @@ class TravelTrackingBloc extends Bloc<TravelTrackingEvent, TravelTrackingState> 
         final existingDriver = currentState is TravelTrackingInProgress
             ? currentState.driver
             : (currentState is TravelTrackingAccepted ? currentState.driver : null);
-        final driver = await _resolveDriver(travel.driverId, existingDriver);
+        final driver = _resolveDriver(travel.driver, existingDriver);
         if (currentState is! TravelTrackingInProgress || driver?.driverId != existingDriver?.driverId) {
           emit(TravelTrackingInProgress(
             travelId: travel.travelId,
@@ -138,7 +144,8 @@ class TravelTrackingBloc extends Bloc<TravelTrackingEvent, TravelTrackingState> 
   }
 
   Future<void> _emitAcceptedState(TravelTrackingEntity travel, Emitter<TravelTrackingState> emit) async {
-    final driver = await _resolveDriver(travel.driverId, null);
+    final driver = _resolveDriver(travel.driver, null);
+    print('[DIAG] emitting Accepted hash=$hashCode travelId=${travel.travelId} isClosed=$isClosed');
     emit(TravelTrackingAccepted(
       travelId: travel.travelId,
       driver: driver,
@@ -147,6 +154,7 @@ class TravelTrackingBloc extends Bloc<TravelTrackingEvent, TravelTrackingState> 
       routePolyline: travel.routePolyline,
       requestedAt: travel.createdAt,
     ));
+    print('[DIAG] emitted Accepted, bloc.state is now ${state.runtimeType}');
   }
 
   // ─── Event Handlers ────────────────────────────────────────────────────
@@ -170,20 +178,24 @@ class TravelTrackingBloc extends Bloc<TravelTrackingEvent, TravelTrackingState> 
   /// sem isso, uma resposta atrasada de uma chamada anterior sobrescrevia o
   /// estado atual (e resetava a localização do motorista no mapa).
   Future<void> _onLoadTravel(LoadTravel event, Emitter<TravelTrackingState> emit) async {
+    print('[DIAG] _onLoadTravel START hash=$hashCode travelId=${event.travelId} currentState=${state.runtimeType} isClosed=$isClosed');
     if (state is TravelTrackingInitial) {
       emit(const TravelTrackingLoading());
     }
 
     try {
       final travel = await _repository.getTravel(event.travelId);
+      print('[DIAG] _onLoadTravel got travel status=${travel.status} hash=$hashCode isClosed=$isClosed');
       await _updateStateFromTravel(travel, emit);
+      print('[DIAG] _onLoadTravel after _updateStateFromTravel, state=${state.runtimeType} hash=$hashCode');
 
       // Start polling for non-terminal statuses
       if (travel.status != TravelStatus.completed &&
           travel.status != TravelStatus.cancelled) {
         _startPolling(event.travelId);
       }
-    } catch (e) {
+    } catch (e, st) {
+      print('[DIAG] _onLoadTravel EXCEPTION: $e\n$st');
       if (state is TravelTrackingInitial || state is TravelTrackingLoading) {
         emit(TravelTrackingFailure(message: e.toString()));
       }
@@ -214,10 +226,14 @@ class TravelTrackingBloc extends Bloc<TravelTrackingEvent, TravelTrackingState> 
     try {
       final driverId = event.data['driverId'] as String?;
       if (driverId != null) {
-        final driver = await _repository.getDriverProfile(driverId);
+        // O payload do evento SignalR só traz o driverId, sem nome/foto/
+        // veículo — não busca mais isso via GET /api/drivers/{id} (exige
+        // GlobalAdmin, sempre 403 pra passageiro). Emite sem os detalhes
+        // completos do motorista por enquanto; o próximo LoadTravel/poll
+        // (GET /api/travels/{id}, já enriquecido) preenche isso.
         emit(TravelTrackingAccepted(
           travelId: event.data['travelId'] as String,
-          driver: driver,
+          driver: null,
           destinationLatitude: destLat,
           destinationLongitude: destLng,
           routePolyline: routePolyline,

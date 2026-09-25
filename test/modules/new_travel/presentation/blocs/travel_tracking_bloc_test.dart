@@ -19,6 +19,7 @@ TravelTrackingEntity _travel({
   required TravelStatus status,
   String travelId = 'travel-1',
   String? driverId,
+  DriverInfoEntity? driver,
 }) =>
     TravelTrackingEntity(
       travelId: travelId,
@@ -26,6 +27,7 @@ TravelTrackingEntity _travel({
       status: status,
       createdAt: DateTime(2026, 1, 1),
       driverId: driverId,
+      driver: driver,
     );
 
 void main() {
@@ -55,9 +57,11 @@ void main() {
     blocTest<TravelTrackingBloc, TravelTrackingState>(
       'status Accepted resolve o motorista e emite TravelTrackingAccepted',
       build: () {
-        when(() => repository.getTravel('travel-1'))
-            .thenAnswer((_) async => _travel(status: TravelStatus.accepted, driverId: 'driver-1'));
-        when(() => repository.getDriverProfile('driver-1')).thenAnswer((_) async => _driver);
+        // GET /api/travels/{id} já vem com o motorista embutido — não busca
+        // mais via getDriverProfile (endpoint hoje restrito a GlobalAdmin).
+        when(() => repository.getTravel('travel-1')).thenAnswer(
+          (_) async => _travel(status: TravelStatus.accepted, driverId: 'driver-1', driver: _driver),
+        );
         return buildBloc();
       },
       act: (bloc) => bloc.add(const LoadTravel('travel-1')),
@@ -82,11 +86,10 @@ void main() {
     );
 
     blocTest<TravelTrackingBloc, TravelTrackingState>(
-      'falha ao resolver o motorista não impede o estado Accepted (driver fica nulo)',
+      'travel sem detalhes do motorista embutidos não impede o estado Accepted (driver fica nulo)',
       build: () {
         when(() => repository.getTravel('travel-1'))
             .thenAnswer((_) async => _travel(status: TravelStatus.accepted, driverId: 'driver-1'));
-        when(() => repository.getDriverProfile('driver-1')).thenThrow(Exception('boom'));
         return buildBloc();
       },
       act: (bloc) => bloc.add(const LoadTravel('travel-1')),
@@ -150,28 +153,24 @@ void main() {
   group('Eventos de SignalR (dedup)', () {
     blocTest<TravelTrackingBloc, TravelTrackingState>(
       'TravelOrderAccepted fora do estado Pending é ignorado (evento duplicado/atrasado)',
-      build: () {
-        when(() => repository.getDriverProfile(any())).thenAnswer((_) async => _driver);
-        return buildBloc();
-      },
+      build: () => buildBloc(),
       seed: () => const TravelTrackingAccepted(travelId: 'travel-1', driver: _driver),
       act: (bloc) => bloc.add(const TravelOrderAccepted({'travelId': 'travel-1', 'driverId': 'driver-2'})),
       expect: () => <TravelTrackingState>[],
-      verify: (_) {
-        verifyNever(() => repository.getDriverProfile(any()));
-      },
     );
 
     blocTest<TravelTrackingBloc, TravelTrackingState>(
-      'TravelOrderAccepted a partir de Pending emite Accepted com o motorista resolvido',
-      build: () {
-        when(() => repository.getDriverProfile('driver-1')).thenAnswer((_) async => _driver);
-        return buildBloc();
-      },
+      'TravelOrderAccepted a partir de Pending emite Accepted (motorista chega no próximo LoadTravel)',
+      build: () => buildBloc(),
+      // O payload do evento SignalR só traz driverId, sem nome/foto/veículo
+      // — não busca mais isso via getDriverProfile (endpoint hoje restrito
+      // a GlobalAdmin, sempre 403 pra passageiro). Emite sem os detalhes
+      // completos; o próximo LoadTravel (GET /api/travels/{id}, já
+      // enriquecido) preenche o motorista.
       seed: () => const TravelTrackingPending(travelId: 'travel-1', orderId: 'order-1'),
       act: (bloc) => bloc.add(const TravelOrderAccepted({'travelId': 'travel-1', 'driverId': 'driver-1'})),
       expect: () => [
-        isA<TravelTrackingAccepted>().having((s) => s.driver?.driverId, 'driver.driverId', 'driver-1'),
+        isA<TravelTrackingAccepted>().having((s) => s.driver, 'driver', isNull),
       ],
     );
 

@@ -1,5 +1,6 @@
 // ignore_for_file: must_be_immutable
 
+import 'dart:async';
 import 'dart:developer';
 import 'dart:io';
 
@@ -39,6 +40,15 @@ class _NewTravelPageState extends State<NewTravelPage> {
   // primeira rota calculada terminar/fechar.
   bool _isSelectingDestination = false;
 
+  // PSG-02: defesa em profundidade, independente do bloc — o PSG-01 já
+  // corrige a causa raiz do travamento (status `timeout` gera diálogo com
+  // mensagem clara), mas se por qualquer outro motivo nenhum estado
+  // terminal chegar (evento perdido, exceção não mapeada), o mapa ficava
+  // preso no spinner de "carregando" pra sempre, sem saída pro usuário.
+  static const _mapLoadTimeout = Duration(seconds: 15);
+  Timer? _mapTimeoutTimer;
+  bool _mapTimedOut = false;
+
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<NewTravelBloc, NewTravelState>(
@@ -47,8 +57,16 @@ class _NewTravelPageState extends State<NewTravelPage> {
           case NewTravelPendingOrder(:final orderId):
             _showPendingOrderModal(orderId);
           case NewTravelActiveOrder(:final travelId):
-            // Redirect to tracking for active travels
-            Navigator.of(context).pushReplacementNamed(
+            // Redirect to tracking for active travels.
+            // `Navigator.of(context)` é o Navigator imperativo puro do
+            // Flutter — num app com flutter_modular (Router API
+            // declarativo), não passa `arguments` pelo canal que a rota
+            // `/tracking` lê (`Modular.args.data`). A tela de tracking abria
+            // sem saber o `travelId`, ficando presa no spinner até um evento
+            // de SignalR forçar uma transição de estado — daí o "toda vez
+            // que abre o app com viagem em andamento, o mapa fica
+            // carregando e só um tempo depois aparece Tentar novamente".
+            Modular.to.pushReplacementNamed(
               '/new-travel/tracking',
               arguments: {'travelId': travelId},
             );
@@ -121,6 +139,7 @@ class _NewTravelPageState extends State<NewTravelPage> {
 
   @override
   void dispose() {
+    _mapTimeoutTimer?.cancel();
     _destinationController.dispose();
     _mapController?.dispose();
     super.dispose();
@@ -131,10 +150,25 @@ class _NewTravelPageState extends State<NewTravelPage> {
     super.initState();
     // Check for pending orders first, then proceed to normal flow
     BlocProvider.of<NewTravelBloc>(context).add(const CheckPendingOrder());
+    _startMapTimeoutTimer();
 
     Future.microtask(() async {
       await _verifyPriorityAccess();
     });
+  }
+
+  void _startMapTimeoutTimer() {
+    _mapTimeoutTimer?.cancel();
+    _mapTimeoutTimer = Timer(_mapLoadTimeout, () {
+      if (!mounted || _currentLocation != null) return;
+      setState(() => _mapTimedOut = true);
+    });
+  }
+
+  void _retryMapLoad() {
+    setState(() => _mapTimedOut = false);
+    _startMapTimeoutTimer();
+    BlocProvider.of<NewTravelBloc>(context).add(const GetCurrentLocation());
   }
 
   void _recenterToCurrentLocation() {
@@ -159,6 +193,34 @@ class _NewTravelPageState extends State<NewTravelPage> {
   }
 
   Widget _buildMap(NewTravelState state) {
+    if (_mapTimedOut && _currentLocation == null) {
+      return Container(
+        color: Colors.grey.shade200,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.map_outlined, size: 48, color: Colors.grey),
+                const SizedBox(height: 16),
+                const Text(
+                  'Não foi possível carregar o mapa.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Color(0xFF4E4E4E)),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: _retryMapLoad,
+                  child: const Text('Tentar novamente'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     if (state is NewTravelCheckingPending || state is NewTravelLocationLoading) {
       return Container(
         color: Colors.grey.shade200,
@@ -268,7 +330,9 @@ class _NewTravelPageState extends State<NewTravelPage> {
   void _onLocationLoaded(LatLng position) {
     if (!mounted) return;
 
+    _mapTimeoutTimer?.cancel();
     setState(() {
+      _mapTimedOut = false;
       _currentLocation = position;
       _markers = {
         Marker(

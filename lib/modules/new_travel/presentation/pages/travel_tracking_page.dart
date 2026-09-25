@@ -29,7 +29,7 @@ class TravelTrackingPage extends StatefulWidget {
   State<TravelTrackingPage> createState() => _TravelTrackingPageState();
 }
 
-class _TravelTrackingPageState extends State<TravelTrackingPage> {
+class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBindingObserver {
   StreamSubscription? _orderAcceptedSub;
   StreamSubscription? _travelStartedSub;
   StreamSubscription? _travelCompletedSub;
@@ -93,6 +93,7 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
         },
         child: BlocBuilder<TravelTrackingBloc, TravelTrackingState>(
           builder: (context, state) {
+            print('[DIAG] BlocBuilder rebuild, state=${state.runtimeType}, bloc hash=${BlocProvider.of<TravelTrackingBloc>(context).hashCode}');
             return switch (state) {
               TravelTrackingInitial() => const Center(child: CircularProgressIndicator()),
               TravelTrackingLoading() => const Center(child: CircularProgressIndicator()),
@@ -154,6 +155,7 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _orderAcceptedSub?.cancel();
     _travelStartedSub?.cancel();
     _travelCompletedSub?.cancel();
@@ -163,17 +165,36 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
     _distanceUpdateSub?.cancel();
     _mapController?.dispose();
     Modular.get<SignalRService>().disconnectAll();
+    print('[DIAG] TravelTrackingPage.dispose pageHash=$hashCode travelId=${widget.travelId}');
     super.dispose();
   }
 
   @override
   void initState() {
     super.initState();
+    print('[DIAG] TravelTrackingPage.initState travelId=${widget.travelId} orderId=${widget.orderId} pageHash=$hashCode');
+    WidgetsBinding.instance.addObserver(this);
     // Delay to ensure BlocProvider ancestor is established
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      print('[DIAG] postFrameCallback firing _connectAndLoad, pageHash=$hashCode, mounted=$mounted');
       _connectAndLoad();
     });
     _loadMyLocation();
+  }
+
+  // PSG-08: com o app em background, o SignalR desconecta e o polling do
+  // bloc continuava rodando (rede/bateria desperdiçadas à toa). Ao voltar
+  // pro foreground, reconecta e força um LoadTravel — o estado pode ter
+  // avançado (corrida aceita/concluída) enquanto o app estava fora do ar e
+  // nem SignalR nem o timer pausado teriam capturado isso.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.detached) {
+      BlocProvider.of<TravelTrackingBloc>(context).add(const PollingPaused());
+      Modular.get<SignalRService>().disconnectAll();
+    } else if (state == AppLifecycleState.resumed) {
+      _connectAndLoad();
+    }
   }
 
   Future<void> _loadMyLocation() async {
@@ -588,7 +609,7 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
 
     if (confirmed != true || !mounted) return;
 
-    context.read<TravelTrackingBloc>().add(CancelTravel(widget.travelId));
+    BlocProvider.of<TravelTrackingBloc>(context).add(CancelTravel(widget.travelId));
   }
 
   String _resolveImageUrl(String url) {
@@ -617,19 +638,31 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
   }
 
   Future<void> _connectAndLoad() async {
+    // PSG-08: chamado de novo em cada retorno ao foreground — sem cancelar
+    // as antigas primeiro, cada resume empilhava mais um listener duplicado
+    // nos streams do SignalR (o serviço é singleton, sobrevive ao
+    // disconnectAll do pause anterior).
+    _orderAcceptedSub?.cancel();
+    _travelStartedSub?.cancel();
+    _travelCompletedSub?.cancel();
+    _travelCancelledSub?.cancel();
+    _orderCancelledSub?.cancel();
+    _driverLocationSub?.cancel();
+    _distanceUpdateSub?.cancel();
+
     final token = await AuthStorage().getToken();
     _authToken = token;
     if (mounted) setState(() {});
     if (token == null) {
       if (mounted) {
-        context.read<TravelTrackingBloc>().add(LoadTravel(widget.travelId));
+        BlocProvider.of<TravelTrackingBloc>(context).add(LoadTravel(widget.travelId));
       }
       return;
     }
 
     final baseUrl = AppConfig.getBaseUrl();
     final signalR = Modular.get<SignalRService>();
-    final bloc = context.read<TravelTrackingBloc>();
+    final bloc = BlocProvider.of<TravelTrackingBloc>(context);
 
     // Register stream listeners BEFORE connecting to avoid race condition:
     // if the backend emits an event between connect() and listen(), the
@@ -667,12 +700,17 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> {
       // Fallback: polling will handle updates
     }
 
+    print('[DIAG] about to dispatch LoadTravel, mounted=$mounted, pageHash=$hashCode');
     if (mounted) {
       try {
-        context.read<TravelTrackingBloc>().add(LoadTravel(widget.travelId));
-      } catch (_) {
-        // Bloc not available — page will show initial state
+        final bloc2 = BlocProvider.of<TravelTrackingBloc>(context);
+        print('[DIAG] dispatching LoadTravel travelId=${widget.travelId} to bloc hash=${bloc2.hashCode} isClosed=${bloc2.isClosed}');
+        bloc2.add(LoadTravel(widget.travelId));
+      } catch (e, st) {
+        print('[DIAG] EXCEPTION dispatching LoadTravel: $e\n$st');
       }
+    } else {
+      print('[DIAG] NOT mounted, skipping LoadTravel dispatch entirely! pageHash=$hashCode');
     }
   }
 

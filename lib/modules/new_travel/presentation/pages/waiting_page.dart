@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:moto_passenger/core/auth/auth_storage.dart';
@@ -17,7 +18,7 @@ class WaitingPage extends StatefulWidget {
   State<WaitingPage> createState() => _WaitingPageState();
 }
 
-class _WaitingPageState extends State<WaitingPage> {
+class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
   StreamSubscription? _acceptedSub;
   StreamSubscription? _cancelledSub;
   StreamSubscription? _driverContactedSub;
@@ -25,6 +26,24 @@ class _WaitingPageState extends State<WaitingPage> {
   Timer? _elapsedTimer;
   Duration _elapsed = Duration.zero;
   bool _isCancelling = false;
+
+  // PSG-08: WaitingPage dependia só de SignalR — se o evento OrderAccepted
+  // se perdesse (reconexão, app voltando de background, hub instável), o
+  // passageiro ficava preso na tela de espera mesmo com o motorista já a
+  // caminho. Esse polling é o mesmo fallback que TravelTrackingPage já tem
+  // via TravelTrackingBloc, adaptado aqui porque WaitingPage não usa bloc.
+  Timer? _pollTimer;
+  static const _pollInterval = Duration(seconds: 8);
+
+  // O SignalR (onOrderAccepted) e o polling acima detectam a mesma
+  // aceitação por caminhos independentes — sem essa guarda, se os dois
+  // dispararem perto um do outro, `_onOrderAccepted` roda duas vezes e
+  // navega duas vezes seguidas pra `/new-travel/tracking`. A segunda
+  // navegação substitui a tela recém-aberta por outra instância nova (bloc
+  // novo), deixando a primeira chamada de rede "pendurada" respondendo pra
+  // uma página que já não existe mais — e a tela visível (a segunda) nunca
+  // recebe essa resposta, ficando presa no spinner.
+  bool _orderAcceptedHandled = false;
 
   String? _authToken;
 
@@ -40,7 +59,9 @@ class _WaitingPageState extends State<WaitingPage> {
   void initState() {
     super.initState();
 
+    WidgetsBinding.instance.addObserver(this);
     _initSignalR();
+    _startPolling();
 
     // Update elapsed time every second
     _elapsedTimer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -52,7 +73,58 @@ class _WaitingPageState extends State<WaitingPage> {
     });
   }
 
+  // PSG-08: pausa o polling e desconecta o SignalR quando o app vai para
+  // background (nada pra checar enquanto a UI não está visível); ao voltar,
+  // reconecta e faz uma checagem imediata em vez de esperar o próximo tick,
+  // já que o pedido pode ter sido aceito/cancelado durante o tempo fora.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.detached) {
+      _pollTimer?.cancel();
+      Modular.get<SignalRService>().disconnectAll();
+    } else if (state == AppLifecycleState.resumed) {
+      _initSignalR();
+      _pollOnce();
+      _startPolling();
+    }
+  }
+
+  void _startPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(_pollInterval, (_) => _pollOnce());
+  }
+
+  Future<void> _pollOnce() async {
+    if (!mounted) return;
+    try {
+      final dio = Modular.get<Dio>();
+      final response = await dio.get('/api/travels/active');
+      if (!mounted) return;
+
+      final data = response.data as Map<String, dynamic>?;
+      if (data == null || data['orderId'] != widget.orderId) return;
+
+      final status = data['status'] as String?;
+      print('[DIAG] _pollOnce got status=$status travelId=${data['travelId']}');
+      if (status == 'Accepted' || status == 'InProgress') {
+        _onOrderAccepted({'orderId': widget.orderId, 'travelId': data['travelId']});
+      } else if (status == 'Cancelled') {
+        _onOrderCancelled({'orderId': widget.orderId, 'reason': data['cancellationReason']});
+      }
+    } on DioException {
+      // Best-effort — SignalR continua sendo o caminho primário, e o
+      // próximo tick tenta de novo.
+    }
+  }
+
   Future<void> _initSignalR() async {
+    // Chamado de novo em cada retorno ao foreground (ver
+    // didChangeAppLifecycleState) — sem cancelar antes, cada resume
+    // empilhava mais um listener duplicado nos streams do SignalR.
+    _acceptedSub?.cancel();
+    _cancelledSub?.cancel();
+    _driverContactedSub?.cancel();
+
     final token = await AuthStorage().getToken();
     if (token == null) return;
 
@@ -185,10 +257,25 @@ class _WaitingPageState extends State<WaitingPage> {
   }
 
   void _onOrderAccepted(Map<String, dynamic> event) {
+    print('[DIAG] _onOrderAccepted called, event=$event, alreadyHandled=$_orderAcceptedHandled, mounted=$mounted');
+    if (_orderAcceptedHandled) return;
     if (event['orderId'] == widget.orderId) {
       final travelId = event['travelId'] as String?;
       if (travelId != null && mounted) {
-        Navigator.of(context).pushReplacementNamed(
+        _orderAcceptedHandled = true;
+        print('[DIAG] navigating to /new-travel/tracking travelId=$travelId orderId=${widget.orderId}');
+        // Achado: `Navigator.of(context).pushReplacementNamed(...)` é o
+        // Navigator imperativo puro do Flutter — num app com flutter_modular
+        // (Router API declarativo), isso NÃO passa os `arguments` pelo canal
+        // que a rota `/tracking` lê (`Modular.args.data`, populado só por
+        // `Modular.to.*`). A página de acompanhamento abria sem saber qual
+        // `travelId` carregar e ficava presa no spinner de carregamento até
+        // um evento de SignalR que não depende desses argumentos (ex.:
+        // `TravelStarted`, que sempre emite `TravelTrackingInProgress`
+        // incondicionalmente) forçar uma transição de estado — batendo
+        // exatamente com "só volta ao normal quando o motorista inicia a
+        // viagem". `Modular.to.pushReplacementNamed` é o equivalente correto.
+        Modular.to.pushReplacementNamed(
           '/new-travel/tracking',
           arguments: {
             'travelId': travelId,
@@ -235,11 +322,13 @@ class _WaitingPageState extends State<WaitingPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _acceptedSub?.cancel();
     _cancelledSub?.cancel();
     _driverContactedSub?.cancel();
     _elapsedTimer?.cancel();
     _countdownTimer?.cancel();
+    _pollTimer?.cancel();
     super.dispose();
   }
 
