@@ -24,7 +24,7 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
   StreamSubscription? _driverContactedSub;
   final _startTime = DateTime.now();
   Timer? _elapsedTimer;
-  Duration _elapsed = Duration.zero;
+  final ValueNotifier<int> _elapsedSeconds = ValueNotifier(0);
   bool _isCancelling = false;
 
   // PSG-08: WaitingPage dependia só de SignalR — se o evento OrderAccepted
@@ -54,6 +54,9 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
   DateTime? _contactedExpiresAt; // UTC
   DateTime? _contactedReceivedAt; // UTC, momento local de recebimento do evento
   Timer? _countdownTimer;
+  final ValueNotifier<DateTime> _countdownNow = ValueNotifier(
+    DateTime.now().toUtc(),
+  );
 
   @override
   void initState() {
@@ -65,11 +68,7 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
 
     // Update elapsed time every second
     _elapsedTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) {
-        setState(() {
-          _elapsed = DateTime.now().difference(_startTime);
-        });
-      }
+      _elapsedSeconds.value = DateTime.now().difference(_startTime).inSeconds;
     });
   }
 
@@ -79,7 +78,8 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
   // já que o pedido pode ter sido aceito/cancelado durante o tempo fora.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.detached) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
       _pollTimer?.cancel();
       Modular.get<SignalRService>().disconnectAll();
     } else if (state == AppLifecycleState.resumed) {
@@ -107,9 +107,15 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
       final status = data['status'] as String?;
       print('[DIAG] _pollOnce got status=$status travelId=${data['travelId']}');
       if (status == 'Accepted' || status == 'InProgress') {
-        _onOrderAccepted({'orderId': widget.orderId, 'travelId': data['travelId']});
+        _onOrderAccepted({
+          'orderId': widget.orderId,
+          'travelId': data['travelId'],
+        });
       } else if (status == 'Cancelled') {
-        _onOrderCancelled({'orderId': widget.orderId, 'reason': data['cancellationReason']});
+        _onOrderCancelled({
+          'orderId': widget.orderId,
+          'reason': data['cancellationReason'],
+        });
       }
     } on DioException {
       // Best-effort — SignalR continua sendo o caminho primário, e o
@@ -163,7 +169,9 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
   void _onDriverContacted(Map<String, dynamic> event) {
     if (event['orderId'] != widget.orderId) return;
 
-    final expiresAt = DateTime.tryParse(event['expiresAt'] as String? ?? '')?.toUtc();
+    final expiresAt = DateTime.tryParse(
+      event['expiresAt'] as String? ?? '',
+    )?.toUtc();
     if (expiresAt == null || !mounted) return;
 
     setState(() {
@@ -175,24 +183,28 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
 
     _countdownTimer?.cancel();
     _countdownTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
-      if (mounted) setState(() {});
+      final now = DateTime.now().toUtc();
+      _countdownNow.value = now;
+      if (!now.isBefore(expiresAt)) {
+        _countdownTimer?.cancel();
+      }
     });
   }
 
-  Duration get _remaining {
+  Duration _remainingAt(DateTime now) {
     final expiresAt = _contactedExpiresAt;
     if (expiresAt == null) return Duration.zero;
-    final diff = expiresAt.difference(DateTime.now().toUtc());
+    final diff = expiresAt.difference(now);
     return diff.isNegative ? Duration.zero : diff;
   }
 
-  double get _progressFraction {
+  double _progressFractionAt(DateTime now) {
     final expiresAt = _contactedExpiresAt;
     final receivedAt = _contactedReceivedAt;
     if (expiresAt == null || receivedAt == null) return 0;
     final total = expiresAt.difference(receivedAt).inMilliseconds;
     if (total <= 0) return 0;
-    return (_remaining.inMilliseconds / total).clamp(0.0, 1.0);
+    return (_remainingAt(now).inMilliseconds / total).clamp(0.0, 1.0);
   }
 
   String _resolveImageUrl(String url) {
@@ -257,13 +269,17 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
   }
 
   void _onOrderAccepted(Map<String, dynamic> event) {
-    print('[DIAG] _onOrderAccepted called, event=$event, alreadyHandled=$_orderAcceptedHandled, mounted=$mounted');
+    print(
+      '[DIAG] _onOrderAccepted called, event=$event, alreadyHandled=$_orderAcceptedHandled, mounted=$mounted',
+    );
     if (_orderAcceptedHandled) return;
     if (event['orderId'] == widget.orderId) {
       final travelId = event['travelId'] as String?;
       if (travelId != null && mounted) {
         _orderAcceptedHandled = true;
-        print('[DIAG] navigating to /new-travel/tracking travelId=$travelId orderId=${widget.orderId}');
+        print(
+          '[DIAG] navigating to /new-travel/tracking travelId=$travelId orderId=${widget.orderId}',
+        );
         // Achado: `Navigator.of(context).pushReplacementNamed(...)` é o
         // Navigator imperativo puro do Flutter — num app com flutter_modular
         // (Router API declarativo), isso NÃO passa os `arguments` pelo canal
@@ -329,6 +345,8 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
     _elapsedTimer?.cancel();
     _countdownTimer?.cancel();
     _pollTimer?.cancel();
+    _elapsedSeconds.dispose();
+    _countdownNow.dispose();
     super.dispose();
   }
 
@@ -341,7 +359,10 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
       canPop: false,
       child: Scaffold(
         appBar: AppBar(
-          title: Text('Aguardando Motorista', style: TextStyle(color: context.moto.textPrimary)),
+          title: Text(
+            'Aguardando Motorista',
+            style: TextStyle(color: context.moto.textPrimary),
+          ),
           elevation: 0,
           automaticallyImplyLeading: false,
         ),
@@ -350,7 +371,9 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
             child: Center(
               child: Padding(
                 padding: const EdgeInsets.all(32),
-                child: _contactedDriverName == null ? _buildWaitingCard() : _buildContactingCard(),
+                child: _contactedDriverName == null
+                    ? _buildWaitingCard()
+                    : _buildContactingCard(),
               ),
             ),
           ),
@@ -360,8 +383,6 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
   }
 
   Widget _buildWaitingCard() {
-    final seconds = _elapsed.inSeconds;
-
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -385,11 +406,14 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
           ),
         ),
         const SizedBox(height: 24),
-        Text(
-          'Aguardando ha ${seconds}s',
-          style: TextStyle(
-            fontSize: 14,
-            color: context.moto.textTertiary,
+        ValueListenableBuilder<int>(
+          valueListenable: _elapsedSeconds,
+          builder: (context, seconds, _) => Text(
+            'Aguardando ha ${seconds}s',
+            style: TextStyle(
+              fontSize: 14,
+              color: context.moto.textTertiary,
+            ),
           ),
         ),
         const SizedBox(height: 48),
@@ -400,7 +424,6 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
 
   Widget _buildContactingCard() {
     final photoUrl = _contactedDriverPhotoUrl;
-    final remainingSeconds = _remaining.inSeconds;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -433,19 +456,32 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
           ),
         ),
         const SizedBox(height: 24),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: _progressFraction,
-            minHeight: 8,
-            backgroundColor: context.moto.bgSunken,
-            valueColor: AlwaysStoppedAnimation(context.moto.accent),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          '${remainingSeconds}s',
-          style: TextStyle(fontSize: 12, color: context.moto.textTertiary),
+        ValueListenableBuilder<DateTime>(
+          valueListenable: _countdownNow,
+          builder: (context, now, _) {
+            final remainingSeconds = _remainingAt(now).inSeconds;
+            return Column(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: _progressFractionAt(now),
+                    minHeight: 8,
+                    backgroundColor: context.moto.bgSunken,
+                    valueColor: AlwaysStoppedAnimation(context.moto.accent),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${remainingSeconds}s',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: context.moto.textTertiary,
+                  ),
+                ),
+              ],
+            );
+          },
         ),
         const SizedBox(height: 32),
         _buildCancelButton(),

@@ -46,7 +46,9 @@ class _NewTravelPageState extends State<NewTravelPage> {
   // terminal chegar (evento perdido, exceção não mapeada), o mapa ficava
   // preso no spinner de "carregando" pra sempre, sem saída pro usuário.
   static const _mapLoadTimeout = Duration(seconds: 15);
+  static const _searchDebounceDuration = Duration(milliseconds: 400);
   Timer? _mapTimeoutTimer;
+  Timer? _searchDebounceTimer;
   bool _mapTimedOut = false;
 
   @override
@@ -115,7 +117,10 @@ class _NewTravelPageState extends State<NewTravelPage> {
       builder: (context, state) {
         return Scaffold(
           appBar: AppBar(
-            title: Text('Nova Viagem', style: TextStyle(color: context.moto.textPrimary)),
+            title: Text(
+              'Nova Viagem',
+              style: TextStyle(color: context.moto.textPrimary),
+            ),
             elevation: 0,
             leading: IconButton(
               icon: Icon(Icons.arrow_back, color: context.moto.textPrimary),
@@ -138,6 +143,7 @@ class _NewTravelPageState extends State<NewTravelPage> {
   @override
   void dispose() {
     _mapTimeoutTimer?.cancel();
+    _searchDebounceTimer?.cancel();
     _destinationController.dispose();
     _mapController?.dispose();
     super.dispose();
@@ -146,8 +152,14 @@ class _NewTravelPageState extends State<NewTravelPage> {
   @override
   void initState() {
     super.initState();
-    // Check for pending orders first, then proceed to normal flow
-    BlocProvider.of<NewTravelBloc>(context).add(const CheckPendingOrder());
+    // Localização e verificação de pedido são independentes. Antes, o mapa
+    // só começava a carregar depois que /orders/latest respondesse; após uma
+    // viagem concluída essa consulta podia ficar pendente e prender a segunda
+    // solicitação no spinner. O mapa agora começa imediatamente, enquanto a
+    // retomada de uma viagem ativa é verificada em paralelo.
+    final bloc = BlocProvider.of<NewTravelBloc>(context);
+    bloc.add(const GetCurrentLocation());
+    bloc.add(const CheckPendingOrder());
     _startMapTimeoutTimer();
 
     Future.microtask(() async {
@@ -200,7 +212,11 @@ class _NewTravelPageState extends State<NewTravelPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.map_outlined, size: 48, color: context.moto.textTertiary),
+                Icon(
+                  Icons.map_outlined,
+                  size: 48,
+                  color: context.moto.textTertiary,
+                ),
                 const SizedBox(height: 16),
                 Text(
                   'Não foi possível carregar o mapa.',
@@ -219,7 +235,8 @@ class _NewTravelPageState extends State<NewTravelPage> {
       );
     }
 
-    if (state is NewTravelCheckingPending || state is NewTravelLocationLoading) {
+    if (state is NewTravelCheckingPending ||
+        state is NewTravelLocationLoading) {
       return Container(
         color: context.moto.bgSunken,
         child: const Center(child: CircularProgressIndicator()),
@@ -242,7 +259,10 @@ class _NewTravelPageState extends State<NewTravelPage> {
                 : (latLng) {
                     setState(() => _isSelectingDestination = true);
                     BlocProvider.of<NewTravelBloc>(context).add(
-                      CalculateRoute(latitude: latLng.latitude, longitude: latLng.longitude),
+                      CalculateRoute(
+                        latitude: latLng.latitude,
+                        longitude: latLng.longitude,
+                      ),
                     );
                   },
             myLocationEnabled: true,
@@ -279,22 +299,48 @@ class _NewTravelPageState extends State<NewTravelPage> {
         children: [
           Material(
             color: context.moto.bgRaised,
-            shape: StadiumBorder(side: BorderSide(color: context.moto.borderSubtle)),
+            shape: StadiumBorder(
+              side: BorderSide(color: context.moto.borderSubtle),
+            ),
             elevation: 6,
             shadowColor: context.moto.shadow,
             clipBehavior: Clip.antiAlias,
             child: TextField(
               controller: _destinationController,
-              style: TextStyle(fontFamily: MotoFont.ui, fontSize: 16, color: context.moto.textPrimary),
+              style: TextStyle(
+                fontFamily: MotoFont.ui,
+                fontSize: 16,
+                color: context.moto.textPrimary,
+              ),
               decoration: InputDecoration(
                 hintText: 'Pra onde você quer ir?',
-                hintStyle: TextStyle(fontFamily: MotoFont.ui, fontSize: 16, color: context.moto.textTertiary),
+                hintStyle: TextStyle(
+                  fontFamily: MotoFont.ui,
+                  fontSize: 16,
+                  color: context.moto.textTertiary,
+                ),
                 prefixIcon: Icon(Icons.search, color: context.moto.accent),
                 border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(horizontal: MotoSpace.s4, vertical: 18),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: MotoSpace.s4,
+                  vertical: 18,
+                ),
               ),
               onChanged: (query) {
-                BlocProvider.of<NewTravelBloc>(context).add(SearchPlaces(query: query));
+                _searchDebounceTimer?.cancel();
+                final normalizedQuery = query.trim();
+                if (normalizedQuery.length < 3) {
+                  BlocProvider.of<NewTravelBloc>(
+                    context,
+                  ).add(SearchPlaces(query: normalizedQuery));
+                  return;
+                }
+                _searchDebounceTimer = Timer(_searchDebounceDuration, () {
+                  if (!mounted) return;
+                  BlocProvider.of<NewTravelBloc>(
+                    context,
+                  ).add(SearchPlaces(query: normalizedQuery));
+                });
               },
             ),
           ),
@@ -311,13 +357,17 @@ class _NewTravelPageState extends State<NewTravelPage> {
                     padding: EdgeInsets.zero,
                     itemCount: state.suggestions.length,
                     itemBuilder: (_, i) => ListTile(
-                      leading: Icon(Icons.location_on, color: context.moto.accent),
+                      leading: Icon(
+                        Icons.location_on,
+                        color: context.moto.accent,
+                      ),
                       title: Text(
                         state.suggestions[i].address,
                         overflow: TextOverflow.ellipsis,
                       ),
                       onTap: () {
-                        _destinationController.text = state.suggestions[i].address;
+                        _destinationController.text =
+                            state.suggestions[i].address;
                         BlocProvider.of<NewTravelBloc>(context).add(
                           SelectPlace(suggestion: state.suggestions[i]),
                         );
@@ -353,7 +403,10 @@ class _NewTravelPageState extends State<NewTravelPage> {
     );
   }
 
-  Future<void> _showLocationErrorDialog(String message, LocationStatus status) async {
+  Future<void> _showLocationErrorDialog(
+    String message,
+    LocationStatus status,
+  ) async {
     if (!mounted) return;
 
     await showDialog(
@@ -372,7 +425,9 @@ class _NewTravelPageState extends State<NewTravelPage> {
                 Navigator.of(ctx).pop();
                 await Modular.get<LocationService>().openLocationSettings();
                 if (mounted) {
-                  BlocProvider.of<NewTravelBloc>(context).add(const GetCurrentLocation());
+                  BlocProvider.of<NewTravelBloc>(
+                    context,
+                  ).add(const GetCurrentLocation());
                 }
               },
               child: const Text('Ativar'),
@@ -389,7 +444,9 @@ class _NewTravelPageState extends State<NewTravelPage> {
             TextButton(
               onPressed: () {
                 Navigator.of(ctx).pop();
-                BlocProvider.of<NewTravelBloc>(context).add(const GetCurrentLocation());
+                BlocProvider.of<NewTravelBloc>(
+                  context,
+                ).add(const GetCurrentLocation());
               },
               child: const Text('Tentar novamente'),
             ),
@@ -508,7 +565,10 @@ class _NewTravelPageState extends State<NewTravelPage> {
                 },
                 child: Text(
                   'Aguardar motorista',
-                  style: TextStyle(color: context.moto.textOnAccent, fontSize: 16),
+                  style: TextStyle(
+                    color: context.moto.textOnAccent,
+                    fontSize: 16,
+                  ),
                 ),
               ),
             ),
@@ -545,7 +605,10 @@ class _NewTravelPageState extends State<NewTravelPage> {
                 },
                 child: Text(
                   'Voltar',
-                  style: TextStyle(color: context.moto.textPrimary, fontSize: 16),
+                  style: TextStyle(
+                    color: context.moto.textPrimary,
+                    fontSize: 16,
+                  ),
                 ),
               ),
             ),
@@ -585,7 +648,8 @@ class _RouteBottomSheetContent extends StatefulWidget {
   });
 
   @override
-  State<_RouteBottomSheetContent> createState() => _RouteBottomSheetContentState();
+  State<_RouteBottomSheetContent> createState() =>
+      _RouteBottomSheetContentState();
 }
 
 class _RouteBottomSheetContentState extends State<_RouteBottomSheetContent> {
@@ -603,7 +667,10 @@ class _RouteBottomSheetContentState extends State<_RouteBottomSheetContent> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('Resumo da viagem', style: Theme.of(context).textTheme.titleLarge),
+                Text(
+                  'Resumo da viagem',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
                 const SizedBox(height: MotoSpace.s4),
                 MotoRoute(
                   from: (widget.route.departureAddress, 'Embarque'),
@@ -613,7 +680,11 @@ class _RouteBottomSheetContentState extends State<_RouteBottomSheetContent> {
                 MotoMetrics(
                   items: [
                     (widget.distKm, 'km', 'Distância'),
-                    (_formatTravelTime(widget.route.timeMinutes), '', 'Duração'),
+                    (
+                      _formatTravelTime(widget.route.timeMinutes),
+                      '',
+                      'Duração',
+                    ),
                   ],
                 ),
                 Visibility(
@@ -625,7 +696,10 @@ class _RouteBottomSheetContentState extends State<_RouteBottomSheetContent> {
                       Switch(
                         value: widget.orderType == OrderType.priority,
                         onChanged: (value) {
-                          widget.orderType = widget.orderType == OrderType.normal ? OrderType.priority : OrderType.normal;
+                          widget.orderType =
+                              widget.orderType == OrderType.normal
+                              ? OrderType.priority
+                              : OrderType.normal;
                           setState(() {});
                         },
                       ),

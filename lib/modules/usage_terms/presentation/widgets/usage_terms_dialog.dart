@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:moto_passenger/core/theme/app_theme.dart';
 import 'package:moto_passenger/design_system/design_system.dart';
 import 'package:moto_passenger/modules/usage_terms/domain/entities/usage_term_entity.dart';
 import 'package:moto_passenger/widgets/app_button.dart';
@@ -33,14 +31,17 @@ class UsageTermsDialog extends StatelessWidget {
             right: 24,
           ),
           decoration: const BoxDecoration(
-            gradient: AppGradients.primary,
+            gradient: LinearGradient(
+              colors: [MotoRaw.cobalto500, MotoRaw.cobalto700],
+            ),
           ),
           child: Text(
             'Termos de Uso',
-            style: GoogleFonts.robotoFlex(
+            style: const TextStyle(
+              fontFamily: MotoFont.display,
               fontSize: 20,
               fontWeight: FontWeight.w700,
-              color: context.moto.textOnAccent,
+              color: Colors.white,
             ),
           ),
         ),
@@ -53,10 +54,11 @@ class UsageTermsDialog extends StatelessWidget {
               children: [
                 Text(
                   terms.title,
-                  style: GoogleFonts.robotoFlex(
+                  style: const TextStyle(
+                    fontFamily: MotoFont.display,
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    color: context.moto.accent,
+                    color: MotoRaw.cobalto600,
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -68,7 +70,8 @@ class UsageTermsDialog extends StatelessWidget {
                       children: [
                         Text(
                           subTerm.title,
-                          style: GoogleFonts.robotoFlex(
+                          style: const TextStyle(
+                            fontFamily: MotoFont.ui,
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
                           ),
@@ -76,7 +79,8 @@ class UsageTermsDialog extends StatelessWidget {
                         const SizedBox(height: 8),
                         Text(
                           subTerm.content,
-                          style: GoogleFonts.robotoFlex(
+                          style: TextStyle(
+                            fontFamily: MotoFont.ui,
                             fontSize: 14,
                             fontWeight: FontWeight.w400,
                             color: context.moto.textPrimary,
@@ -107,7 +111,8 @@ class UsageTermsDialog extends StatelessWidget {
                   onPressed: isSubmitting ? null : onDecline,
                   child: Text(
                     'Recusar',
-                    style: GoogleFonts.robotoFlex(
+                    style: TextStyle(
+                      fontFamily: MotoFont.ui,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                       color: context.moto.textSecondary,

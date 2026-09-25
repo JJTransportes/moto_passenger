@@ -30,7 +30,8 @@ class TravelTrackingPage extends StatefulWidget {
   State<TravelTrackingPage> createState() => _TravelTrackingPageState();
 }
 
-class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBindingObserver {
+class _TravelTrackingPageState extends State<TravelTrackingPage>
+    with WidgetsBindingObserver {
   StreamSubscription? _orderAcceptedSub;
   StreamSubscription? _travelStartedSub;
   StreamSubscription? _travelCompletedSub;
@@ -61,7 +62,10 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
       },
       child: Scaffold(
         appBar: AppBar(
-          title: Text('Minha Viagem', style: TextStyle(color: context.moto.textPrimary)),
+          title: Text(
+            'Minha Viagem',
+            style: TextStyle(color: context.moto.textPrimary),
+          ),
           elevation: 0,
           leading: IconButton(
             icon: Icon(Icons.arrow_back, color: context.moto.textPrimary),
@@ -69,85 +73,101 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
           ),
         ),
         body: BlocListener<TravelTrackingBloc, TravelTrackingState>(
-        listenWhen: (previous, current) => current is TravelTrackingAccepted || current is TravelTrackingInProgress,
-        listener: (context, state) {
-          final lat = switch (state) {
-            TravelTrackingAccepted(:final driverLatitude) => driverLatitude,
-            TravelTrackingInProgress(:final driverLatitude) => driverLatitude,
-            _ => null,
-          };
-          final lng = switch (state) {
-            TravelTrackingAccepted(:final driverLongitude) => driverLongitude,
-            TravelTrackingInProgress(:final driverLongitude) => driverLongitude,
-            _ => null,
-          };
-
-          if (lat != null && lng != null && !_isUserInteracting && _mapController != null && (lat != _lastDriverLat || lng != _lastDriverLng)) {
-            _lastDriverLat = lat;
-            _lastDriverLng = lng;
-            _mapController!.animateCamera(
-              CameraUpdate.newLatLngZoom(LatLng(lat, lng), 14),
-            );
-          }
-        },
-        child: BlocBuilder<TravelTrackingBloc, TravelTrackingState>(
-          builder: (context, state) {
-            print('[DIAG] BlocBuilder rebuild, state=${state.runtimeType}, bloc hash=${BlocProvider.of<TravelTrackingBloc>(context).hashCode}');
-            return switch (state) {
-              TravelTrackingInitial() => const Center(child: CircularProgressIndicator()),
-              TravelTrackingLoading() => const Center(child: CircularProgressIndicator()),
-              TravelTrackingPending() => _buildPendingState(),
-              TravelTrackingAccepted(
-                driver: final driver,
-                driverLatitude: final lat,
-                driverLongitude: final lng,
-                destinationLatitude: final destLat,
-                destinationLongitude: final destLng,
-                distanceToDestinationMeters: final dist,
-                remainingTimeMinutes: final time,
-                routePolyline: final polyline,
-                requestedAt: final requestedAt,
-              ) =>
-                _buildAcceptedState(
-                  driver,
-                  driverLat: lat,
-                  driverLng: lng,
-                  destLat: destLat,
-                  destLng: destLng,
-                  distanceToDestinationMeters: dist,
-                  remainingTimeMinutes: time,
-                  routePolyline: polyline,
-                  requestedAt: requestedAt,
-                ),
-              TravelTrackingInProgress(
-                driver: final driver,
-                driverLatitude: final lat,
-                driverLongitude: final lng,
-                destinationLatitude: final destLat,
-                destinationLongitude: final destLng,
-                distanceToDestinationMeters: final dist,
-                remainingTimeMinutes: final time,
-                routePolyline: final polyline,
-                requestedAt: final requestedAt,
-              ) =>
-                _buildInProgressState(
-                  driver,
-                  driverLat: lat,
-                  driverLng: lng,
-                  destLat: destLat,
-                  destLng: destLng,
-                  distanceToDestinationMeters: dist,
-                  remainingTimeMinutes: time,
-                  routePolyline: polyline,
-                  requestedAt: requestedAt,
-                ),
-              TravelTrackingCompleted() => _buildCompletedState(),
-              TravelTrackingCancelled(reason: final reason) => _buildCancelledState(reason),
-              TravelTrackingFailure(message: final msg) => Center(child: Text('Erro: $msg')),
+          listenWhen: (previous, current) =>
+              current is TravelTrackingAccepted ||
+              current is TravelTrackingInProgress,
+          listener: (context, state) {
+            final lat = switch (state) {
+              TravelTrackingAccepted(:final driverLatitude) => driverLatitude,
+              TravelTrackingInProgress(:final driverLatitude) => driverLatitude,
+              _ => null,
             };
+            final lng = switch (state) {
+              TravelTrackingAccepted(:final driverLongitude) => driverLongitude,
+              TravelTrackingInProgress(:final driverLongitude) =>
+                driverLongitude,
+              _ => null,
+            };
+
+            if (lat != null &&
+                lng != null &&
+                !_isUserInteracting &&
+                _mapController != null &&
+                (lat != _lastDriverLat || lng != _lastDriverLng)) {
+              _lastDriverLat = lat;
+              _lastDriverLng = lng;
+              _mapController!.animateCamera(
+                CameraUpdate.newLatLngZoom(LatLng(lat, lng), 14),
+              );
+            }
           },
+          child: BlocBuilder<TravelTrackingBloc, TravelTrackingState>(
+            builder: (context, state) {
+              print(
+                '[DIAG] BlocBuilder rebuild, state=${state.runtimeType}, bloc hash=${BlocProvider.of<TravelTrackingBloc>(context).hashCode}',
+              );
+              return switch (state) {
+                TravelTrackingInitial() => const Center(
+                  child: CircularProgressIndicator(),
+                ),
+                TravelTrackingLoading() => const Center(
+                  child: CircularProgressIndicator(),
+                ),
+                TravelTrackingPending() => _buildPendingState(),
+                TravelTrackingAccepted(
+                  driver: final driver,
+                  driverLatitude: final lat,
+                  driverLongitude: final lng,
+                  destinationLatitude: final destLat,
+                  destinationLongitude: final destLng,
+                  distanceToDestinationMeters: final dist,
+                  remainingTimeMinutes: final time,
+                  routePolyline: final polyline,
+                  requestedAt: final requestedAt,
+                ) =>
+                  _buildAcceptedState(
+                    driver,
+                    driverLat: lat,
+                    driverLng: lng,
+                    destLat: destLat,
+                    destLng: destLng,
+                    distanceToDestinationMeters: dist,
+                    remainingTimeMinutes: time,
+                    routePolyline: polyline,
+                    requestedAt: requestedAt,
+                  ),
+                TravelTrackingInProgress(
+                  driver: final driver,
+                  driverLatitude: final lat,
+                  driverLongitude: final lng,
+                  destinationLatitude: final destLat,
+                  destinationLongitude: final destLng,
+                  distanceToDestinationMeters: final dist,
+                  remainingTimeMinutes: final time,
+                  routePolyline: final polyline,
+                  requestedAt: final requestedAt,
+                ) =>
+                  _buildInProgressState(
+                    driver,
+                    driverLat: lat,
+                    driverLng: lng,
+                    destLat: destLat,
+                    destLng: destLng,
+                    distanceToDestinationMeters: dist,
+                    remainingTimeMinutes: time,
+                    routePolyline: polyline,
+                    requestedAt: requestedAt,
+                  ),
+                TravelTrackingCompleted() => _buildCompletedState(),
+                TravelTrackingCancelled(reason: final reason) =>
+                  _buildCancelledState(reason),
+                TravelTrackingFailure(message: final msg) => Center(
+                  child: Text('Erro: $msg'),
+                ),
+              };
+            },
+          ),
         ),
-      ),
       ),
     );
   }
@@ -164,18 +184,24 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
     _distanceUpdateSub?.cancel();
     _mapController?.dispose();
     Modular.get<SignalRService>().disconnectAll();
-    print('[DIAG] TravelTrackingPage.dispose pageHash=$hashCode travelId=${widget.travelId}');
+    print(
+      '[DIAG] TravelTrackingPage.dispose pageHash=$hashCode travelId=${widget.travelId}',
+    );
     super.dispose();
   }
 
   @override
   void initState() {
     super.initState();
-    print('[DIAG] TravelTrackingPage.initState travelId=${widget.travelId} orderId=${widget.orderId} pageHash=$hashCode');
+    print(
+      '[DIAG] TravelTrackingPage.initState travelId=${widget.travelId} orderId=${widget.orderId} pageHash=$hashCode',
+    );
     WidgetsBinding.instance.addObserver(this);
     // Delay to ensure BlocProvider ancestor is established
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      print('[DIAG] postFrameCallback firing _connectAndLoad, pageHash=$hashCode, mounted=$mounted');
+      print(
+        '[DIAG] postFrameCallback firing _connectAndLoad, pageHash=$hashCode, mounted=$mounted',
+      );
       _connectAndLoad();
     });
     _loadMyLocation();
@@ -188,7 +214,8 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
   // nem SignalR nem o timer pausado teriam capturado isso.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.detached) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
       BlocProvider.of<TravelTrackingBloc>(context).add(const PollingPaused());
       Modular.get<SignalRService>().disconnectAll();
     } else if (state == AppLifecycleState.resumed) {
@@ -200,7 +227,10 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
     final result = await Modular.get<LocationService>().getCurrentPosition();
     if (result.isGranted && result.position != null && mounted) {
       setState(() {
-        _myLocation = LatLng(result.position!.latitude, result.position!.longitude);
+        _myLocation = LatLng(
+          result.position!.latitude,
+          result.position!.longitude,
+        );
       });
     }
   }
@@ -246,12 +276,10 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
 
     final polylines = <Polyline>{};
     if (routePolyline != null && routePolyline.isNotEmpty) {
-      polylines.add(
-        Polyline(
-          polylineId: const PolylineId('route'),
+      polylines.addAll(
+        MotoMapRouteStyle.polylines(
+          id: 'route',
           points: decodePolyline(routePolyline),
-          color: context.moto.accent,
-          width: 4,
         ),
       );
     }
@@ -331,7 +359,12 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
             children: [
               MotoTile(icon: titleIcon, accent: true, size: 40),
               const SizedBox(width: MotoSpace.s3),
-              Expanded(child: Text(title, style: Theme.of(context).textTheme.titleMedium)),
+              Expanded(
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
             ],
           ),
           if (subtitle != null) ...[
@@ -346,7 +379,10 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
                   initials: _initialsOf(driver.fullName),
                   size: 48,
                   image: driver.photoUrl != null && driver.photoUrl!.isNotEmpty
-                      ? NetworkImage(_resolveImageUrl(driver.photoUrl!), headers: _authHeaders)
+                      ? NetworkImage(
+                          _resolveImageUrl(driver.photoUrl!),
+                          headers: _authHeaders,
+                        )
                       : null,
                 ),
                 const SizedBox(width: MotoSpace.s3),
@@ -354,7 +390,10 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(driver.fullName, style: Theme.of(context).textTheme.titleSmall),
+                      Text(
+                        driver.fullName,
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
                       if (driver.travelCount != null)
                         Text(
                           '${driver.travelCount} viagem${driver.travelCount == 1 ? '' : 's'} realizada${driver.travelCount == 1 ? '' : 's'}',
@@ -369,14 +408,22 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
               const SizedBox(height: 10),
               Row(
                 children: [
-                  Icon(Icons.directions_car, color: context.moto.accent, size: 20),
+                  Icon(
+                    Icons.directions_car,
+                    color: context.moto.accent,
+                    size: 20,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       [
-                        if (driver.vehicleBrand != null) driver.vehicleBrand,
-                        driver.vehicleModel,
-                      ].join(' ') + (driver.vehiclePlate != null ? ' · ${driver.vehiclePlate}' : ''),
+                            if (driver.vehicleBrand != null)
+                              driver.vehicleBrand,
+                            driver.vehicleModel,
+                          ].join(' ') +
+                          (driver.vehiclePlate != null
+                              ? ' · ${driver.vehiclePlate}'
+                              : ''),
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                   ),
@@ -390,17 +437,26 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
               children: [
                 Icon(Icons.event_note, color: context.moto.accent, size: 20),
                 const SizedBox(width: 8),
-                Text('Solicitada às ${_formatTime(requestedAt)}', style: Theme.of(context).textTheme.bodyMedium),
+                Text(
+                  'Solicitada às ${_formatTime(requestedAt)}',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
               ],
             ),
           ],
-          if (distanceToDestinationMeters != null || remainingTimeMinutes != null) ...[
+          if (distanceToDestinationMeters != null ||
+              remainingTimeMinutes != null) ...[
             const SizedBox(height: MotoSpace.s3),
             MotoMetrics(
               items: [
                 if (distanceToDestinationMeters != null)
-                  ((distanceToDestinationMeters / 1000).toStringAsFixed(1), 'km', 'Distância'),
-                if (remainingTimeMinutes != null) ('$remainingTimeMinutes', 'min', 'Chegada estimada'),
+                  (
+                    (distanceToDestinationMeters / 1000).toStringAsFixed(1),
+                    'km',
+                    'Distância',
+                  ),
+                if (remainingTimeMinutes != null)
+                  ('$remainingTimeMinutes', 'min', 'Chegada estimada'),
               ],
             ),
           ],
@@ -467,7 +523,10 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
             children: [
               Icon(Icons.cancel, size: 64, color: context.moto.danger),
               const SizedBox(height: 16),
-              Text('Viagem cancelada', style: Theme.of(context).textTheme.headlineSmall),
+              Text(
+                'Viagem cancelada',
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
               if (reason != null) ...[
                 const SizedBox(height: 8),
                 Text(
@@ -477,7 +536,12 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
                 ),
               ],
               const SizedBox(height: 32),
-              MotoButton(label: 'Voltar para o início', large: false, expand: false, onPressed: _goHome),
+              MotoButton(
+                label: 'Voltar para o início',
+                large: false,
+                expand: false,
+                onPressed: _goHome,
+              ),
             ],
           ),
         ),
@@ -495,9 +559,17 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
             children: [
               const MotoSuccessCheck(),
               const SizedBox(height: 24),
-              Text('Viagem concluída!', style: Theme.of(context).textTheme.headlineSmall),
+              Text(
+                'Viagem concluída!',
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
               const SizedBox(height: 32),
-              MotoButton(label: 'Voltar para o início', large: false, expand: false, onPressed: _goHome),
+              MotoButton(
+                label: 'Voltar para o início',
+                large: false,
+                expand: false,
+                onPressed: _goHome,
+              ),
             ],
           ),
         ),
@@ -547,7 +619,10 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
             children: [
               const MotoSonar(),
               const SizedBox(height: 24),
-              Text('Aguardando motorista...', style: Theme.of(context).textTheme.headlineSmall),
+              Text(
+                'Aguardando motorista...',
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
               const SizedBox(height: 8),
               Text(
                 'Sua viagem foi solicitada e está sendo enviada aos motoristas disponíveis.',
@@ -590,7 +665,9 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
 
     if (confirmed != true || !mounted) return;
 
-    BlocProvider.of<TravelTrackingBloc>(context).add(CancelTravel(widget.travelId));
+    BlocProvider.of<TravelTrackingBloc>(
+      context,
+    ).add(CancelTravel(widget.travelId));
   }
 
   String _resolveImageUrl(String url) {
@@ -630,7 +707,9 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
     if (mounted) setState(() {});
     if (token == null) {
       if (mounted) {
-        BlocProvider.of<TravelTrackingBloc>(context).add(LoadTravel(widget.travelId));
+        BlocProvider.of<TravelTrackingBloc>(
+          context,
+        ).add(LoadTravel(widget.travelId));
       }
       return;
     }
@@ -643,7 +722,8 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
     // if the backend emits an event between connect() and listen(), the
     // broadcast stream would drop it since it has no buffer.
     _orderAcceptedSub = signalR.onOrderAccepted.listen((data) {
-      if (data['travelId'] == widget.travelId) bloc.add(TravelOrderAccepted(data));
+      if (data['travelId'] == widget.travelId)
+        bloc.add(TravelOrderAccepted(data));
     });
     _travelStartedSub = signalR.onTravelStarted.listen((data) {
       if (data['travelId'] == widget.travelId) bloc.add(TravelStarted(data));
@@ -660,7 +740,8 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
       }
     });
     _driverLocationSub = signalR.onDriverLocationUpdated.listen((data) {
-      if (data['travelId'] == widget.travelId) bloc.add(DriverLocationUpdated(data));
+      if (data['travelId'] == widget.travelId)
+        bloc.add(DriverLocationUpdated(data));
     });
     _distanceUpdateSub = signalR.onDistanceUpdate.listen((data) {
       if (data['travelId'] == widget.travelId) bloc.add(DistanceUpdated(data));
@@ -669,23 +750,33 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
     try {
       await Future.wait([
         signalR.connect('travel-orders', '$baseUrl/hubs/travel-orders', token),
-        signalR.connect('travel-management', '$baseUrl/hubs/travel-management', token),
+        signalR.connect(
+          'travel-management',
+          '$baseUrl/hubs/travel-management',
+          token,
+        ),
       ]);
     } catch (_) {
       // Fallback: polling will handle updates
     }
 
-    print('[DIAG] about to dispatch LoadTravel, mounted=$mounted, pageHash=$hashCode');
+    print(
+      '[DIAG] about to dispatch LoadTravel, mounted=$mounted, pageHash=$hashCode',
+    );
     if (mounted) {
       try {
         final bloc2 = BlocProvider.of<TravelTrackingBloc>(context);
-        print('[DIAG] dispatching LoadTravel travelId=${widget.travelId} to bloc hash=${bloc2.hashCode} isClosed=${bloc2.isClosed}');
+        print(
+          '[DIAG] dispatching LoadTravel travelId=${widget.travelId} to bloc hash=${bloc2.hashCode} isClosed=${bloc2.isClosed}',
+        );
         bloc2.add(LoadTravel(widget.travelId));
       } catch (e, st) {
         print('[DIAG] EXCEPTION dispatching LoadTravel: $e\n$st');
       }
     } else {
-      print('[DIAG] NOT mounted, skipping LoadTravel dispatch entirely! pageHash=$hashCode');
+      print(
+        '[DIAG] NOT mounted, skipping LoadTravel dispatch entirely! pageHash=$hashCode',
+      );
     }
   }
 

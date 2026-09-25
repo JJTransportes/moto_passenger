@@ -31,6 +31,7 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
   // depois do rebuild; essa guarda é síncrona, checada antes de qualquer
   // `await` dentro do próprio handler.
   bool _confirmInFlight = false;
+  int _searchRequestId = 0;
 
   NewTravelBloc(
     this._repository,
@@ -107,14 +108,15 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
     CheckPendingOrder event,
     Emitter<NewTravelState> emit,
   ) async {
-    emit(const NewTravelCheckingPending());
-
     try {
-      final order = await _repository.getLatestOrder();
+      // Esta consulta não pode bloquear o mapa. A localização é iniciada em
+      // paralelo pela página; aqui só emitimos quando existe algo que exige
+      // intervenção (pedido pendente ou viagem ativa).
+      final order = await _repository.getLatestOrder().timeout(
+        const Duration(seconds: 5),
+      );
 
       if (order == null) {
-        // No pending order — proceed to normal flow
-        add(const GetCurrentLocation());
         return;
       }
 
@@ -125,7 +127,9 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
           NewTravelPendingOrder(
             orderId: order['orderId'] as String,
             travelId: order['travelId'] as String? ?? '',
-            createdAt: DateTime.tryParse(order['createdAt']?.toString() ?? '') ?? DateTime.now(),
+            createdAt:
+                DateTime.tryParse(order['createdAt']?.toString() ?? '') ??
+                DateTime.now(),
             destinationAddress: order['destinationAddress'] as String?,
           ),
         );
@@ -138,16 +142,11 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
               status: status!,
             ),
           );
-        } else {
-          add(const GetCurrentLocation());
         }
-      } else {
-        // Completed, Cancelled — proceed normally
-        add(const GetCurrentLocation());
       }
     } catch (_) {
-      // Network error — proceed anyway
-      add(const GetCurrentLocation());
+      // A verificação é auxiliar. Erro/timeout não substitui nem interrompe
+      // o estado de localização que alimenta o mapa.
     }
   }
 
@@ -269,6 +268,7 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
     SearchPlaces event,
     Emitter<NewTravelState> emit,
   ) async {
+    final requestId = ++_searchRequestId;
     if (event.query.length < 3) {
       emit(NewTravelPlacesLoaded(suggestions: [], query: event.query));
       return;
@@ -278,8 +278,10 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
 
     try {
       final results = await _placesService.search(event.query);
+      if (requestId != _searchRequestId) return;
       emit(NewTravelPlacesLoaded(suggestions: results, query: event.query));
     } catch (e) {
+      if (requestId != _searchRequestId) return;
       emit(NewTravelFailure(message: e.toString()));
     }
   }
