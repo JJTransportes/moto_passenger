@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart' hide ReadContext;
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:moto_passenger/core/theme/app_theme.dart';
 import 'package:moto_passenger/core/utils/masks.dart';
 import 'package:moto_passenger/core/utils/password_policy_validator.dart';
 import 'package:moto_passenger/core/utils/validators.dart' as validators;
@@ -11,6 +10,7 @@ import 'package:moto_passenger/modules/auth/presentation/cubits/password_policy_
 import 'package:moto_passenger/modules/passenger_registration/domain/entities/department_entity.dart';
 import 'package:moto_passenger/modules/passenger_registration/domain/entities/public_partition_entity.dart';
 import 'package:moto_passenger/modules/passenger_registration/presentation/blocs/register_bloc.dart';
+import 'package:moto_passenger/design_system/design_system.dart';
 import 'package:moto_passenger/widgets/app_button.dart';
 import 'package:moto_passenger/widgets/app_text_field.dart';
 import 'package:moto_passenger/widgets/gradient_text.dart';
@@ -285,7 +285,6 @@ class _RegisterPageState extends State<RegisterPage> {
         }
 
         return Scaffold(
-          backgroundColor: AppColors.white,
           body: SafeArea(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 36),
@@ -305,8 +304,8 @@ class _RegisterPageState extends State<RegisterPage> {
                   if (errorMessage != null) ...[
                     Text(
                       errorMessage,
-                      style: const TextStyle(
-                        color: Colors.red,
+                      style: TextStyle(
+                        color: context.moto.danger,
                         fontSize: 12,
                       ),
                       textAlign: TextAlign.center,
@@ -325,7 +324,7 @@ class _RegisterPageState extends State<RegisterPage> {
                       'Já tem conta? Entrar',
                       style: GoogleFonts.robotoFlex(
                         fontSize: 12,
-                        color: AppColors.primary,
+                        color: context.moto.accent,
                       ),
                     ),
                   ),
@@ -353,7 +352,7 @@ class _RegisterPageState extends State<RegisterPage> {
         children: [
           Text(
             state.message,
-            style: const TextStyle(color: Colors.red, fontSize: 12),
+            style: TextStyle(color: context.moto.danger, fontSize: 12),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
@@ -470,7 +469,7 @@ class _RegisterPageState extends State<RegisterPage> {
           style: GoogleFonts.robotoFlex(
             fontSize: 10,
             fontWeight: FontWeight.w700,
-            color: AppColors.primary,
+            color: context.moto.accent,
             letterSpacing: 0.2,
             height: 1.2,
           ),
@@ -480,7 +479,7 @@ class _RegisterPageState extends State<RegisterPage> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(4),
             border: Border.all(
-              color: _partitionError != null ? Colors.red : AppColors.primary,
+              color: _partitionError != null ? context.moto.danger : context.moto.accent,
             ),
           ),
           child: DropdownButtonHideUnderline(
@@ -491,7 +490,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 style: GoogleFonts.robotoFlex(
                   fontSize: 10,
                   fontWeight: FontWeight.w300,
-                  color: AppColors.primary,
+                  color: context.moto.accent,
                 ),
               ),
               isExpanded: true,
@@ -505,7 +504,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     style: GoogleFonts.robotoFlex(
                       fontSize: 10,
                       fontWeight: FontWeight.w300,
-                      color: AppColors.primary,
+                      color: context.moto.accent,
                     ),
                   ),
                 );
@@ -518,8 +517,8 @@ class _RegisterPageState extends State<RegisterPage> {
           const SizedBox(height: 4),
           Text(
             _partitionError!,
-            style: const TextStyle(
-              color: Colors.red,
+            style: TextStyle(
+              color: context.moto.danger,
               fontSize: 10,
             ),
           ),
@@ -537,7 +536,7 @@ class _RegisterPageState extends State<RegisterPage> {
           style: GoogleFonts.robotoFlex(
             fontSize: 10,
             fontWeight: FontWeight.w700,
-            color: AppColors.primary,
+            color: context.moto.accent,
             letterSpacing: 0.2,
             height: 1.2,
           ),
@@ -546,7 +545,7 @@ class _RegisterPageState extends State<RegisterPage> {
         DecoratedBox(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: AppColors.primary),
+            border: Border.all(color: context.moto.accent),
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<Department>(
@@ -556,7 +555,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 style: GoogleFonts.robotoFlex(
                   fontSize: 10,
                   fontWeight: FontWeight.w300,
-                  color: AppColors.primary,
+                  color: context.moto.accent,
                 ),
               ),
               isExpanded: true,
@@ -570,7 +569,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     style: GoogleFonts.robotoFlex(
                       fontSize: 10,
                       fontWeight: FontWeight.w300,
-                      color: AppColors.primary,
+                      color: context.moto.accent,
                     ),
                   ),
                 );
@@ -592,7 +591,7 @@ class _RegisterPageState extends State<RegisterPage> {
           style: GoogleFonts.robotoFlex(
             fontSize: 10,
             fontWeight: FontWeight.w700,
-            color: AppColors.primary,
+            color: context.moto.accent,
             letterSpacing: 0.2,
             height: 1.2,
           ),
@@ -605,7 +604,7 @@ class _RegisterPageState extends State<RegisterPage> {
           style: GoogleFonts.robotoFlex(
             fontSize: 10,
             fontWeight: FontWeight.w300,
-            color: AppColors.primary,
+            color: context.moto.accent,
             letterSpacing: 0.2,
             height: 1.2,
           ),
@@ -614,34 +613,34 @@ class _RegisterPageState extends State<RegisterPage> {
             hintStyle: GoogleFonts.robotoFlex(
               fontSize: 10,
               fontWeight: FontWeight.w300,
-              color: AppColors.primary,
+              color: context.moto.accent,
               letterSpacing: 0.2,
             ),
-            suffixIcon: const Icon(
+            suffixIcon: Icon(
               Icons.calendar_today,
               size: 18,
-              color: AppColors.primary,
+              color: context.moto.accent,
             ),
             contentPadding: const EdgeInsets.all(12),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(4),
-              borderSide: const BorderSide(color: AppColors.primary),
+              borderSide: BorderSide(color: context.moto.accent),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(4),
-              borderSide: const BorderSide(color: AppColors.primary),
+              borderSide: BorderSide(color: context.moto.accent),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(4),
-              borderSide: const BorderSide(color: AppColors.primary, width: 2),
+              borderSide: BorderSide(color: context.moto.accent, width: 2),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(4),
-              borderSide: const BorderSide(color: Colors.red),
+              borderSide: BorderSide(color: context.moto.danger),
             ),
             focusedErrorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(4),
-              borderSide: const BorderSide(color: Colors.red, width: 2),
+              borderSide: BorderSide(color: context.moto.danger, width: 2),
             ),
             errorText: _birthdateError,
           ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:moto_passenger/design_system/design_system.dart';
 import 'package:moto_passenger/modules/passenger_home/domain/entities/travel_summary_entity.dart';
 
 class TravelListItem extends StatelessWidget {
@@ -8,13 +9,13 @@ class TravelListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final moto = context.moto;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.directions_car,
-              color: Color(0xFF4685C0), size: 20),
+          Icon(Icons.directions_car, color: moto.accent, size: 20),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -22,24 +23,24 @@ class TravelListItem extends StatelessWidget {
               children: [
                 Text(
                   _statusLabel(travel.status),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
-                    color: Color(0xFF4E4E4E),
+                    color: moto.textPrimary,
                   ),
                 ),
                 if (travel.driverName != null)
                   Text(
                     'Motorista: ${travel.driverName}',
                     style: TextStyle(
-                      color: Colors.grey.shade600,
+                      color: moto.textSecondary,
                       fontSize: 12,
                     ),
                   ),
                 Text(
                   _formatDate(travel.createdAt),
                   style: TextStyle(
-                    color: Colors.grey.shade500,
+                    color: moto.textTertiary,
                     fontSize: 12,
                   ),
                 ),

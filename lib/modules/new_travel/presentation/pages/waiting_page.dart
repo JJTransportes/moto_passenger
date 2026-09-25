@@ -6,7 +6,7 @@ import 'package:flutter_modular/flutter_modular.dart';
 import 'package:moto_passenger/core/auth/auth_storage.dart';
 import 'package:moto_passenger/core/config/app_config.dart';
 import 'package:moto_passenger/core/network/signalr_service.dart';
-import 'package:moto_passenger/core/theme/app_theme.dart';
+import 'package:moto_passenger/design_system/design_system.dart';
 import 'package:moto_passenger/modules/new_travel/data/datasources/new_travel_datasource.dart';
 
 class WaitingPage extends StatefulWidget {
@@ -340,10 +340,8 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
     return PopScope(
       canPop: false,
       child: Scaffold(
-        backgroundColor: AppColors.white,
         appBar: AppBar(
-          title: const Text('Aguardando Motorista', style: TextStyle(color: Color(0xFF4E4E4E))),
-          backgroundColor: AppColors.white,
+          title: Text('Aguardando Motorista', style: TextStyle(color: context.moto.textPrimary)),
           elevation: 0,
           automaticallyImplyLeading: false,
         ),
@@ -365,38 +363,38 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const SizedBox(
+        SizedBox(
           width: 64,
           height: 64,
           child: CircularProgressIndicator(
             strokeWidth: 3,
-            color: Color(0xFF4685C0),
+            color: context.moto.accent,
           ),
         ),
         const SizedBox(height: 32),
-        const Text(
+        Text(
           'Pedido enviado!',
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: Color(0xFF4E4E4E),
+            color: context.moto.textPrimary,
           ),
         ),
         const SizedBox(height: 8),
-        const Text(
+        Text(
           'Aguardando um motorista aceitar sua viagem...',
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 16,
-            color: Color(0xFF4E4E4E),
+            color: context.moto.textPrimary,
           ),
         ),
         const SizedBox(height: 24),
         Text(
           'Aguardando ha ${seconds}s',
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 14,
-            color: Colors.grey,
+            color: context.moto.textTertiary,
           ),
         ),
         const SizedBox(height: 48),
@@ -414,32 +412,32 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
       children: [
         CircleAvatar(
           radius: 48,
-          backgroundColor: const Color(0xFF4685C0).withAlpha(30),
+          backgroundColor: context.moto.accent.withAlpha(30),
           backgroundImage: photoUrl != null && photoUrl.isNotEmpty
               ? NetworkImage(_resolveImageUrl(photoUrl), headers: _authHeaders)
               : null,
           child: photoUrl == null || photoUrl.isEmpty
-              ? const Icon(Icons.person, size: 48, color: Color(0xFF4685C0))
+              ? Icon(Icons.person, size: 48, color: context.moto.accent)
               : null,
         ),
         const SizedBox(height: 24),
         Text(
           'Contatando motorista $_contactedDriverName',
           textAlign: TextAlign.center,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: Color(0xFF4E4E4E),
+            color: context.moto.textPrimary,
           ),
         ),
         const SizedBox(height: 8),
-        const Text(
+        Text(
           'O motorista pode recusar ou o tempo esgotar — nesse caso, o pedido é '
           'repassado automaticamente para o próximo motorista mais próximo.',
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 14,
-            color: Color(0xFF4E4E4E),
+            color: context.moto.textPrimary,
           ),
         ),
         const SizedBox(height: 24),
@@ -448,14 +446,14 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
           child: LinearProgressIndicator(
             value: _progressFraction,
             minHeight: 8,
-            backgroundColor: Colors.grey.shade200,
-            valueColor: const AlwaysStoppedAnimation(Color(0xFF4685C0)),
+            backgroundColor: context.moto.bgSunken,
+            valueColor: AlwaysStoppedAnimation(context.moto.accent),
           ),
         ),
         const SizedBox(height: 8),
         Text(
           '${remainingSeconds}s',
-          style: const TextStyle(fontSize: 12, color: Colors.grey),
+          style: TextStyle(fontSize: 12, color: context.moto.textTertiary),
         ),
         const SizedBox(height: 32),
         _buildCancelButton(),
@@ -469,24 +467,24 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
       child: OutlinedButton(
         style: OutlinedButton.styleFrom(
           padding: const EdgeInsets.symmetric(vertical: 14),
-          side: const BorderSide(color: Colors.red),
+          side: BorderSide(color: context.moto.danger),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8),
           ),
         ),
         onPressed: _isCancelling ? null : _cancelOrder,
         child: _isCancelling
-            ? const SizedBox(
+            ? SizedBox(
                 width: 20,
                 height: 20,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  color: Colors.red,
+                  color: context.moto.danger,
                 ),
               )
-            : const Text(
+            : Text(
                 'Cancelar pedido',
-                style: TextStyle(color: Colors.red, fontSize: 16),
+                style: TextStyle(color: context.moto.danger, fontSize: 16),
               ),
       ),
     );

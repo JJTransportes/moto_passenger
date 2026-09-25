@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart' hide ReadContext;
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:moto_passenger/core/theme/app_theme.dart';
 import 'package:moto_passenger/core/utils/validators.dart' as validators;
+import 'package:moto_passenger/design_system/design_system.dart';
 import 'package:moto_passenger/modules/auth/domain/entities/user_entity.dart';
 import 'package:moto_passenger/modules/auth/presentation/blocs/login_bloc.dart';
 import 'package:moto_passenger/widgets/app_button.dart';
@@ -96,7 +96,6 @@ class _LoginPageState extends State<LoginPage> {
         final errorMessage = state is LoginFailure ? state.message : null;
 
         return Scaffold(
-          backgroundColor: AppColors.white,
           body: SafeArea(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 36),
@@ -139,7 +138,7 @@ class _LoginPageState extends State<LoginPage> {
                             'Esqueci minha senha',
                             style: GoogleFonts.inter(
                               fontSize: 12,
-                              color: AppColors.primary,
+                              color: context.moto.accent,
                             ),
                           ),
                         ),
@@ -148,8 +147,8 @@ class _LoginPageState extends State<LoginPage> {
                         const SizedBox(height: 8),
                         Text(
                           errorMessage,
-                          style: const TextStyle(
-                            color: Colors.red,
+                          style: TextStyle(
+                            color: context.moto.danger,
                             fontSize: 12,
                           ),
                           textAlign: TextAlign.center,
@@ -169,7 +168,7 @@ class _LoginPageState extends State<LoginPage> {
                             'Criar conta',
                             style: GoogleFonts.inter(
                               fontSize: 14,
-                              color: AppColors.primary,
+                              color: context.moto.accent,
                               fontWeight: FontWeight.w600,
                             ),
                           ),

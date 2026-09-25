@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:moto_passenger/core/theme/app_theme.dart';
+import 'package:moto_passenger/design_system/design_system.dart';
 import 'package:moto_passenger/modules/usage_terms/domain/entities/usage_term_entity.dart';
 import 'package:moto_passenger/widgets/app_button.dart';
 
@@ -39,7 +40,7 @@ class UsageTermsDialog extends StatelessWidget {
             style: GoogleFonts.robotoFlex(
               fontSize: 20,
               fontWeight: FontWeight.w700,
-              color: AppColors.white,
+              color: context.moto.textOnAccent,
             ),
           ),
         ),
@@ -55,7 +56,7 @@ class UsageTermsDialog extends StatelessWidget {
                   style: GoogleFonts.robotoFlex(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    color: AppColors.primary,
+                    color: context.moto.accent,
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -78,7 +79,7 @@ class UsageTermsDialog extends StatelessWidget {
                           style: GoogleFonts.robotoFlex(
                             fontSize: 14,
                             fontWeight: FontWeight.w400,
-                            color: Colors.black87,
+                            color: context.moto.textPrimary,
                             height: 1.5,
                           ),
                         ),
@@ -109,7 +110,7 @@ class UsageTermsDialog extends StatelessWidget {
                     style: GoogleFonts.robotoFlex(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.secondary,
+                      color: context.moto.textSecondary,
                     ),
                   ),
                 ),

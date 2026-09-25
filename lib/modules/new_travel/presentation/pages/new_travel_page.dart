@@ -11,7 +11,7 @@ import 'package:flutter_modular/flutter_modular.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:moto_passenger/core/auth/auth_storage.dart';
 import 'package:moto_passenger/core/location/location_service.dart';
-import 'package:moto_passenger/core/theme/app_theme.dart';
+import 'package:moto_passenger/design_system/design_system.dart';
 import 'package:moto_passenger/modules/new_travel/domain/entities/travel_route_entity.dart';
 import 'package:moto_passenger/modules/new_travel/presentation/blocs/new_travel_bloc.dart';
 import 'package:moto_passenger/modules/new_travel/presentation/blocs/new_travel_event.dart';
@@ -105,7 +105,7 @@ class _NewTravelPageState extends State<NewTravelPage> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(message),
-                backgroundColor: Colors.red,
+                backgroundColor: context.moto.danger,
               ),
             );
           default:
@@ -114,13 +114,11 @@ class _NewTravelPageState extends State<NewTravelPage> {
       },
       builder: (context, state) {
         return Scaffold(
-          backgroundColor: AppColors.white,
           appBar: AppBar(
-            title: const Text('Nova Viagem', style: TextStyle(color: Color(0xFF4E4E4E))),
-            backgroundColor: AppColors.white,
+            title: Text('Nova Viagem', style: TextStyle(color: context.moto.textPrimary)),
             elevation: 0,
             leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Color(0xFF4E4E4E)),
+              icon: Icon(Icons.arrow_back, color: context.moto.textPrimary),
               onPressed: () => Modular.to.pop(),
             ),
           ),
@@ -195,19 +193,19 @@ class _NewTravelPageState extends State<NewTravelPage> {
   Widget _buildMap(NewTravelState state) {
     if (_mapTimedOut && _currentLocation == null) {
       return Container(
-        color: Colors.grey.shade200,
+        color: context.moto.bgSunken,
         child: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.map_outlined, size: 48, color: Colors.grey),
+                Icon(Icons.map_outlined, size: 48, color: context.moto.textTertiary),
                 const SizedBox(height: 16),
-                const Text(
+                Text(
                   'Não foi possível carregar o mapa.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Color(0xFF4E4E4E)),
+                  style: TextStyle(color: context.moto.textPrimary),
                 ),
                 const SizedBox(height: 16),
                 ElevatedButton(
@@ -223,7 +221,7 @@ class _NewTravelPageState extends State<NewTravelPage> {
 
     if (state is NewTravelCheckingPending || state is NewTravelLocationLoading) {
       return Container(
-        color: Colors.grey.shade200,
+        color: context.moto.bgSunken,
         child: const Center(child: CircularProgressIndicator()),
       );
     }
@@ -257,8 +255,8 @@ class _NewTravelPageState extends State<NewTravelPage> {
             child: FloatingActionButton(
               heroTag: 'recenter-location',
               mini: true,
-              backgroundColor: AppColors.white,
-              foregroundColor: AppColors.primary,
+              backgroundColor: context.moto.bgBase,
+              foregroundColor: context.moto.accent,
               onPressed: _recenterToCurrentLocation,
               child: const Icon(Icons.my_location),
             ),
@@ -268,7 +266,7 @@ class _NewTravelPageState extends State<NewTravelPage> {
     }
 
     return Container(
-      color: Colors.grey.shade200,
+      color: context.moto.bgSunken,
       child: const Center(child: CircularProgressIndicator()),
     );
   }
@@ -283,9 +281,9 @@ class _NewTravelPageState extends State<NewTravelPage> {
             controller: _destinationController,
             decoration: InputDecoration(
               hintText: 'Pra onde você quer ir?',
-              prefixIcon: const Icon(Icons.search, color: Color(0xFF4685C0)),
+              prefixIcon: Icon(Icons.search, color: context.moto.accent),
               filled: true,
-              fillColor: Colors.grey.shade100,
+              fillColor: context.moto.bgSunken,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
                 borderSide: BorderSide.none,
@@ -307,7 +305,7 @@ class _NewTravelPageState extends State<NewTravelPage> {
                   padding: EdgeInsets.zero,
                   itemCount: state.suggestions.length,
                   itemBuilder: (_, i) => ListTile(
-                    leading: const Icon(Icons.location_on, color: Color(0xFF4685C0)),
+                    leading: Icon(Icons.location_on, color: context.moto.accent),
                     title: Text(
                       state.suggestions[i].address,
                       overflow: TextOverflow.ellipsis,
@@ -459,7 +457,7 @@ class _NewTravelPageState extends State<NewTravelPage> {
           children: [
             Row(
               children: [
-                const Icon(Icons.access_time, color: Colors.orange, size: 28),
+                Icon(Icons.access_time, color: context.moto.warning, size: 28),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
@@ -467,19 +465,19 @@ class _NewTravelPageState extends State<NewTravelPage> {
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: const Color(0xFF4E4E4E),
+                      color: context.moto.textPrimary,
                     ),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 12),
-            const Text(
+            Text(
               'Existe um pedido de viagem aguardando motorista. '
               'O que você deseja fazer?',
               style: TextStyle(
                 fontSize: 14,
-                color: Color(0xFF4E4E4E),
+                color: context.moto.textPrimary,
               ),
             ),
             const SizedBox(height: 24),
@@ -487,7 +485,7 @@ class _NewTravelPageState extends State<NewTravelPage> {
               width: double.infinity,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF4685C0),
+                  backgroundColor: context.moto.accent,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -501,9 +499,9 @@ class _NewTravelPageState extends State<NewTravelPage> {
                     arguments: {'orderId': orderId},
                   );
                 },
-                child: const Text(
+                child: Text(
                   'Aguardar motorista',
-                  style: TextStyle(color: Colors.white, fontSize: 16),
+                  style: TextStyle(color: context.moto.textOnAccent, fontSize: 16),
                 ),
               ),
             ),
@@ -513,7 +511,7 @@ class _NewTravelPageState extends State<NewTravelPage> {
               child: OutlinedButton(
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  side: const BorderSide(color: Colors.red),
+                  side: BorderSide(color: context.moto.danger),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -524,9 +522,9 @@ class _NewTravelPageState extends State<NewTravelPage> {
                     CancelPendingOrder(orderId: orderId),
                   );
                 },
-                child: const Text(
+                child: Text(
                   'Cancelar e criar novo',
-                  style: TextStyle(color: Colors.red, fontSize: 16),
+                  style: TextStyle(color: context.moto.danger, fontSize: 16),
                 ),
               ),
             ),
@@ -538,9 +536,9 @@ class _NewTravelPageState extends State<NewTravelPage> {
                   Navigator.of(ctx).pop();
                   Modular.to.pop();
                 },
-                child: const Text(
+                child: Text(
                   'Voltar',
-                  style: TextStyle(color: Color(0xFF4E4E4E), fontSize: 16),
+                  style: TextStyle(color: context.moto.textPrimary, fontSize: 16),
                 ),
               ),
             ),
@@ -605,12 +603,12 @@ class _RouteBottomSheetContentState extends State<_RouteBottomSheetContent> {
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    const Icon(Icons.location_on, color: Color(0xFF4685C0), size: 20),
+                    Icon(Icons.location_on, color: context.moto.accent, size: 20),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         widget.route.destinationAddress,
-                        style: const TextStyle(color: Color(0xFF4E4E4E)),
+                        style: TextStyle(color: context.moto.textPrimary),
                       ),
                     ),
                   ],
@@ -618,22 +616,22 @@ class _RouteBottomSheetContentState extends State<_RouteBottomSheetContent> {
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    const Icon(Icons.straighten, color: Color(0xFF4685C0), size: 20),
+                    Icon(Icons.straighten, color: context.moto.accent, size: 20),
                     const SizedBox(width: 8),
                     Text(
                       '${widget.distKm} km',
-                      style: const TextStyle(color: Color(0xFF4E4E4E)),
+                      style: TextStyle(color: context.moto.textPrimary),
                     ),
                   ],
                 ),
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    const Icon(Icons.timer_outlined, color: Color(0xFF4685C0), size: 20),
+                    Icon(Icons.timer_outlined, color: context.moto.accent, size: 20),
                     const SizedBox(width: 8),
                     Text(
                       _formatTravelTime(widget.route.timeMinutes),
-                      style: const TextStyle(color: Color(0xFF4E4E4E)),
+                      style: TextStyle(color: context.moto.textPrimary),
                     ),
                   ],
                 ),
@@ -652,28 +650,28 @@ class _RouteBottomSheetContentState extends State<_RouteBottomSheetContent> {
                       ),
                       Text(
                         'Pedido com prioridade',
-                        style: const TextStyle(color: Color(0xFF4E4E4E)),
+                        style: TextStyle(color: context.moto.textPrimary),
                       ),
                     ],
                   ),
                 ),
                 if (isCreating) ...[
-                  const Center(
+                  Center(
                     child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: 16),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          SizedBox(
+                          const SizedBox(
                             width: 20,
                             height: 20,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           ),
-                          SizedBox(width: 12),
+                          const SizedBox(width: 12),
                           Text(
                             'Solicitando viagem...',
                             style: TextStyle(
-                              color: Color(0xFF4E4E4E),
+                              color: context.moto.textPrimary,
                               fontSize: 14,
                             ),
                           ),
@@ -691,10 +689,10 @@ class _RouteBottomSheetContentState extends State<_RouteBottomSheetContent> {
                       Expanded(
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.white,
+                            backgroundColor: context.moto.bgBase,
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             shape: RoundedRectangleBorder(
-                              side: BorderSide(color: AppColors.primary),
+                              side: BorderSide(color: context.moto.accent),
                               borderRadius: BorderRadius.circular(100),
                             ),
                           ),
@@ -707,16 +705,16 @@ class _RouteBottomSheetContentState extends State<_RouteBottomSheetContent> {
                                     strokeWidth: 2,
                                   ),
                                 )
-                              : const Text(
+                              : Text(
                                   'Cancelar',
-                                  style: TextStyle(color: AppColors.primary, fontSize: 16),
+                                  style: TextStyle(color: context.moto.accent, fontSize: 16),
                                 ),
                         ),
                       ),
                       Expanded(
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: isCreating ? Colors.grey : AppColors.primary,
+                            backgroundColor: isCreating ? context.moto.borderDefault : context.moto.accent,
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(100),
@@ -734,17 +732,17 @@ class _RouteBottomSheetContentState extends State<_RouteBottomSheetContent> {
                                   ),
                                 ),
                           child: isCreating
-                              ? const SizedBox(
+                              ? SizedBox(
                                   width: 20,
                                   height: 20,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    color: Colors.white,
+                                    color: context.moto.textOnAccent,
                                   ),
                                 )
-                              : const Text(
+                              : Text(
                                   'Solicitar Viagem',
-                                  style: TextStyle(color: Colors.white, fontSize: 16),
+                                  style: TextStyle(color: context.moto.textOnAccent, fontSize: 16),
                                 ),
                         ),
                       ),

@@ -8,7 +8,6 @@ import 'package:flutter_modular/flutter_modular.dart';
 import 'package:moto_passenger/core/auth/auth_storage.dart';
 import 'package:moto_passenger/core/location/location_service.dart';
 import 'package:moto_passenger/core/navigation/route_observer.dart';
-import 'package:moto_passenger/core/theme/app_theme.dart';
 import 'package:moto_passenger/modules/passenger_home/presentation/blocs/passenger_home_bloc.dart';
 import 'package:moto_passenger/modules/passenger_home/presentation/blocs/passenger_home_event.dart';
 import 'package:moto_passenger/modules/passenger_home/presentation/blocs/passenger_home_state.dart';
@@ -27,7 +26,6 @@ class _PassengerHomePageState extends State<PassengerHomePage> with PassengerHom
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.white,
       body: SafeArea(
         child: BlocBuilder<PassengerHomeBloc, PassengerHomeState>(
           builder: (context, state) => switch (state) {

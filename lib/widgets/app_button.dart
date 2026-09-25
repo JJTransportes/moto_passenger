@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:moto_passenger/core/theme/app_theme.dart';
+import 'package:moto_passenger/design_system/design_system.dart';
 
 class AppButton extends StatelessWidget {
   final String label;
@@ -23,7 +24,7 @@ class AppButton extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           gradient: isDisabled ? null : AppGradients.primary,
-          color: isDisabled ? Colors.grey.shade400 : null,
+          color: isDisabled ? context.moto.textTertiary : null,
           borderRadius: BorderRadius.circular(4),
         ),
         child: ElevatedButton(
@@ -38,12 +39,12 @@ class AppButton extends StatelessWidget {
             ),
           ),
           child: loading
-              ? const SizedBox(
+              ? SizedBox(
                   height: 16,
                   width: 16,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: AppColors.white,
+                    color: context.moto.textOnAccent,
                   ),
                 )
               : Text(
@@ -51,7 +52,7 @@ class AppButton extends StatelessWidget {
                   style: GoogleFonts.robotoFlex(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.white,
+                    color: context.moto.textOnAccent,
                     letterSpacing: 0.24,
                   ),
                   textAlign: TextAlign.center,

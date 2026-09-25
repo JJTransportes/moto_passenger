@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:moto_passenger/design_system/design_system.dart';
 import 'package:moto_passenger/modules/passenger_home/domain/entities/travel_summary_entity.dart';
 
 class CurrentTravelCard extends StatelessWidget {
@@ -14,6 +15,7 @@ class CurrentTravelCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isEmAndamento = travel.status == 'InProgress';
+    final moto = context.moto;
 
     return GestureDetector(
       onTap: onTap,
@@ -21,32 +23,31 @@ class CurrentTravelCard extends StatelessWidget {
         elevation: 4,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
-          side: BorderSide(color: Colors.grey.shade300),
+          side: BorderSide(color: moto.borderDefault),
         ),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Viagem Atual',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 16,
-                  color: Color(0xFF4E4E4E),
+                  color: moto.textPrimary,
                 ),
               ),
               const SizedBox(height: 12),
               Row(
                 children: [
-                  const Icon(Icons.location_on,
-                      color: Color(0xFF4685C0), size: 20),
+                  Icon(Icons.location_on, color: moto.accent, size: 20),
                   const SizedBox(width: 8),
-                  const Expanded(
+                  Expanded(
                     child: Text(
                       'Destino da viagem',
                       style: TextStyle(
-                        color: Color(0xFF4E4E4E),
+                        color: moto.textPrimary,
                         fontSize: 14,
                       ),
                     ),
@@ -56,13 +57,12 @@ class CurrentTravelCard extends StatelessWidget {
               const SizedBox(height: 8),
               Row(
                 children: [
-                  const Icon(Icons.timer_outlined,
-                      color: Color(0xFF4685C0), size: 20),
+                  Icon(Icons.timer_outlined, color: moto.accent, size: 20),
                   const SizedBox(width: 8),
                   Text(
                     isEmAndamento ? 'Em andamento' : 'Aguardando início',
-                    style: const TextStyle(
-                      color: Color(0xFF4E4E4E),
+                    style: TextStyle(
+                      color: moto.textPrimary,
                       fontSize: 14,
                     ),
                   ),
@@ -73,16 +73,13 @@ class CurrentTravelCard extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: isEmAndamento
-                      ? Colors.green.shade100
-                      : Colors.orange.shade100,
+                  color: isEmAndamento ? moto.successSoft : moto.warningSoft,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
                   isEmAndamento ? 'Em andamento' : 'Aceita',
                   style: TextStyle(
-                    color:
-                        isEmAndamento ? Colors.green.shade800 : Colors.orange.shade800,
+                    color: isEmAndamento ? moto.success : moto.warning,
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),

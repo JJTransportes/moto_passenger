@@ -8,7 +8,7 @@ import 'package:moto_passenger/core/auth/auth_storage.dart';
 import 'package:moto_passenger/core/auth/sign_out_service.dart';
 import 'package:moto_passenger/core/config/app_config.dart';
 import 'package:moto_passenger/core/network/signalr_service.dart';
-import 'package:moto_passenger/core/theme/app_theme.dart';
+import 'package:moto_passenger/design_system/design_system.dart';
 import 'package:moto_passenger/core/utils/masks.dart';
 import 'package:moto_passenger/core/utils/validators.dart' as validators;
 import 'package:moto_passenger/modules/passenger_home/domain/repositories/i_passenger_home_repository.dart';
@@ -263,9 +263,9 @@ class _ProfilePageState extends State<ProfilePage> {
         if (bytes > 5 * 1024 * 1024) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
+              SnackBar(
                 content: Text('A imagem é muito grande. Máximo 5MB.'),
-                backgroundColor: Colors.red,
+                backgroundColor: context.moto.danger,
               ),
             );
           }
@@ -284,7 +284,7 @@ class _ProfilePageState extends State<ProfilePage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Erro ao selecionar imagem: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: context.moto.danger,
           ),
         );
       }
@@ -317,9 +317,9 @@ class _ProfilePageState extends State<ProfilePage> {
             if (_hasPhoto()) ...[
               const Divider(),
               ListTile(
-                leading: const Icon(Icons.delete_outline, color: Colors.red),
-                title: const Text('Remover foto',
-                    style: TextStyle(color: Colors.red)),
+                leading: Icon(Icons.delete_outline, color: context.moto.danger),
+                title: Text('Remover foto',
+                    style: TextStyle(color: context.moto.danger)),
                 onTap: () {
                   Navigator.of(ctx).pop();
                   final uid = _userId;
@@ -359,19 +359,17 @@ class _ProfilePageState extends State<ProfilePage> {
           }
         },
         child: Scaffold(
-          backgroundColor: AppColors.white,
           appBar: AppBar(
             title: Text(
               'Meu Perfil',
               style: GoogleFonts.robotoFlex(
                 fontWeight: FontWeight.w700,
-                color: AppColors.primary,
+                color: context.moto.accent,
               ),
             ),
-            backgroundColor: AppColors.white,
             elevation: 0,
             leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: AppColors.primary),
+              icon: Icon(Icons.arrow_back, color: context.moto.accent),
               onPressed: () async {
                 if (_hasUnsavedChanges || _pendingPhoto != null) {
                   final shouldPop = await _onWillPop();
@@ -401,9 +399,9 @@ class _ProfilePageState extends State<ProfilePage> {
                     });
                     _populateControllers(state.profile);
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
+                      SnackBar(
                         content: Text('Perfil atualizado com sucesso'),
-                        backgroundColor: Colors.green,
+                        backgroundColor: context.moto.success,
                         duration: Duration(seconds: 2),
                       ),
                     );
@@ -411,7 +409,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(message),
-                        backgroundColor: Colors.red,
+                        backgroundColor: context.moto.danger,
                         duration: const Duration(seconds: 3),
                       ),
                     );
@@ -420,17 +418,17 @@ class _ProfilePageState extends State<ProfilePage> {
                       _pendingPhoto = null;
                     });
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
+                      SnackBar(
                         content: Text('Foto atualizada'),
-                        backgroundColor: Colors.green,
+                        backgroundColor: context.moto.success,
                         duration: Duration(seconds: 2),
                       ),
                     );
                   case ProfilePhotoRemoved():
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
+                      SnackBar(
                         content: Text('Foto removida'),
-                        backgroundColor: Colors.green,
+                        backgroundColor: context.moto.success,
                         duration: Duration(seconds: 2),
                       ),
                     );
@@ -441,7 +439,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(message),
-                        backgroundColor: Colors.red,
+                        backgroundColor: context.moto.danger,
                         duration: const Duration(seconds: 3),
                       ),
                     );
@@ -449,11 +447,11 @@ class _ProfilePageState extends State<ProfilePage> {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(message),
-                        backgroundColor: Colors.red,
+                        backgroundColor: context.moto.danger,
                         duration: const Duration(seconds: 3),
                         action: SnackBarAction(
                           label: 'Tentar novamente',
-                          textColor: Colors.white,
+                          textColor: context.moto.textOnAccent,
                           onPressed: _loadProfile,
                         ),
                       ),
@@ -525,7 +523,7 @@ class _ProfilePageState extends State<ProfilePage> {
         children: [
           CircleAvatar(
             radius: 50,
-            backgroundColor: AppColors.primary.withAlpha(30),
+            backgroundColor: context.moto.accent.withAlpha(30),
             backgroundImage:
                 photoUrl != null
                     ? NetworkImage(
@@ -539,7 +537,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     style: GoogleFonts.robotoFlex(
                       fontSize: 32,
                       fontWeight: FontWeight.w700,
-                      color: AppColors.primary,
+                      color: context.moto.accent,
                     ),
                   )
                 : null,
@@ -549,8 +547,8 @@ class _ProfilePageState extends State<ProfilePage> {
               child: CircularProgressIndicator(
                 value: uploadProgress,
                 strokeWidth: 3,
-                backgroundColor: AppColors.primary.withAlpha(30),
-                valueColor: const AlwaysStoppedAnimation(AppColors.primary),
+                backgroundColor: context.moto.accent.withAlpha(30),
+                valueColor: AlwaysStoppedAnimation(context.moto.accent),
               ),
             ),
           Positioned(
@@ -559,22 +557,22 @@ class _ProfilePageState extends State<ProfilePage> {
             child: Container(
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
-                color: _isBlockedByActiveTravel ? Colors.grey : AppColors.primary,
+                color: _isBlockedByActiveTravel ? context.moto.textDisabled : context.moto.accent,
                 shape: BoxShape.circle,
               ),
               child: isLoading
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 16,
                       height: 16,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: AppColors.white,
+                        color: context.moto.textOnAccent,
                       ),
                     )
-                  : const Icon(
+                  : Icon(
                       Icons.camera_alt,
                       size: 16,
-                      color: AppColors.white,
+                      color: context.moto.textOnAccent,
                     ),
             ),
           ),
@@ -613,11 +611,11 @@ class _ProfilePageState extends State<ProfilePage> {
     if (state is ProfileError) {
       return Column(
         children: [
-          const Icon(Icons.error_outline, size: 48, color: Colors.red),
+          Icon(Icons.error_outline, size: 48, color: context.moto.danger),
           const SizedBox(height: 16),
           Text(
             state.message,
-            style: const TextStyle(color: Colors.red, fontSize: 14),
+            style: TextStyle(color: context.moto.danger, fontSize: 14),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
@@ -735,7 +733,7 @@ class _ProfilePageState extends State<ProfilePage> {
           style: GoogleFonts.robotoFlex(
             fontSize: 10,
             fontWeight: FontWeight.w700,
-            color: AppColors.primary,
+            color: context.moto.accent,
             letterSpacing: 0.2,
             height: 1.2,
           ),
@@ -750,7 +748,7 @@ class _ProfilePageState extends State<ProfilePage> {
           style: GoogleFonts.robotoFlex(
             fontSize: 10,
             fontWeight: FontWeight.w300,
-            color: AppColors.primary,
+            color: context.moto.accent,
             letterSpacing: 0.2,
             height: 1.2,
           ),
@@ -759,32 +757,32 @@ class _ProfilePageState extends State<ProfilePage> {
             hintStyle: GoogleFonts.robotoFlex(
               fontSize: 10,
               fontWeight: FontWeight.w300,
-              color: AppColors.primary,
+              color: context.moto.accent,
               letterSpacing: 0.2,
             ),
             filled: !enabled,
-            fillColor: Colors.grey.shade100,
+            fillColor: context.moto.bgSunken,
             contentPadding: const EdgeInsets.all(12),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(4),
-              borderSide: const BorderSide(color: AppColors.primary),
+              borderSide: BorderSide(color: context.moto.accent),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(4),
-              borderSide: const BorderSide(color: AppColors.primary),
+              borderSide: BorderSide(color: context.moto.accent),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(4),
               borderSide:
-                  const BorderSide(color: AppColors.primary, width: 2),
+                  BorderSide(color: context.moto.accent, width: 2),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(4),
-              borderSide: const BorderSide(color: Colors.red),
+              borderSide: BorderSide(color: context.moto.danger),
             ),
             focusedErrorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(4),
-              borderSide: const BorderSide(color: Colors.red, width: 2),
+              borderSide: BorderSide(color: context.moto.danger, width: 2),
             ),
             errorText: _phoneError,
           ),
@@ -812,7 +810,7 @@ class _ProfilePageState extends State<ProfilePage> {
           width: 60,
           height: 12,
           decoration: BoxDecoration(
-            color: AppColors.secondary.withAlpha(50),
+            color: context.moto.textSecondary.withAlpha(50),
             borderRadius: BorderRadius.circular(4),
           ),
         ),
@@ -821,7 +819,7 @@ class _ProfilePageState extends State<ProfilePage> {
           width: double.infinity,
           height: 40,
           decoration: BoxDecoration(
-            color: AppColors.secondary.withAlpha(30),
+            color: context.moto.textSecondary.withAlpha(30),
             borderRadius: BorderRadius.circular(4),
           ),
         ),
@@ -861,7 +859,7 @@ class _ProfilePageState extends State<ProfilePage> {
           child: OutlinedButton(
             onPressed: isBusy ? null : cancelEdit,
             style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: AppColors.primary),
+              side: BorderSide(color: context.moto.accent),
               padding: const EdgeInsets.symmetric(vertical: 12),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
             ),
@@ -870,7 +868,7 @@ class _ProfilePageState extends State<ProfilePage> {
               style: GoogleFonts.robotoFlex(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
-                color: AppColors.primary,
+                color: context.moto.accent,
               ),
             ),
           ),
@@ -899,7 +897,7 @@ class _ProfilePageState extends State<ProfilePage> {
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w700,
-            color: isBlocked ? Colors.grey : Colors.red,
+            color: isBlocked ? context.moto.textDisabled : context.moto.danger,
           ),
         ),
         const SizedBox(height: 8),
@@ -910,7 +908,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   'e você não poderá mais acessar o aplicativo.',
           style: TextStyle(
             fontSize: 12,
-            color: isBlocked ? Colors.grey : const Color(0xFF6B6B6B),
+            color: isBlocked ? context.moto.textDisabled : context.moto.textSecondary,
           ),
           textAlign: TextAlign.center,
         ),
@@ -921,14 +919,14 @@ class _ProfilePageState extends State<ProfilePage> {
             onPressed: isBlocked ? null : _handleDeleteAccount,
             icon: Icon(
               Icons.delete_forever,
-              color: isBlocked ? Colors.grey : Colors.red,
+              color: isBlocked ? context.moto.textDisabled : context.moto.danger,
             ),
             label: Text(
               'Excluir minha conta',
-              style: TextStyle(color: isBlocked ? Colors.grey : Colors.red),
+              style: TextStyle(color: isBlocked ? context.moto.textDisabled : context.moto.danger),
             ),
             style: OutlinedButton.styleFrom(
-              side: BorderSide(color: isBlocked ? Colors.grey : Colors.red),
+              side: BorderSide(color: isBlocked ? context.moto.textDisabled : context.moto.danger),
               padding: const EdgeInsets.symmetric(vertical: 14),
             ),
           ),

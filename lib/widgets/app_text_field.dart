@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:moto_passenger/core/theme/app_theme.dart';
+import 'package:moto_passenger/design_system/design_system.dart';
 
 class AppTextField extends StatefulWidget {
   final String label;
@@ -54,7 +54,7 @@ class _AppTextFieldState extends State<AppTextField> {
           style: GoogleFonts.robotoFlex(
             fontSize: 10,
             fontWeight: FontWeight.w700,
-            color: AppColors.primary,
+            color: context.moto.accent,
             letterSpacing: 0.2,
             height: 1.2,
           ),
@@ -72,7 +72,7 @@ class _AppTextFieldState extends State<AppTextField> {
           style: GoogleFonts.robotoFlex(
             fontSize: 10,
             fontWeight: FontWeight.w300,
-            color: AppColors.primary,
+            color: context.moto.accent,
             letterSpacing: 0.2,
             height: 1.2,
           ),
@@ -82,7 +82,7 @@ class _AppTextFieldState extends State<AppTextField> {
                 ? IconButton(
                     icon: Icon(
                       _obscure ? Icons.visibility_off : Icons.visibility,
-                      color: AppColors.primary,
+                      color: context.moto.accent,
                       size: 18,
                     ),
                     onPressed: () => setState(() => _obscure = !_obscure),
@@ -91,32 +91,32 @@ class _AppTextFieldState extends State<AppTextField> {
             hintStyle: GoogleFonts.robotoFlex(
               fontSize: 10,
               fontWeight: FontWeight.w300,
-              color: AppColors.primary,
+              color: context.moto.accent,
               letterSpacing: 0.2,
             ),
             filled: !widget.enabled,
-            fillColor: Colors.grey.shade100,
+            fillColor: context.moto.bgSunken,
             contentPadding: const EdgeInsets.all(12),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(4),
-              borderSide: const BorderSide(color: AppColors.primary),
+              borderSide: BorderSide(color: context.moto.accent),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(4),
-              borderSide: const BorderSide(color: AppColors.primary),
+              borderSide: BorderSide(color: context.moto.accent),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(4),
               borderSide:
-                  const BorderSide(color: AppColors.primary, width: 2),
+                  BorderSide(color: context.moto.accent, width: 2),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(4),
-              borderSide: const BorderSide(color: Colors.red),
+              borderSide: BorderSide(color: context.moto.danger),
             ),
             focusedErrorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(4),
-              borderSide: const BorderSide(color: Colors.red, width: 2),
+              borderSide: BorderSide(color: context.moto.danger, width: 2),
             ),
             errorText: widget.errorText,
           ),

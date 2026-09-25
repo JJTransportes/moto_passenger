@@ -10,6 +10,7 @@ import 'package:moto_passenger/core/local_db/repositories/travel_local_repositor
 import 'package:moto_passenger/core/location/location_service.dart';
 import 'package:moto_passenger/core/maps/polyline_decoder.dart';
 import 'package:moto_passenger/core/network/signalr_service.dart';
+import 'package:moto_passenger/design_system/design_system.dart';
 import 'package:moto_passenger/modules/new_travel/domain/entities/travel_tracking_entity.dart';
 import 'package:moto_passenger/modules/new_travel/presentation/blocs/travel_tracking_bloc.dart';
 import 'package:moto_passenger/modules/new_travel/presentation/blocs/travel_tracking_event.dart';
@@ -59,13 +60,11 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
         if (!didPop) _returnToHome();
       },
       child: Scaffold(
-        backgroundColor: Colors.white,
         appBar: AppBar(
-          title: const Text('Minha Viagem', style: TextStyle(color: Color(0xFF4E4E4E))),
-          backgroundColor: Colors.white,
+          title: Text('Minha Viagem', style: TextStyle(color: context.moto.textPrimary)),
           elevation: 0,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Color(0xFF4E4E4E)),
+            icon: Icon(Icons.arrow_back, color: context.moto.textPrimary),
             onPressed: _returnToHome,
           ),
         ),
@@ -251,7 +250,7 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
         Polyline(
           polylineId: const PolylineId('route'),
           points: decodePolyline(routePolyline),
-          color: const Color(0xFF4685C0),
+          color: context.moto.accent,
           width: 4,
         ),
       );
@@ -279,8 +278,8 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
           child: FloatingActionButton(
             heroTag: 'recenter-my-location',
             mini: true,
-            backgroundColor: Colors.white,
-            foregroundColor: const Color(0xFF4685C0),
+            backgroundColor: context.moto.bgBase,
+            foregroundColor: context.moto.accent,
             onPressed: _recenterToMyLocation,
             child: const Icon(Icons.my_location),
           ),
@@ -312,10 +311,10 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
   }) {
     return Container(
       width: double.infinity,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-        boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 12, offset: Offset(0, -2))],
+      decoration: BoxDecoration(
+        color: context.moto.bgBase,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+        boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 12, offset: Offset(0, -2))],
       ),
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
       child: Column(
@@ -328,7 +327,7 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
               height: 4,
               margin: const EdgeInsets.only(bottom: 16),
               decoration: BoxDecoration(
-                color: Colors.grey.shade300,
+                color: context.moto.borderDefault,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -342,7 +341,7 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
           ),
           if (subtitle != null) ...[
             const SizedBox(height: 6),
-            Text(subtitle, style: const TextStyle(color: Color(0xFF4E4E4E))),
+            Text(subtitle, style: TextStyle(color: context.moto.textPrimary)),
           ],
           if (driver != null) ...[
             const Divider(height: 24),
@@ -358,7 +357,7 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
                       if (driver.travelCount != null)
                         Text(
                           '${driver.travelCount} viagem${driver.travelCount == 1 ? '' : 's'} realizada${driver.travelCount == 1 ? '' : 's'}',
-                          style: const TextStyle(fontSize: 12, color: Color(0xFF4E4E4E)),
+                          style: TextStyle(fontSize: 12, color: context.moto.textPrimary),
                         ),
                     ],
                   ),
@@ -369,7 +368,7 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
               const SizedBox(height: 10),
               Row(
                 children: [
-                  const Icon(Icons.directions_car, color: Color(0xFF4685C0), size: 20),
+                  Icon(Icons.directions_car, color: context.moto.accent, size: 20),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -377,7 +376,7 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
                         if (driver.vehicleBrand != null) driver.vehicleBrand,
                         driver.vehicleModel,
                       ].join(' ') + (driver.vehiclePlate != null ? ' · ${driver.vehiclePlate}' : ''),
-                      style: const TextStyle(fontSize: 14, color: Color(0xFF4E4E4E)),
+                      style: TextStyle(fontSize: 14, color: context.moto.textPrimary),
                     ),
                   ),
                 ],
@@ -388,11 +387,11 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
             const SizedBox(height: 10),
             Row(
               children: [
-                const Icon(Icons.event_note, color: Color(0xFF4685C0), size: 20),
+                Icon(Icons.event_note, color: context.moto.accent, size: 20),
                 const SizedBox(width: 8),
                 Text(
                   'Solicitada às ${_formatTime(requestedAt)}',
-                  style: const TextStyle(fontSize: 14, color: Color(0xFF4E4E4E)),
+                  style: TextStyle(fontSize: 14, color: context.moto.textPrimary),
                 ),
               ],
             ),
@@ -402,13 +401,13 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
             Row(
               children: [
                 if (distanceToDestinationMeters != null) ...[
-                  const Icon(Icons.route, color: Color(0xFF4685C0), size: 20),
+                  Icon(Icons.route, color: context.moto.accent, size: 20),
                   const SizedBox(width: 8),
                   Text('${(distanceToDestinationMeters / 1000).toStringAsFixed(1)} km', style: const TextStyle(fontSize: 14)),
                   const SizedBox(width: 16),
                 ],
                 if (remainingTimeMinutes != null) ...[
-                  const Icon(Icons.timer_outlined, color: Color(0xFF4685C0), size: 20),
+                  Icon(Icons.timer_outlined, color: context.moto.accent, size: 20),
                   const SizedBox(width: 8),
                   Text('Chegada estimada em $remainingTimeMinutes min', style: const TextStyle(fontSize: 14)),
                 ],
@@ -420,9 +419,9 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
             SizedBox(
               width: double.infinity,
               child: OutlinedButton(
-                style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.red)),
+                style: OutlinedButton.styleFrom(side: BorderSide(color: context.moto.danger)),
                 onPressed: _cancelTravel,
-                child: const Text('Cancelar Viagem', style: TextStyle(color: Colors.red)),
+                child: Text('Cancelar Viagem', style: TextStyle(color: context.moto.danger)),
               ),
             ),
           ],
@@ -452,7 +451,7 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
     final infoSheet = _buildInfoSheet(
       title: 'Motorista a caminho!',
       titleIcon: Icons.check_circle,
-      titleColor: Colors.green,
+      titleColor: context.moto.success,
       driver: driver,
       requestedAt: requestedAt,
       distanceToDestinationMeters: distanceToDestinationMeters,
@@ -477,7 +476,7 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.cancel, size: 64, color: Colors.red),
+            Icon(Icons.cancel, size: 64, color: context.moto.danger),
             const SizedBox(height: 16),
             const Text('Viagem cancelada', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             if (reason != null) ...[
@@ -485,17 +484,17 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
               Text(
                 reason,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Color(0xFF4E4E4E)),
+                style: TextStyle(color: context.moto.textPrimary),
               ),
             ],
             const SizedBox(height: 32),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4685C0),
+                backgroundColor: context.moto.accent,
                 padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
               ),
               onPressed: _goHome,
-              child: const Text('Voltar para Home', style: TextStyle(color: Colors.white)),
+              child: Text('Voltar para Home', style: TextStyle(color: context.moto.textOnAccent)),
             ),
           ],
         ),
@@ -510,17 +509,17 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.task_alt, size: 64, color: Colors.green),
+            Icon(Icons.task_alt, size: 64, color: context.moto.success),
             const SizedBox(height: 16),
             const Text('Viagem concluída!', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 32),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4685C0),
+                backgroundColor: context.moto.accent,
                 padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
               ),
               onPressed: _goHome,
-              child: const Text('Voltar para Home', style: TextStyle(color: Colors.white)),
+              child: Text('Voltar para Home', style: TextStyle(color: context.moto.textOnAccent)),
             ),
           ],
         ),
@@ -542,7 +541,7 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
     final infoSheet = _buildInfoSheet(
       title: 'Viagem em andamento',
       titleIcon: Icons.directions_car,
-      titleColor: const Color(0xFF4685C0),
+      titleColor: context.moto.accent,
       subtitle: 'Seu motorista está a caminho do destino.',
       driver: driver,
       requestedAt: requestedAt,
@@ -567,20 +566,20 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.access_time, size: 64, color: Colors.orange),
+            Icon(Icons.access_time, size: 64, color: context.moto.warning),
             const SizedBox(height: 16),
             const Text('Aguardando motorista...', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Sua viagem foi solicitada e está sendo enviada aos motoristas disponíveis.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Color(0xFF4E4E4E)),
+              style: TextStyle(color: context.moto.textPrimary),
             ),
             const SizedBox(height: 32),
             OutlinedButton(
-              style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.red)),
+              style: OutlinedButton.styleFrom(side: BorderSide(color: context.moto.danger)),
               onPressed: _cancelTravel,
-              child: const Text('Cancelar Viagem', style: TextStyle(color: Colors.red)),
+              child: Text('Cancelar Viagem', style: TextStyle(color: context.moto.danger)),
             ),
           ],
         ),
@@ -627,12 +626,12 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
     final photoUrl = driver.photoUrl;
     return CircleAvatar(
       radius: 20,
-      backgroundColor: const Color(0xFF4685C0).withAlpha(30),
+      backgroundColor: context.moto.accent.withAlpha(30),
       backgroundImage: photoUrl != null && photoUrl.isNotEmpty
           ? NetworkImage(_resolveImageUrl(photoUrl), headers: _authHeaders)
           : null,
       child: photoUrl == null || photoUrl.isEmpty
-          ? const Icon(Icons.person, color: Color(0xFF4685C0))
+          ? Icon(Icons.person, color: context.moto.accent)
           : null,
     );
   }
