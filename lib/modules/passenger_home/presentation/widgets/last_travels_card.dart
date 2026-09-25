@@ -14,41 +14,26 @@ class LastTravelsCard extends StatelessWidget {
     return SizedBox(
       height: MediaQuery.sizeOf(context).height,
       width: MediaQuery.sizeOf(context).width,
-      child: Card(
-        elevation: 8,
-        shadowColor: moto.glass1,
-        color: moto.bgRaised,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-          side: BorderSide(color: moto.borderDefault),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: ListView(
-            children: [
-              Text(
-                'Últimas Viagens',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: moto.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 12),
-              if (travels.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 24),
-                  child: Center(
-                    child: Text(
-                      'Nenhuma viagem realizada ainda',
-                      style: TextStyle(color: moto.textSecondary),
-                    ),
+      child: MotoGlass(
+        painted: true,
+        padding: const EdgeInsets.all(MotoSpace.s4),
+        child: ListView(
+          children: [
+            Text('Últimas viagens', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: MotoSpace.s3),
+            if (travels.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                child: Center(
+                  child: Text(
+                    'Nenhuma viagem realizada ainda',
+                    style: TextStyle(color: moto.textSecondary),
                   ),
-                )
-              else
-                ...travels.map((t) => TravelListItem(travel: t)),
-            ],
-          ),
+                ),
+              )
+            else
+              ...travels.map((t) => TravelListItem(travel: t)),
+          ],
         ),
       ),
     );

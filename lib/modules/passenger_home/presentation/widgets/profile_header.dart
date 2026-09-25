@@ -25,6 +25,16 @@ class ProfileHeader extends StatelessWidget {
     return parts.first;
   }
 
+  static const _weekdays = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
+  static const _months = [
+    'jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez',
+  ];
+
+  String _todayLabel() {
+    final now = DateTime.now();
+    return '${_weekdays[now.weekday - 1]}, ${now.day} ${_months[now.month - 1]}';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -34,17 +44,24 @@ class ProfileHeader extends StatelessWidget {
           child: ProfileImageDisplay(
             photoUrl: photoUrl,
             name: fullName,
-            radius: 17,
+            radius: 20,
           ),
         ),
         const SizedBox(width: 12),
-        Text(
-          'Olá, $_firstName',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            color: context.moto.textPrimary,
-          ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(_todayLabel(), style: Theme.of(context).textTheme.bodySmall),
+            Text(
+              'Olá, $_firstName',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: context.moto.textPrimary,
+              ),
+            ),
+          ],
         ),
         const Spacer(),
         PopupMenuButton<String>(

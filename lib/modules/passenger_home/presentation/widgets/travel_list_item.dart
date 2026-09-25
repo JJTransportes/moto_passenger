@@ -9,44 +9,25 @@ class TravelListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final moto = context.moto;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: MotoSpace.s2),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.directions_car, color: moto.accent, size: 20),
-          const SizedBox(width: 12),
+          MotoTile(icon: Icons.directions_car, tone: _statusTone(travel.status)),
+          const SizedBox(width: MotoSpace.s3),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  _statusLabel(travel.status),
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                    color: moto.textPrimary,
-                  ),
-                ),
                 if (travel.driverName != null)
-                  Text(
-                    'Motorista: ${travel.driverName}',
-                    style: TextStyle(
-                      color: moto.textSecondary,
-                      fontSize: 12,
-                    ),
-                  ),
-                Text(
-                  _formatDate(travel.createdAt),
-                  style: TextStyle(
-                    color: moto.textTertiary,
-                    fontSize: 12,
-                  ),
-                ),
+                  Text(travel.driverName!, style: Theme.of(context).textTheme.titleSmall),
+                const SizedBox(height: 4),
+                MotoStatusBadge.trip(_tripStatus(travel.status)),
               ],
             ),
           ),
+          Text(_formatDate(travel.createdAt), style: Theme.of(context).textTheme.bodySmall),
         ],
       ),
     );
@@ -58,18 +39,22 @@ class TravelListItem extends StatelessWidget {
         '${date.year}';
   }
 
-  String _statusLabel(String status) {
+  MotoTone _statusTone(String status) {
     switch (status) {
-      case 'Completed':
-        return 'Viagem concluída';
-      case 'Cancelled':
-        return 'Viagem cancelada';
-      case 'Accepted':
-        return 'Viagem aceita';
-      case 'InProgress':
-        return 'Viagem em andamento';
-      default:
-        return 'Viagem';
+      case 'Completed': return MotoTone.success;
+      case 'Cancelled': return MotoTone.danger;
+      case 'InProgress': return MotoTone.info;
+      default: return MotoTone.warning;
+    }
+  }
+
+  TripStatus _tripStatus(String status) {
+    switch (status) {
+      case 'Completed': return TripStatus.concluida;
+      case 'Cancelled': return TripStatus.cancelada;
+      case 'InProgress': return TripStatus.emAndamento;
+      case 'Accepted': return TripStatus.aceita;
+      default: return TripStatus.solicitada;
     }
   }
 }
