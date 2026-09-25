@@ -277,45 +277,52 @@ class _NewTravelPageState extends State<NewTravelPage> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          TextField(
-            controller: _destinationController,
-            decoration: InputDecoration(
-              hintText: 'Pra onde você quer ir?',
-              prefixIcon: Icon(Icons.search, color: context.moto.accent),
-              filled: true,
-              fillColor: context.moto.bgSunken,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide.none,
+          Material(
+            color: context.moto.bgRaised,
+            shape: StadiumBorder(side: BorderSide(color: context.moto.borderSubtle)),
+            elevation: 6,
+            shadowColor: context.moto.shadow,
+            clipBehavior: Clip.antiAlias,
+            child: TextField(
+              controller: _destinationController,
+              style: TextStyle(fontFamily: MotoFont.ui, fontSize: 16, color: context.moto.textPrimary),
+              decoration: InputDecoration(
+                hintText: 'Pra onde você quer ir?',
+                hintStyle: TextStyle(fontFamily: MotoFont.ui, fontSize: 16, color: context.moto.textTertiary),
+                prefixIcon: Icon(Icons.search, color: context.moto.accent),
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(horizontal: MotoSpace.s4, vertical: 18),
               ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              onChanged: (query) {
+                BlocProvider.of<NewTravelBloc>(context).add(SearchPlaces(query: query));
+              },
             ),
-            onChanged: (query) {
-              BlocProvider.of<NewTravelBloc>(context).add(SearchPlaces(query: query));
-            },
           ),
           if (state is NewTravelPlacesLoaded && state.suggestions.isNotEmpty)
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 200),
-              child: Material(
-                elevation: 4,
-                borderRadius: BorderRadius.circular(8),
-                child: ListView.builder(
-                  shrinkWrap: true,
+            Padding(
+              padding: const EdgeInsets.only(top: MotoSpace.s2),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 200),
+                child: MotoGlass(
+                  painted: true,
                   padding: EdgeInsets.zero,
-                  itemCount: state.suggestions.length,
-                  itemBuilder: (_, i) => ListTile(
-                    leading: Icon(Icons.location_on, color: context.moto.accent),
-                    title: Text(
-                      state.suggestions[i].address,
-                      overflow: TextOverflow.ellipsis,
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    padding: EdgeInsets.zero,
+                    itemCount: state.suggestions.length,
+                    itemBuilder: (_, i) => ListTile(
+                      leading: Icon(Icons.location_on, color: context.moto.accent),
+                      title: Text(
+                        state.suggestions[i].address,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      onTap: () {
+                        _destinationController.text = state.suggestions[i].address;
+                        BlocProvider.of<NewTravelBloc>(context).add(
+                          SelectPlace(suggestion: state.suggestions[i]),
+                        );
+                      },
                     ),
-                    onTap: () {
-                      _destinationController.text = state.suggestions[i].address;
-                      BlocProvider.of<NewTravelBloc>(context).add(
-                        SelectPlace(suggestion: state.suggestions[i]),
-                      );
-                    },
                   ),
                 ),
               ),
@@ -596,43 +603,17 @@ class _RouteBottomSheetContentState extends State<_RouteBottomSheetContent> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
-                  'Resumo da Viagem',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                Text('Resumo da viagem', style: Theme.of(context).textTheme.titleLarge),
+                const SizedBox(height: MotoSpace.s4),
+                MotoRoute(
+                  from: (widget.route.departureAddress, 'Embarque'),
+                  to: (widget.route.destinationAddress, 'Destino'),
                 ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Icon(Icons.location_on, color: context.moto.accent, size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        widget.route.destinationAddress,
-                        style: TextStyle(color: context.moto.textPrimary),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Icon(Icons.straighten, color: context.moto.accent, size: 20),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${widget.distKm} km',
-                      style: TextStyle(color: context.moto.textPrimary),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(Icons.timer_outlined, color: context.moto.accent, size: 20),
-                    const SizedBox(width: 8),
-                    Text(
-                      _formatTravelTime(widget.route.timeMinutes),
-                      style: TextStyle(color: context.moto.textPrimary),
-                    ),
+                const SizedBox(height: MotoSpace.s4),
+                MotoMetrics(
+                  items: [
+                    (widget.distKm, 'km', 'Distância'),
+                    (_formatTravelTime(widget.route.timeMinutes), '', 'Duração'),
                   ],
                 ),
                 Visibility(
@@ -655,99 +636,36 @@ class _RouteBottomSheetContentState extends State<_RouteBottomSheetContent> {
                     ],
                   ),
                 ),
-                if (isCreating) ...[
-                  Center(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            'Solicitando viagem...',
-                            style: TextStyle(
-                              color: context.moto.textPrimary,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
+                const Spacer(),
+                Row(
+                  spacing: MotoSpace.s4,
+                  children: [
+                    Expanded(
+                      child: MotoButton(
+                        label: 'Cancelar',
+                        variant: MotoButtonVariant.glass,
+                        onPressed: isCreating ? null : Modular.to.pop,
                       ),
                     ),
-                  ),
-                ],
-                const Spacer(),
-                SizedBox(
-                  width: MediaQuery.sizeOf(context).width,
-                  child: Row(
-                    spacing: 24,
-                    children: [
-                      Expanded(
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: context.moto.bgBase,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              side: BorderSide(color: context.moto.accent),
-                              borderRadius: BorderRadius.circular(100),
-                            ),
-                          ),
-                          onPressed: isCreating ? null : Modular.to.pop,
-                          child: isCreating
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : Text(
-                                  'Cancelar',
-                                  style: TextStyle(color: context.moto.accent, fontSize: 16),
+                    Expanded(
+                      flex: 2,
+                      child: MotoButton(
+                        label: 'Solicitar viagem',
+                        loading: isCreating,
+                        onPressed: isCreating
+                            ? null
+                            : () => BlocProvider.of<NewTravelBloc>(context).add(
+                                ConfirmTravel(
+                                  originLat: widget.route.originLat,
+                                  originLng: widget.route.originLng,
+                                  destinationLat: widget.route.destinationLat,
+                                  destinationLng: widget.route.destinationLng,
+                                  orderType: widget.orderType,
                                 ),
-                        ),
+                              ),
                       ),
-                      Expanded(
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: isCreating ? context.moto.borderDefault : context.moto.accent,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(100),
-                            ),
-                          ),
-                          onPressed: isCreating
-                              ? null
-                              : () => BlocProvider.of<NewTravelBloc>(context).add(
-                                  ConfirmTravel(
-                                    originLat: widget.route.originLat,
-                                    originLng: widget.route.originLng,
-                                    destinationLat: widget.route.destinationLat,
-                                    destinationLng: widget.route.destinationLng,
-                                    orderType: widget.orderType,
-                                  ),
-                                ),
-                          child: isCreating
-                              ? SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: context.moto.textOnAccent,
-                                  ),
-                                )
-                              : Text(
-                                  'Solicitar Viagem',
-                                  style: TextStyle(color: context.moto.textOnAccent, fontSize: 16),
-                                ),
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ],
             ),

@@ -309,13 +309,8 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
     int? remainingTimeMinutes,
     bool showCancelButton = false,
   }) {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: context.moto.bgBase,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-        boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 12, offset: Offset(0, -2))],
-      ),
+    return MotoGlass(
+      level: GlassLevel.sheet,
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -334,30 +329,36 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
           ),
           Row(
             children: [
-              Icon(titleIcon, color: titleColor),
-              const SizedBox(width: 8),
-              Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              MotoTile(icon: titleIcon, accent: true, size: 40),
+              const SizedBox(width: MotoSpace.s3),
+              Expanded(child: Text(title, style: Theme.of(context).textTheme.titleMedium)),
             ],
           ),
           if (subtitle != null) ...[
             const SizedBox(height: 6),
-            Text(subtitle, style: TextStyle(color: context.moto.textPrimary)),
+            Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
           ],
           if (driver != null) ...[
             const Divider(height: 24),
             Row(
               children: [
-                _buildDriverAvatar(driver),
-                const SizedBox(width: 12),
+                MotoAvatar(
+                  initials: _initialsOf(driver.fullName),
+                  size: 48,
+                  image: driver.photoUrl != null && driver.photoUrl!.isNotEmpty
+                      ? NetworkImage(_resolveImageUrl(driver.photoUrl!), headers: _authHeaders)
+                      : null,
+                ),
+                const SizedBox(width: MotoSpace.s3),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(driver.fullName, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                      Text(driver.fullName, style: Theme.of(context).textTheme.titleSmall),
                       if (driver.travelCount != null)
                         Text(
                           '${driver.travelCount} viagem${driver.travelCount == 1 ? '' : 's'} realizada${driver.travelCount == 1 ? '' : 's'}',
-                          style: TextStyle(fontSize: 12, color: context.moto.textPrimary),
+                          style: Theme.of(context).textTheme.bodySmall,
                         ),
                     ],
                   ),
@@ -376,7 +377,7 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
                         if (driver.vehicleBrand != null) driver.vehicleBrand,
                         driver.vehicleModel,
                       ].join(' ') + (driver.vehiclePlate != null ? ' · ${driver.vehiclePlate}' : ''),
-                      style: TextStyle(fontSize: 14, color: context.moto.textPrimary),
+                      style: Theme.of(context).textTheme.bodyMedium,
                     ),
                   ),
                 ],
@@ -389,40 +390,27 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
               children: [
                 Icon(Icons.event_note, color: context.moto.accent, size: 20),
                 const SizedBox(width: 8),
-                Text(
-                  'Solicitada às ${_formatTime(requestedAt)}',
-                  style: TextStyle(fontSize: 14, color: context.moto.textPrimary),
-                ),
+                Text('Solicitada às ${_formatTime(requestedAt)}', style: Theme.of(context).textTheme.bodyMedium),
               ],
             ),
           ],
           if (distanceToDestinationMeters != null || remainingTimeMinutes != null) ...[
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                if (distanceToDestinationMeters != null) ...[
-                  Icon(Icons.route, color: context.moto.accent, size: 20),
-                  const SizedBox(width: 8),
-                  Text('${(distanceToDestinationMeters / 1000).toStringAsFixed(1)} km', style: const TextStyle(fontSize: 14)),
-                  const SizedBox(width: 16),
-                ],
-                if (remainingTimeMinutes != null) ...[
-                  Icon(Icons.timer_outlined, color: context.moto.accent, size: 20),
-                  const SizedBox(width: 8),
-                  Text('Chegada estimada em $remainingTimeMinutes min', style: const TextStyle(fontSize: 14)),
-                ],
+            const SizedBox(height: MotoSpace.s3),
+            MotoMetrics(
+              items: [
+                if (distanceToDestinationMeters != null)
+                  ((distanceToDestinationMeters / 1000).toStringAsFixed(1), 'km', 'Distância'),
+                if (remainingTimeMinutes != null) ('$remainingTimeMinutes', 'min', 'Chegada estimada'),
               ],
             ),
           ],
           if (showCancelButton) ...[
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                style: OutlinedButton.styleFrom(side: BorderSide(color: context.moto.danger)),
-                onPressed: _cancelTravel,
-                child: Text('Cancelar Viagem', style: TextStyle(color: context.moto.danger)),
-              ),
+            const SizedBox(height: MotoSpace.s4),
+            MotoButton(
+              label: 'Cancelar viagem',
+              variant: MotoButtonVariant.danger,
+              large: false,
+              onPressed: _cancelTravel,
             ),
           ],
         ],
@@ -470,58 +458,48 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
   }
 
   Widget _buildCancelledState(String? reason) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.cancel, size: 64, color: context.moto.danger),
-            const SizedBox(height: 16),
-            const Text('Viagem cancelada', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            if (reason != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                reason,
-                textAlign: TextAlign.center,
-                style: TextStyle(color: context.moto.textPrimary),
-              ),
+    return MotoCanvas(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.cancel, size: 64, color: context.moto.danger),
+              const SizedBox(height: 16),
+              Text('Viagem cancelada', style: Theme.of(context).textTheme.headlineSmall),
+              if (reason != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  reason,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
+              const SizedBox(height: 32),
+              MotoButton(label: 'Voltar para o início', large: false, expand: false, onPressed: _goHome),
             ],
-            const SizedBox(height: 32),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: context.moto.accent,
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-              ),
-              onPressed: _goHome,
-              child: Text('Voltar para Home', style: TextStyle(color: context.moto.textOnAccent)),
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildCompletedState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.task_alt, size: 64, color: context.moto.success),
-            const SizedBox(height: 16),
-            const Text('Viagem concluída!', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 32),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: context.moto.accent,
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-              ),
-              onPressed: _goHome,
-              child: Text('Voltar para Home', style: TextStyle(color: context.moto.textOnAccent)),
-            ),
-          ],
+    return MotoCanvas(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const MotoSuccessCheck(),
+              const SizedBox(height: 24),
+              Text('Viagem concluída!', style: Theme.of(context).textTheme.headlineSmall),
+              const SizedBox(height: 32),
+              MotoButton(label: 'Voltar para o início', large: false, expand: false, onPressed: _goHome),
+            ],
+          ),
         ),
       ),
     );
@@ -560,28 +538,32 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
   }
 
   Widget _buildPendingState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.access_time, size: 64, color: context.moto.warning),
-            const SizedBox(height: 16),
-            const Text('Aguardando motorista...', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Text(
-              'Sua viagem foi solicitada e está sendo enviada aos motoristas disponíveis.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: context.moto.textPrimary),
-            ),
-            const SizedBox(height: 32),
-            OutlinedButton(
-              style: OutlinedButton.styleFrom(side: BorderSide(color: context.moto.danger)),
-              onPressed: _cancelTravel,
-              child: Text('Cancelar Viagem', style: TextStyle(color: context.moto.danger)),
-            ),
-          ],
+    return MotoCanvas(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const MotoSonar(),
+              const SizedBox(height: 24),
+              Text('Aguardando motorista...', style: Theme.of(context).textTheme.headlineSmall),
+              const SizedBox(height: 8),
+              Text(
+                'Sua viagem foi solicitada e está sendo enviada aos motoristas disponíveis.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 32),
+              MotoButton(
+                label: 'Cancelar viagem',
+                variant: MotoButtonVariant.danger,
+                large: false,
+                expand: false,
+                onPressed: _cancelTravel,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -622,18 +604,12 @@ class _TravelTrackingPageState extends State<TravelTrackingPage> with WidgetsBin
     return {'Authorization': 'Bearer $token'};
   }
 
-  Widget _buildDriverAvatar(DriverInfoEntity driver) {
-    final photoUrl = driver.photoUrl;
-    return CircleAvatar(
-      radius: 20,
-      backgroundColor: context.moto.accent.withAlpha(30),
-      backgroundImage: photoUrl != null && photoUrl.isNotEmpty
-          ? NetworkImage(_resolveImageUrl(photoUrl), headers: _authHeaders)
-          : null,
-      child: photoUrl == null || photoUrl.isEmpty
-          ? Icon(Icons.person, color: context.moto.accent)
-          : null,
-    );
+  String _initialsOf(String? name) {
+    if (name == null || name.trim().isEmpty) return '?';
+    final parts = name.trim().split(RegExp(r'\s+'));
+    final first = parts.first.characters.first;
+    final last = parts.length > 1 ? parts.last.characters.first : '';
+    return (first + last).toUpperCase();
   }
 
   Future<void> _connectAndLoad() async {

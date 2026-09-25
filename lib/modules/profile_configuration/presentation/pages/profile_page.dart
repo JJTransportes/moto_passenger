@@ -16,7 +16,6 @@ import 'package:moto_passenger/modules/profile_configuration/domain/entities/pro
 import 'package:moto_passenger/modules/profile_configuration/domain/entities/update_profile_request.dart';
 import 'package:moto_passenger/modules/profile_configuration/presentation/blocs/profile_bloc.dart';
 import 'package:moto_passenger/modules/profile_configuration/presentation/widgets/confirm_password_dialog.dart';
-import 'package:moto_passenger/widgets/app_button.dart';
 import 'package:moto_passenger/widgets/app_text_field.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -521,26 +520,10 @@ class _ProfilePageState extends State<ProfilePage> {
       onTap: (isLoading || _isBlockedByActiveTravel) ? null : _showPhotoOptions,
       child: Stack(
         children: [
-          CircleAvatar(
-            radius: 50,
-            backgroundColor: context.moto.accent.withAlpha(30),
-            backgroundImage:
-                photoUrl != null
-                    ? NetworkImage(
-                        _resolveImageUrl(photoUrl),
-                        headers: _authHeaders,
-                      )
-                    : null,
-            child: photoUrl == null
-                ? Text(
-                    _getInitials(),
-                    style: GoogleFonts.robotoFlex(
-                      fontSize: 32,
-                      fontWeight: FontWeight.w700,
-                      color: context.moto.accent,
-                    ),
-                  )
-                : null,
+          MotoAvatar(
+            initials: _getInitials(),
+            size: 108,
+            image: photoUrl != null ? NetworkImage(_resolveImageUrl(photoUrl), headers: _authHeaders) : null,
           ),
           if (isUploading)
             Positioned.fill(
@@ -619,7 +602,7 @@ class _ProfilePageState extends State<ProfilePage> {
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
-          AppButton(
+          MotoButton(
             label: 'Tentar novamente',
             onPressed: _loadProfile,
           ),
@@ -725,65 +708,34 @@ class _ProfilePageState extends State<ProfilePage> {
     required bool enabled,
     required ValueChanged<String>? onChanged,
   }) {
+    final c = context.moto;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           'Telefone',
-          style: GoogleFonts.robotoFlex(
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-            color: context.moto.accent,
-            letterSpacing: 0.2,
-            height: 1.2,
-          ),
+          style: TextStyle(fontFamily: MotoFont.ui, fontSize: 13, fontWeight: FontWeight.w600, color: c.textSecondary),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: MotoSpace.s2),
         TextField(
           controller: controller,
           enabled: enabled,
           keyboardType: TextInputType.phone,
           onChanged: onChanged,
           inputFormatters: [PhoneInputFormatter()],
-          style: GoogleFonts.robotoFlex(
-            fontSize: 10,
-            fontWeight: FontWeight.w300,
-            color: context.moto.accent,
-            letterSpacing: 0.2,
-            height: 1.2,
-          ),
+          style: TextStyle(fontFamily: MotoFont.ui, fontSize: 16, color: c.textPrimary),
           decoration: InputDecoration(
             hintText: '(11) 91234-5678 (opcional)',
-            hintStyle: GoogleFonts.robotoFlex(
-              fontSize: 10,
-              fontWeight: FontWeight.w300,
-              color: context.moto.accent,
-              letterSpacing: 0.2,
-            ),
-            filled: !enabled,
-            fillColor: context.moto.bgSunken,
-            contentPadding: const EdgeInsets.all(12),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(4),
-              borderSide: BorderSide(color: context.moto.accent),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(4),
-              borderSide: BorderSide(color: context.moto.accent),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(4),
-              borderSide:
-                  BorderSide(color: context.moto.accent, width: 2),
-            ),
-            errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(4),
-              borderSide: BorderSide(color: context.moto.danger),
-            ),
-            focusedErrorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(4),
-              borderSide: BorderSide(color: context.moto.danger, width: 2),
-            ),
+            hintStyle: TextStyle(fontFamily: MotoFont.ui, fontSize: 16, color: c.textTertiary),
+            prefixIcon: Icon(Icons.phone_outlined, color: c.textTertiary, size: 20),
+            filled: true,
+            fillColor: enabled ? c.bgRaised : c.bgSunken,
+            contentPadding: const EdgeInsets.symmetric(horizontal: MotoSpace.s4, vertical: 18),
+            border: OutlineInputBorder(borderRadius: MotoRadius.brPill, borderSide: BorderSide(color: c.borderDefault)),
+            enabledBorder: OutlineInputBorder(borderRadius: MotoRadius.brPill, borderSide: BorderSide(color: c.borderDefault)),
+            focusedBorder: OutlineInputBorder(borderRadius: MotoRadius.brPill, borderSide: BorderSide(color: c.borderFocus, width: 1.5)),
+            errorBorder: OutlineInputBorder(borderRadius: MotoRadius.brPill, borderSide: BorderSide(color: c.danger)),
+            focusedErrorBorder: OutlineInputBorder(borderRadius: MotoRadius.brPill, borderSide: BorderSide(color: c.danger, width: 1.5)),
             errorText: _phoneError,
           ),
         ),
@@ -846,7 +798,7 @@ class _ProfilePageState extends State<ProfilePage> {
     }
 
     if (!_isEditing) {
-      return AppButton(
+      return MotoButton(
         label: 'Editar',
         loading: isSaving,
         onPressed: canAct ? _onActionButtonTapped : null,
@@ -856,26 +808,15 @@ class _ProfilePageState extends State<ProfilePage> {
     return Row(
       children: [
         Expanded(
-          child: OutlinedButton(
+          child: MotoButton(
+            label: 'Cancelar',
+            variant: MotoButtonVariant.glass,
             onPressed: isBusy ? null : cancelEdit,
-            style: OutlinedButton.styleFrom(
-              side: BorderSide(color: context.moto.accent),
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-            ),
-            child: Text(
-              'Cancelar',
-              style: GoogleFonts.robotoFlex(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: context.moto.accent,
-              ),
-            ),
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: MotoSpace.s3),
         Expanded(
-          child: AppButton(
+          child: MotoButton(
             label: 'Salvar',
             loading: isSaving,
             onPressed: (canAct && _isFormFilled) ? _onActionButtonTapped : null,
@@ -888,50 +829,50 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget _buildDeleteAccountSection() {
     final isBlocked = _isBlockedByActiveTravel;
 
-    return Column(
-      children: [
-        const Divider(height: 1, thickness: 1),
-        const SizedBox(height: 20),
-        Text(
-          'Zona de Perigo',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-            color: isBlocked ? context.moto.textDisabled : context.moto.danger,
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(MotoSpace.s4),
+      decoration: BoxDecoration(
+        color: context.moto.dangerSoft,
+        borderRadius: MotoRadius.brLg,
+        border: Border.all(color: context.moto.danger.withValues(alpha: .18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: context.moto.danger, size: 20),
+              const SizedBox(width: MotoSpace.s2),
+              Text(
+                'Zona de perigo',
+                style: TextStyle(
+                  fontFamily: MotoFont.ui,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: context.moto.danger,
+                ),
+              ),
+            ],
           ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          isBlocked
-              ? 'Você não pode excluir sua conta enquanto tiver uma viagem em andamento.'
-              : 'Ao excluir sua conta, todos os seus dados serão perdidos '
-                  'e você não poderá mais acessar o aplicativo.',
-          style: TextStyle(
-            fontSize: 12,
-            color: isBlocked ? context.moto.textDisabled : context.moto.textSecondary,
+          const SizedBox(height: MotoSpace.s2),
+          Text(
+            isBlocked
+                ? 'Você não pode excluir sua conta enquanto tiver uma viagem em andamento.'
+                : 'Excluir a conta apaga seus dados e o histórico. Não dá pra desfazer.',
+            style: TextStyle(fontSize: 13, color: context.moto.textSecondary),
           ),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 16),
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
+          const SizedBox(height: MotoSpace.s3),
+          MotoButton(
+            label: 'Excluir minha conta',
+            icon: Icons.delete_forever,
+            variant: MotoButtonVariant.danger,
+            large: false,
+            expand: false,
             onPressed: isBlocked ? null : _handleDeleteAccount,
-            icon: Icon(
-              Icons.delete_forever,
-              color: isBlocked ? context.moto.textDisabled : context.moto.danger,
-            ),
-            label: Text(
-              'Excluir minha conta',
-              style: TextStyle(color: isBlocked ? context.moto.textDisabled : context.moto.danger),
-            ),
-            style: OutlinedButton.styleFrom(
-              side: BorderSide(color: isBlocked ? context.moto.textDisabled : context.moto.danger),
-              padding: const EdgeInsets.symmetric(vertical: 14),
-            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

@@ -345,11 +345,13 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
           elevation: 0,
           automaticallyImplyLeading: false,
         ),
-        body: SafeArea(
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(32),
-              child: _contactedDriverName == null ? _buildWaitingCard() : _buildContactingCard(),
+        body: MotoCanvas(
+          child: SafeArea(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: _contactedDriverName == null ? _buildWaitingCard() : _buildContactingCard(),
+              ),
             ),
           ),
         ),
@@ -363,14 +365,7 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        SizedBox(
-          width: 64,
-          height: 64,
-          child: CircularProgressIndicator(
-            strokeWidth: 3,
-            color: context.moto.accent,
-          ),
-        ),
+        const MotoSonar(),
         const SizedBox(height: 32),
         Text(
           'Pedido enviado!',
@@ -410,14 +405,11 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        CircleAvatar(
-          radius: 48,
-          backgroundColor: context.moto.accent.withAlpha(30),
-          backgroundImage: photoUrl != null && photoUrl.isNotEmpty
+        MotoAvatar(
+          initials: _initialsOf(_contactedDriverName),
+          size: 96,
+          image: photoUrl != null && photoUrl.isNotEmpty
               ? NetworkImage(_resolveImageUrl(photoUrl), headers: _authHeaders)
-              : null,
-          child: photoUrl == null || photoUrl.isEmpty
-              ? Icon(Icons.person, size: 48, color: context.moto.accent)
               : null,
         ),
         const SizedBox(height: 24),
@@ -462,31 +454,19 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
   }
 
   Widget _buildCancelButton() {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton(
-        style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          side: BorderSide(color: context.moto.danger),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ),
-        onPressed: _isCancelling ? null : _cancelOrder,
-        child: _isCancelling
-            ? SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: context.moto.danger,
-                ),
-              )
-            : Text(
-                'Cancelar pedido',
-                style: TextStyle(color: context.moto.danger, fontSize: 16),
-              ),
-      ),
+    return MotoButton(
+      label: 'Cancelar pedido',
+      variant: MotoButtonVariant.danger,
+      loading: _isCancelling,
+      onPressed: _isCancelling ? null : _cancelOrder,
     );
+  }
+
+  String _initialsOf(String? name) {
+    if (name == null || name.trim().isEmpty) return '?';
+    final parts = name.trim().split(RegExp(r'\s+'));
+    final first = parts.first.characters.first;
+    final last = parts.length > 1 ? parts.last.characters.first : '';
+    return (first + last).toUpperCase();
   }
 }
