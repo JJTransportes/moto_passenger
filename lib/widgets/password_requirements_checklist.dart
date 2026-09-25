@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:moto_passenger/core/utils/password_policy_validator.dart';
+import 'package:moto_passenger/design_system/design_system.dart';
 import 'package:moto_passenger/modules/auth/domain/entities/password_policy_entity.dart';
 
 /// Checklist de requisitos de senha estilo gov.br: nenhum item nasce em
@@ -29,7 +30,7 @@ class PasswordRequirementsChecklist extends StatelessWidget {
           style: GoogleFonts.inter(
             fontSize: 11,
             fontWeight: FontWeight.w600,
-            color: Colors.black54,
+            color: context.moto.textSecondary,
           ),
         ),
         const SizedBox(height: 4),
@@ -42,7 +43,7 @@ class PasswordRequirementsChecklist extends StatelessWidget {
                 Icon(
                   requirement.met ? Icons.check_circle : Icons.circle_outlined,
                   size: 14,
-                  color: requirement.met ? Colors.green : Colors.grey,
+                  color: requirement.met ? context.moto.success : context.moto.textTertiary,
                 ),
                 const SizedBox(width: 6),
                 Expanded(
@@ -52,8 +53,8 @@ class PasswordRequirementsChecklist extends StatelessWidget {
                       fontSize: 11,
                       fontWeight: FontWeight.w400,
                       color: requirement.met
-                          ? Colors.green.shade700
-                          : Colors.grey.shade600,
+                          ? context.moto.success
+                          : context.moto.textSecondary,
                     ),
                   ),
                 ),

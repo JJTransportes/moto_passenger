@@ -8,7 +8,7 @@ import 'package:moto_passenger/core/auth/auth_storage.dart';
 import 'package:moto_passenger/core/auth/sign_out_service.dart';
 import 'package:moto_passenger/core/config/app_config.dart';
 import 'package:moto_passenger/core/network/signalr_service.dart';
-import 'package:moto_passenger/core/theme/app_theme.dart';
+import 'package:moto_passenger/design_system/design_system.dart';
 import 'package:moto_passenger/core/utils/masks.dart';
 import 'package:moto_passenger/core/utils/validators.dart' as validators;
 import 'package:moto_passenger/modules/passenger_home/domain/repositories/i_passenger_home_repository.dart';
@@ -16,7 +16,6 @@ import 'package:moto_passenger/modules/profile_configuration/domain/entities/pro
 import 'package:moto_passenger/modules/profile_configuration/domain/entities/update_profile_request.dart';
 import 'package:moto_passenger/modules/profile_configuration/presentation/blocs/profile_bloc.dart';
 import 'package:moto_passenger/modules/profile_configuration/presentation/widgets/confirm_password_dialog.dart';
-import 'package:moto_passenger/widgets/app_button.dart';
 import 'package:moto_passenger/widgets/app_text_field.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -81,7 +80,8 @@ class _ProfilePageState extends State<ProfilePage> {
     });
   }
 
-  bool get _isBlockedByActiveTravel => _checkingActiveTravel || _hasActiveTravel;
+  bool get _isBlockedByActiveTravel =>
+      _checkingActiveTravel || _hasActiveTravel;
 
   Future<void> _handleDeleteAccount() async {
     await Modular.to.pushNamed('/delete-account');
@@ -99,7 +99,8 @@ class _ProfilePageState extends State<ProfilePage> {
   void _onFieldChanged() {
     final state = context.read<ProfileBloc>().state;
     if (state is ProfileLoaded) {
-      final hasChanges = _fullNameController.text != state.profile.fullName ||
+      final hasChanges =
+          _fullNameController.text != state.profile.fullName ||
           _emailController.text != state.profile.email ||
           _phoneController.text != (state.profile.phone ?? '');
       if (hasChanges != _hasUnsavedChanges) {
@@ -136,7 +137,8 @@ class _ProfilePageState extends State<ProfilePage> {
 
   bool get _isFormFilled =>
       validators.validateFullName(_fullNameController.text) == null &&
-      validators.validateSafeText(_fullNameController.text, 'Nome completo') == null &&
+      validators.validateSafeText(_fullNameController.text, 'Nome completo') ==
+          null &&
       validators.validateEmail(_emailController.text) == null &&
       _isEmailConfirmed &&
       (_phoneController.text.trim().isEmpty ||
@@ -149,8 +151,12 @@ class _ProfilePageState extends State<ProfilePage> {
       _emailError = null;
       _phoneError = null;
 
-      _fullNameError = validators.validateFullName(_fullNameController.text) ??
-          validators.validateSafeText(_fullNameController.text, 'Nome completo');
+      _fullNameError =
+          validators.validateFullName(_fullNameController.text) ??
+          validators.validateSafeText(
+            _fullNameController.text,
+            'Nome completo',
+          );
       if (_fullNameError != null) valid = false;
 
       _emailError = validators.validateEmail(_emailController.text);
@@ -179,7 +185,9 @@ class _ProfilePageState extends State<ProfilePage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Descartar alterações?'),
-        content: const Text('Você tem alterações não salvas. Deseja descartá-las?'),
+        content: const Text(
+          'Você tem alterações não salvas. Deseja descartá-las?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
@@ -237,16 +245,18 @@ class _ProfilePageState extends State<ProfilePage> {
     if (uid == null) return;
 
     context.read<ProfileBloc>().add(
-          SaveProfile(
-            uid,
-            UpdateProfileRequest(
-              fullName: newFullName != (_originalFullName ?? '') ? newFullName : null,
-              email: newEmail,
-              phone: newPhone != _originalPhone ? newPhone : null,
-              password: password,
-            ),
-          ),
-        );
+      SaveProfile(
+        uid,
+        UpdateProfileRequest(
+          fullName: newFullName != (_originalFullName ?? '')
+              ? newFullName
+              : null,
+          email: newEmail,
+          phone: newPhone != _originalPhone ? newPhone : null,
+          password: password,
+        ),
+      ),
+    );
   }
 
   Future<void> _pickImage(ImageSource source) async {
@@ -263,9 +273,9 @@ class _ProfilePageState extends State<ProfilePage> {
         if (bytes > 5 * 1024 * 1024) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
+              SnackBar(
                 content: Text('A imagem é muito grande. Máximo 5MB.'),
-                backgroundColor: Colors.red,
+                backgroundColor: context.moto.danger,
               ),
             );
           }
@@ -284,7 +294,7 @@ class _ProfilePageState extends State<ProfilePage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Erro ao selecionar imagem: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: context.moto.danger,
           ),
         );
       }
@@ -317,9 +327,11 @@ class _ProfilePageState extends State<ProfilePage> {
             if (_hasPhoto()) ...[
               const Divider(),
               ListTile(
-                leading: const Icon(Icons.delete_outline, color: Colors.red),
-                title: const Text('Remover foto',
-                    style: TextStyle(color: Colors.red)),
+                leading: Icon(Icons.delete_outline, color: context.moto.danger),
+                title: Text(
+                  'Remover foto',
+                  style: TextStyle(color: context.moto.danger),
+                ),
                 onTap: () {
                   Navigator.of(ctx).pop();
                   final uid = _userId;
@@ -350,138 +362,139 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-        canPop: !_hasUnsavedChanges && _pendingPhoto == null,
-        onPopInvokedWithResult: (didPop, _) async {
-          if (didPop) return;
-          final shouldPop = await _onWillPop();
-          if (shouldPop && mounted) {
-            Navigator.of(context).pop();
-          }
-        },
-        child: Scaffold(
-          backgroundColor: AppColors.white,
-          appBar: AppBar(
-            title: Text(
-              'Meu Perfil',
-              style: GoogleFonts.robotoFlex(
-                fontWeight: FontWeight.w700,
-                color: AppColors.primary,
-              ),
-            ),
-            backgroundColor: AppColors.white,
-            elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: AppColors.primary),
-              onPressed: () async {
-                if (_hasUnsavedChanges || _pendingPhoto != null) {
-                  final shouldPop = await _onWillPop();
-                  if (shouldPop && mounted) {
-                    Navigator.of(context).pop();
-                  }
-                } else {
-                  Navigator.of(context).pop();
-                }
-              },
+      canPop: !_hasUnsavedChanges && _pendingPhoto == null,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final shouldPop = await _onWillPop();
+        if (shouldPop && mounted) {
+          Navigator.of(context).pop();
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(
+            'Meu Perfil',
+            style: GoogleFonts.robotoFlex(
+              fontWeight: FontWeight.w700,
+              color: context.moto.accent,
             ),
           ),
-          body: BlocConsumer<ProfileBloc, ProfileState>(
-              listener: (context, state) {
-                switch (state) {
-                  case ProfileSaveSuccess():
-                    if (_pendingEmailChange) {
-                      Modular.get<SignalRService>().disconnectAll().whenComplete(
-                            () => Modular.get<SignOutService>().signOut(),
-                          );
-                      return;
-                    }
-                    setState(() {
-                      _hasUnsavedChanges = false;
-                      _pendingPhoto = null;
-                      _isEditing = false;
-                    });
-                    _populateControllers(state.profile);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Perfil atualizado com sucesso'),
-                        backgroundColor: Colors.green,
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
-                  case ProfileSaveError(:final message):
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(message),
-                        backgroundColor: Colors.red,
-                        duration: const Duration(seconds: 3),
-                      ),
-                    );
-                  case ProfilePhotoUpdated():
-                    setState(() {
-                      _pendingPhoto = null;
-                    });
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Foto atualizada'),
-                        backgroundColor: Colors.green,
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
-                  case ProfilePhotoRemoved():
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Foto removida'),
-                        backgroundColor: Colors.green,
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
-                  case ProfilePhotoError(:final message):
-                    setState(() {
-                      _pendingPhoto = null;
-                    });
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(message),
-                        backgroundColor: Colors.red,
-                        duration: const Duration(seconds: 3),
-                      ),
-                    );
-                  case ProfileError(:final message):
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(message),
-                        backgroundColor: Colors.red,
-                        duration: const Duration(seconds: 3),
-                        action: SnackBarAction(
-                          label: 'Tentar novamente',
-                          textColor: Colors.white,
-                          onPressed: _loadProfile,
-                        ),
-                      ),
-                    );
-                  default:
-                    break;
+          elevation: 0,
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back, color: context.moto.accent),
+            onPressed: () async {
+              if (_hasUnsavedChanges || _pendingPhoto != null) {
+                final shouldPop = await _onWillPop();
+                if (shouldPop && mounted) {
+                  Navigator.of(context).pop();
                 }
-              },
-              builder: (context, state) {
-                return SafeArea(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 24),
-                    child: Column(
-                      children: [
-                        _buildAvatar(state),
-                        const SizedBox(height: 32),
-                        _buildForm(state),
-                        const SizedBox(height: 24),
-                        _buildActionButton(state),
-                        const SizedBox(height: 32),
-                        _buildDeleteAccountSection(),
-                      ],
+              } else {
+                Navigator.of(context).pop();
+              }
+            },
+          ),
+        ),
+        body: BlocConsumer<ProfileBloc, ProfileState>(
+          listener: (context, state) {
+            switch (state) {
+              case ProfileSaveSuccess():
+                if (_pendingEmailChange) {
+                  Modular.get<SignalRService>().disconnectAll().whenComplete(
+                    () => Modular.get<SignOutService>().signOut(),
+                  );
+                  return;
+                }
+                setState(() {
+                  _hasUnsavedChanges = false;
+                  _pendingPhoto = null;
+                  _isEditing = false;
+                });
+                _populateControllers(state.profile);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Perfil atualizado com sucesso'),
+                    backgroundColor: context.moto.success,
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              case ProfileSaveError(:final message):
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(message),
+                    backgroundColor: context.moto.danger,
+                    duration: const Duration(seconds: 3),
+                  ),
+                );
+              case ProfilePhotoUpdated():
+                setState(() {
+                  _pendingPhoto = null;
+                });
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Foto atualizada'),
+                    backgroundColor: context.moto.success,
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              case ProfilePhotoRemoved():
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Foto removida'),
+                    backgroundColor: context.moto.success,
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              case ProfilePhotoError(:final message):
+                setState(() {
+                  _pendingPhoto = null;
+                });
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(message),
+                    backgroundColor: context.moto.danger,
+                    duration: const Duration(seconds: 3),
+                  ),
+                );
+              case ProfileError(:final message):
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(message),
+                    backgroundColor: context.moto.danger,
+                    duration: const Duration(seconds: 3),
+                    action: SnackBarAction(
+                      label: 'Tentar novamente',
+                      textColor: context.moto.textOnAccent,
+                      onPressed: _loadProfile,
                     ),
                   ),
                 );
-              },
-          ),
+              default:
+                break;
+            }
+          },
+          builder: (context, state) {
+            return SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 36,
+                  vertical: 24,
+                ),
+                child: Column(
+                  children: [
+                    _buildAvatar(state),
+                    const SizedBox(height: 32),
+                    _buildForm(state),
+                    const SizedBox(height: 24),
+                    _buildActionButton(state),
+                    const SizedBox(height: 32),
+                    _buildDeleteAccountSection(),
+                  ],
+                ),
+              ),
+            );
+          },
         ),
+      ),
     );
   }
 
@@ -523,24 +536,13 @@ class _ProfilePageState extends State<ProfilePage> {
       onTap: (isLoading || _isBlockedByActiveTravel) ? null : _showPhotoOptions,
       child: Stack(
         children: [
-          CircleAvatar(
-            radius: 50,
-            backgroundColor: AppColors.primary.withAlpha(30),
-            backgroundImage:
-                photoUrl != null
-                    ? NetworkImage(
-                        _resolveImageUrl(photoUrl),
-                        headers: _authHeaders,
-                      )
-                    : null,
-            child: photoUrl == null
-                ? Text(
-                    _getInitials(),
-                    style: GoogleFonts.robotoFlex(
-                      fontSize: 32,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.primary,
-                    ),
+          MotoAvatar(
+            initials: _getInitials(),
+            size: 108,
+            image: photoUrl != null
+                ? NetworkImage(
+                    _resolveImageUrl(photoUrl),
+                    headers: _authHeaders,
                   )
                 : null,
           ),
@@ -549,8 +551,8 @@ class _ProfilePageState extends State<ProfilePage> {
               child: CircularProgressIndicator(
                 value: uploadProgress,
                 strokeWidth: 3,
-                backgroundColor: AppColors.primary.withAlpha(30),
-                valueColor: const AlwaysStoppedAnimation(AppColors.primary),
+                backgroundColor: context.moto.accent.withAlpha(30),
+                valueColor: AlwaysStoppedAnimation(context.moto.accent),
               ),
             ),
           Positioned(
@@ -559,22 +561,24 @@ class _ProfilePageState extends State<ProfilePage> {
             child: Container(
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
-                color: _isBlockedByActiveTravel ? Colors.grey : AppColors.primary,
+                color: _isBlockedByActiveTravel
+                    ? context.moto.textDisabled
+                    : context.moto.accent,
                 shape: BoxShape.circle,
               ),
               child: isLoading
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 16,
                       height: 16,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: AppColors.white,
+                        color: context.moto.textOnAccent,
                       ),
                     )
-                  : const Icon(
+                  : Icon(
                       Icons.camera_alt,
                       size: 16,
-                      color: AppColors.white,
+                      color: context.moto.textOnAccent,
                     ),
             ),
           ),
@@ -613,15 +617,15 @@ class _ProfilePageState extends State<ProfilePage> {
     if (state is ProfileError) {
       return Column(
         children: [
-          const Icon(Icons.error_outline, size: 48, color: Colors.red),
+          Icon(Icons.error_outline, size: 48, color: context.moto.danger),
           const SizedBox(height: 16),
           Text(
             state.message,
-            style: const TextStyle(color: Colors.red, fontSize: 14),
+            style: TextStyle(color: context.moto.danger, fontSize: 14),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
-          AppButton(
+          MotoButton(
             label: 'Tentar novamente',
             onPressed: _loadProfile,
           ),
@@ -679,7 +683,9 @@ class _ProfilePageState extends State<ProfilePage> {
       return AppTextField(
         label: 'Email',
         hint: 'seu@email.com',
-        controller: TextEditingController(text: maskEmail(_emailController.text)),
+        controller: TextEditingController(
+          text: maskEmail(_emailController.text),
+        ),
         enabled: false,
       );
     }
@@ -704,7 +710,9 @@ class _ProfilePageState extends State<ProfilePage> {
     if (!_isEditing) {
       return _buildPhoneFieldRaw(
         controller: TextEditingController(
-          text: _phoneController.text.isNotEmpty ? maskPhone(_phoneController.text) : '',
+          text: _phoneController.text.isNotEmpty
+              ? maskPhone(_phoneController.text)
+              : '',
         ),
         enabled: false,
         onChanged: null,
@@ -727,64 +735,68 @@ class _ProfilePageState extends State<ProfilePage> {
     required bool enabled,
     required ValueChanged<String>? onChanged,
   }) {
+    final c = context.moto;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           'Telefone',
-          style: GoogleFonts.robotoFlex(
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-            color: AppColors.primary,
-            letterSpacing: 0.2,
-            height: 1.2,
+          style: TextStyle(
+            fontFamily: MotoFont.ui,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: c.textSecondary,
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: MotoSpace.s2),
         TextField(
           controller: controller,
           enabled: enabled,
           keyboardType: TextInputType.phone,
           onChanged: onChanged,
           inputFormatters: [PhoneInputFormatter()],
-          style: GoogleFonts.robotoFlex(
-            fontSize: 10,
-            fontWeight: FontWeight.w300,
-            color: AppColors.primary,
-            letterSpacing: 0.2,
-            height: 1.2,
+          style: TextStyle(
+            fontFamily: MotoFont.ui,
+            fontSize: 16,
+            color: c.textPrimary,
           ),
           decoration: InputDecoration(
             hintText: '(11) 91234-5678 (opcional)',
-            hintStyle: GoogleFonts.robotoFlex(
-              fontSize: 10,
-              fontWeight: FontWeight.w300,
-              color: AppColors.primary,
-              letterSpacing: 0.2,
+            hintStyle: TextStyle(
+              fontFamily: MotoFont.ui,
+              fontSize: 16,
+              color: c.textTertiary,
             ),
-            filled: !enabled,
-            fillColor: Colors.grey.shade100,
-            contentPadding: const EdgeInsets.all(12),
+            prefixIcon: Icon(
+              Icons.phone_outlined,
+              color: c.textTertiary,
+              size: 20,
+            ),
+            filled: true,
+            fillColor: enabled ? c.bgRaised : c.bgSunken,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: MotoSpace.s4,
+              vertical: 18,
+            ),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(4),
-              borderSide: const BorderSide(color: AppColors.primary),
+              borderRadius: MotoRadius.brSm,
+              borderSide: BorderSide(color: c.borderDefault),
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(4),
-              borderSide: const BorderSide(color: AppColors.primary),
+              borderRadius: MotoRadius.brSm,
+              borderSide: BorderSide(color: c.borderDefault),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(4),
-              borderSide:
-                  const BorderSide(color: AppColors.primary, width: 2),
+              borderRadius: MotoRadius.brSm,
+              borderSide: BorderSide(color: c.borderFocus, width: 1.5),
             ),
             errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(4),
-              borderSide: const BorderSide(color: Colors.red),
+              borderRadius: MotoRadius.brSm,
+              borderSide: BorderSide(color: c.danger),
             ),
             focusedErrorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(4),
-              borderSide: const BorderSide(color: Colors.red, width: 2),
+              borderRadius: MotoRadius.brSm,
+              borderSide: BorderSide(color: c.danger, width: 1.5),
             ),
             errorText: _phoneError,
           ),
@@ -812,7 +824,7 @@ class _ProfilePageState extends State<ProfilePage> {
           width: 60,
           height: 12,
           decoration: BoxDecoration(
-            color: AppColors.secondary.withAlpha(50),
+            color: context.moto.textSecondary.withAlpha(50),
             borderRadius: BorderRadius.circular(4),
           ),
         ),
@@ -821,7 +833,7 @@ class _ProfilePageState extends State<ProfilePage> {
           width: double.infinity,
           height: 40,
           decoration: BoxDecoration(
-            color: AppColors.secondary.withAlpha(30),
+            color: context.moto.textSecondary.withAlpha(30),
             borderRadius: BorderRadius.circular(4),
           ),
         ),
@@ -848,7 +860,7 @@ class _ProfilePageState extends State<ProfilePage> {
     }
 
     if (!_isEditing) {
-      return AppButton(
+      return MotoButton(
         label: 'Editar',
         loading: isSaving,
         onPressed: canAct ? _onActionButtonTapped : null,
@@ -858,26 +870,15 @@ class _ProfilePageState extends State<ProfilePage> {
     return Row(
       children: [
         Expanded(
-          child: OutlinedButton(
+          child: MotoButton(
+            label: 'Cancelar',
+            variant: MotoButtonVariant.glass,
             onPressed: isBusy ? null : cancelEdit,
-            style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: AppColors.primary),
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-            ),
-            child: Text(
-              'Cancelar',
-              style: GoogleFonts.robotoFlex(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: AppColors.primary,
-              ),
-            ),
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: MotoSpace.s3),
         Expanded(
-          child: AppButton(
+          child: MotoButton(
             label: 'Salvar',
             loading: isSaving,
             onPressed: (canAct && _isFormFilled) ? _onActionButtonTapped : null,
@@ -890,50 +891,54 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget _buildDeleteAccountSection() {
     final isBlocked = _isBlockedByActiveTravel;
 
-    return Column(
-      children: [
-        const Divider(height: 1, thickness: 1),
-        const SizedBox(height: 20),
-        Text(
-          'Zona de Perigo',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-            color: isBlocked ? Colors.grey : Colors.red,
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(MotoSpace.s4),
+      decoration: BoxDecoration(
+        color: context.moto.dangerSoft,
+        borderRadius: MotoRadius.brLg,
+        border: Border.all(color: context.moto.danger.withValues(alpha: .18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.warning_amber_rounded,
+                color: context.moto.danger,
+                size: 20,
+              ),
+              const SizedBox(width: MotoSpace.s2),
+              Text(
+                'Zona de perigo',
+                style: TextStyle(
+                  fontFamily: MotoFont.ui,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: context.moto.danger,
+                ),
+              ),
+            ],
           ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          isBlocked
-              ? 'Você não pode excluir sua conta enquanto tiver uma viagem em andamento.'
-              : 'Ao excluir sua conta, todos os seus dados serão perdidos '
-                  'e você não poderá mais acessar o aplicativo.',
-          style: TextStyle(
-            fontSize: 12,
-            color: isBlocked ? Colors.grey : const Color(0xFF6B6B6B),
+          const SizedBox(height: MotoSpace.s2),
+          Text(
+            isBlocked
+                ? 'Você não pode excluir sua conta enquanto tiver uma viagem em andamento.'
+                : 'Excluir a conta apaga seus dados e o histórico. Não dá pra desfazer.',
+            style: TextStyle(fontSize: 13, color: context.moto.textSecondary),
           ),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 16),
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
+          const SizedBox(height: MotoSpace.s3),
+          MotoButton(
+            label: 'Excluir minha conta',
+            icon: Icons.delete_forever,
+            variant: MotoButtonVariant.danger,
+            large: false,
+            expand: false,
             onPressed: isBlocked ? null : _handleDeleteAccount,
-            icon: Icon(
-              Icons.delete_forever,
-              color: isBlocked ? Colors.grey : Colors.red,
-            ),
-            label: Text(
-              'Excluir minha conta',
-              style: TextStyle(color: isBlocked ? Colors.grey : Colors.red),
-            ),
-            style: OutlinedButton.styleFrom(
-              side: BorderSide(color: isBlocked ? Colors.grey : Colors.red),
-              padding: const EdgeInsets.symmetric(vertical: 14),
-            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

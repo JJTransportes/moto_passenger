@@ -1,5 +1,6 @@
 // ignore_for_file: must_be_immutable
 
+import 'dart:async';
 import 'dart:developer';
 import 'dart:io';
 
@@ -10,7 +11,7 @@ import 'package:flutter_modular/flutter_modular.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:moto_passenger/core/auth/auth_storage.dart';
 import 'package:moto_passenger/core/location/location_service.dart';
-import 'package:moto_passenger/core/theme/app_theme.dart';
+import 'package:moto_passenger/design_system/design_system.dart';
 import 'package:moto_passenger/modules/new_travel/domain/entities/travel_route_entity.dart';
 import 'package:moto_passenger/modules/new_travel/presentation/blocs/new_travel_bloc.dart';
 import 'package:moto_passenger/modules/new_travel/presentation/blocs/new_travel_event.dart';
@@ -39,6 +40,17 @@ class _NewTravelPageState extends State<NewTravelPage> {
   // primeira rota calculada terminar/fechar.
   bool _isSelectingDestination = false;
 
+  // PSG-02: defesa em profundidade, independente do bloc — o PSG-01 já
+  // corrige a causa raiz do travamento (status `timeout` gera diálogo com
+  // mensagem clara), mas se por qualquer outro motivo nenhum estado
+  // terminal chegar (evento perdido, exceção não mapeada), o mapa ficava
+  // preso no spinner de "carregando" pra sempre, sem saída pro usuário.
+  static const _mapLoadTimeout = Duration(seconds: 15);
+  static const _searchDebounceDuration = Duration(milliseconds: 400);
+  Timer? _mapTimeoutTimer;
+  Timer? _searchDebounceTimer;
+  bool _mapTimedOut = false;
+
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<NewTravelBloc, NewTravelState>(
@@ -47,8 +59,16 @@ class _NewTravelPageState extends State<NewTravelPage> {
           case NewTravelPendingOrder(:final orderId):
             _showPendingOrderModal(orderId);
           case NewTravelActiveOrder(:final travelId):
-            // Redirect to tracking for active travels
-            Navigator.of(context).pushReplacementNamed(
+            // Redirect to tracking for active travels.
+            // `Navigator.of(context)` é o Navigator imperativo puro do
+            // Flutter — num app com flutter_modular (Router API
+            // declarativo), não passa `arguments` pelo canal que a rota
+            // `/tracking` lê (`Modular.args.data`). A tela de tracking abria
+            // sem saber o `travelId`, ficando presa no spinner até um evento
+            // de SignalR forçar uma transição de estado — daí o "toda vez
+            // que abre o app com viagem em andamento, o mapa fica
+            // carregando e só um tempo depois aparece Tentar novamente".
+            Modular.to.pushReplacementNamed(
               '/new-travel/tracking',
               arguments: {'travelId': travelId},
             );
@@ -87,7 +107,7 @@ class _NewTravelPageState extends State<NewTravelPage> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(message),
-                backgroundColor: Colors.red,
+                backgroundColor: context.moto.danger,
               ),
             );
           default:
@@ -96,13 +116,14 @@ class _NewTravelPageState extends State<NewTravelPage> {
       },
       builder: (context, state) {
         return Scaffold(
-          backgroundColor: AppColors.white,
           appBar: AppBar(
-            title: const Text('Nova Viagem', style: TextStyle(color: Color(0xFF4E4E4E))),
-            backgroundColor: AppColors.white,
+            title: Text(
+              'Nova Viagem',
+              style: TextStyle(color: context.moto.textPrimary),
+            ),
             elevation: 0,
             leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Color(0xFF4E4E4E)),
+              icon: Icon(Icons.arrow_back, color: context.moto.textPrimary),
               onPressed: () => Modular.to.pop(),
             ),
           ),
@@ -121,6 +142,8 @@ class _NewTravelPageState extends State<NewTravelPage> {
 
   @override
   void dispose() {
+    _mapTimeoutTimer?.cancel();
+    _searchDebounceTimer?.cancel();
     _destinationController.dispose();
     _mapController?.dispose();
     super.dispose();
@@ -129,12 +152,33 @@ class _NewTravelPageState extends State<NewTravelPage> {
   @override
   void initState() {
     super.initState();
-    // Check for pending orders first, then proceed to normal flow
-    BlocProvider.of<NewTravelBloc>(context).add(const CheckPendingOrder());
+    // Localização e verificação de pedido são independentes. Antes, o mapa
+    // só começava a carregar depois que /orders/latest respondesse; após uma
+    // viagem concluída essa consulta podia ficar pendente e prender a segunda
+    // solicitação no spinner. O mapa agora começa imediatamente, enquanto a
+    // retomada de uma viagem ativa é verificada em paralelo.
+    final bloc = BlocProvider.of<NewTravelBloc>(context);
+    bloc.add(const GetCurrentLocation());
+    bloc.add(const CheckPendingOrder());
+    _startMapTimeoutTimer();
 
     Future.microtask(() async {
       await _verifyPriorityAccess();
     });
+  }
+
+  void _startMapTimeoutTimer() {
+    _mapTimeoutTimer?.cancel();
+    _mapTimeoutTimer = Timer(_mapLoadTimeout, () {
+      if (!mounted || _currentLocation != null) return;
+      setState(() => _mapTimedOut = true);
+    });
+  }
+
+  void _retryMapLoad() {
+    setState(() => _mapTimedOut = false);
+    _startMapTimeoutTimer();
+    BlocProvider.of<NewTravelBloc>(context).add(const GetCurrentLocation());
   }
 
   void _recenterToCurrentLocation() {
@@ -159,9 +203,42 @@ class _NewTravelPageState extends State<NewTravelPage> {
   }
 
   Widget _buildMap(NewTravelState state) {
-    if (state is NewTravelCheckingPending || state is NewTravelLocationLoading) {
+    if (_mapTimedOut && _currentLocation == null) {
       return Container(
-        color: Colors.grey.shade200,
+        color: context.moto.bgSunken,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.map_outlined,
+                  size: 48,
+                  color: context.moto.textTertiary,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Não foi possível carregar o mapa.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: context.moto.textPrimary),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: _retryMapLoad,
+                  child: const Text('Tentar novamente'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (state is NewTravelCheckingPending ||
+        state is NewTravelLocationLoading) {
+      return Container(
+        color: context.moto.bgSunken,
         child: const Center(child: CircularProgressIndicator()),
       );
     }
@@ -182,7 +259,10 @@ class _NewTravelPageState extends State<NewTravelPage> {
                 : (latLng) {
                     setState(() => _isSelectingDestination = true);
                     BlocProvider.of<NewTravelBloc>(context).add(
-                      CalculateRoute(latitude: latLng.latitude, longitude: latLng.longitude),
+                      CalculateRoute(
+                        latitude: latLng.latitude,
+                        longitude: latLng.longitude,
+                      ),
                     );
                   },
             myLocationEnabled: true,
@@ -195,8 +275,8 @@ class _NewTravelPageState extends State<NewTravelPage> {
             child: FloatingActionButton(
               heroTag: 'recenter-location',
               mini: true,
-              backgroundColor: AppColors.white,
-              foregroundColor: AppColors.primary,
+              backgroundColor: context.moto.bgBase,
+              foregroundColor: context.moto.accent,
               onPressed: _recenterToCurrentLocation,
               child: const Icon(Icons.my_location),
             ),
@@ -206,7 +286,7 @@ class _NewTravelPageState extends State<NewTravelPage> {
     }
 
     return Container(
-      color: Colors.grey.shade200,
+      color: context.moto.bgSunken,
       child: const Center(child: CircularProgressIndicator()),
     );
   }
@@ -217,45 +297,82 @@ class _NewTravelPageState extends State<NewTravelPage> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          TextField(
-            controller: _destinationController,
-            decoration: InputDecoration(
-              hintText: 'Pra onde você quer ir?',
-              prefixIcon: const Icon(Icons.search, color: Color(0xFF4685C0)),
-              filled: true,
-              fillColor: Colors.grey.shade100,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide.none,
-              ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          Material(
+            color: context.moto.bgRaised,
+            shape: StadiumBorder(
+              side: BorderSide(color: context.moto.borderSubtle),
             ),
-            onChanged: (query) {
-              BlocProvider.of<NewTravelBloc>(context).add(SearchPlaces(query: query));
-            },
+            elevation: 6,
+            shadowColor: context.moto.shadow,
+            clipBehavior: Clip.antiAlias,
+            child: TextField(
+              controller: _destinationController,
+              style: TextStyle(
+                fontFamily: MotoFont.ui,
+                fontSize: 16,
+                color: context.moto.textPrimary,
+              ),
+              decoration: InputDecoration(
+                hintText: 'Pra onde você quer ir?',
+                hintStyle: TextStyle(
+                  fontFamily: MotoFont.ui,
+                  fontSize: 16,
+                  color: context.moto.textTertiary,
+                ),
+                prefixIcon: Icon(Icons.search, color: context.moto.accent),
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: MotoSpace.s4,
+                  vertical: 18,
+                ),
+              ),
+              onChanged: (query) {
+                _searchDebounceTimer?.cancel();
+                final normalizedQuery = query.trim();
+                if (normalizedQuery.length < 3) {
+                  BlocProvider.of<NewTravelBloc>(
+                    context,
+                  ).add(SearchPlaces(query: normalizedQuery));
+                  return;
+                }
+                _searchDebounceTimer = Timer(_searchDebounceDuration, () {
+                  if (!mounted) return;
+                  BlocProvider.of<NewTravelBloc>(
+                    context,
+                  ).add(SearchPlaces(query: normalizedQuery));
+                });
+              },
+            ),
           ),
           if (state is NewTravelPlacesLoaded && state.suggestions.isNotEmpty)
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 200),
-              child: Material(
-                elevation: 4,
-                borderRadius: BorderRadius.circular(8),
-                child: ListView.builder(
-                  shrinkWrap: true,
+            Padding(
+              padding: const EdgeInsets.only(top: MotoSpace.s2),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 200),
+                child: MotoGlass(
+                  painted: true,
                   padding: EdgeInsets.zero,
-                  itemCount: state.suggestions.length,
-                  itemBuilder: (_, i) => ListTile(
-                    leading: const Icon(Icons.location_on, color: Color(0xFF4685C0)),
-                    title: Text(
-                      state.suggestions[i].address,
-                      overflow: TextOverflow.ellipsis,
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    padding: EdgeInsets.zero,
+                    itemCount: state.suggestions.length,
+                    itemBuilder: (_, i) => ListTile(
+                      leading: Icon(
+                        Icons.location_on,
+                        color: context.moto.accent,
+                      ),
+                      title: Text(
+                        state.suggestions[i].address,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      onTap: () {
+                        _destinationController.text =
+                            state.suggestions[i].address;
+                        BlocProvider.of<NewTravelBloc>(context).add(
+                          SelectPlace(suggestion: state.suggestions[i]),
+                        );
+                      },
                     ),
-                    onTap: () {
-                      _destinationController.text = state.suggestions[i].address;
-                      BlocProvider.of<NewTravelBloc>(context).add(
-                        SelectPlace(suggestion: state.suggestions[i]),
-                      );
-                    },
                   ),
                 ),
               ),
@@ -268,7 +385,9 @@ class _NewTravelPageState extends State<NewTravelPage> {
   void _onLocationLoaded(LatLng position) {
     if (!mounted) return;
 
+    _mapTimeoutTimer?.cancel();
     setState(() {
+      _mapTimedOut = false;
       _currentLocation = position;
       _markers = {
         Marker(
@@ -284,7 +403,10 @@ class _NewTravelPageState extends State<NewTravelPage> {
     );
   }
 
-  Future<void> _showLocationErrorDialog(String message, LocationStatus status) async {
+  Future<void> _showLocationErrorDialog(
+    String message,
+    LocationStatus status,
+  ) async {
     if (!mounted) return;
 
     await showDialog(
@@ -303,7 +425,9 @@ class _NewTravelPageState extends State<NewTravelPage> {
                 Navigator.of(ctx).pop();
                 await Modular.get<LocationService>().openLocationSettings();
                 if (mounted) {
-                  BlocProvider.of<NewTravelBloc>(context).add(const GetCurrentLocation());
+                  BlocProvider.of<NewTravelBloc>(
+                    context,
+                  ).add(const GetCurrentLocation());
                 }
               },
               child: const Text('Ativar'),
@@ -315,6 +439,16 @@ class _NewTravelPageState extends State<NewTravelPage> {
                 await Modular.get<LocationService>().openAppSettings();
               },
               child: const Text('Configurações'),
+            ),
+          if (status == LocationStatus.timeout)
+            TextButton(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                BlocProvider.of<NewTravelBloc>(
+                  context,
+                ).add(const GetCurrentLocation());
+              },
+              child: const Text('Tentar novamente'),
             ),
         ],
       ),
@@ -387,7 +521,7 @@ class _NewTravelPageState extends State<NewTravelPage> {
           children: [
             Row(
               children: [
-                const Icon(Icons.access_time, color: Colors.orange, size: 28),
+                Icon(Icons.access_time, color: context.moto.warning, size: 28),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
@@ -395,19 +529,19 @@ class _NewTravelPageState extends State<NewTravelPage> {
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: const Color(0xFF4E4E4E),
+                      color: context.moto.textPrimary,
                     ),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 12),
-            const Text(
+            Text(
               'Existe um pedido de viagem aguardando motorista. '
               'O que você deseja fazer?',
               style: TextStyle(
                 fontSize: 14,
-                color: Color(0xFF4E4E4E),
+                color: context.moto.textPrimary,
               ),
             ),
             const SizedBox(height: 24),
@@ -415,7 +549,7 @@ class _NewTravelPageState extends State<NewTravelPage> {
               width: double.infinity,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF4685C0),
+                  backgroundColor: context.moto.accent,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -429,9 +563,12 @@ class _NewTravelPageState extends State<NewTravelPage> {
                     arguments: {'orderId': orderId},
                   );
                 },
-                child: const Text(
+                child: Text(
                   'Aguardar motorista',
-                  style: TextStyle(color: Colors.white, fontSize: 16),
+                  style: TextStyle(
+                    color: context.moto.textOnAccent,
+                    fontSize: 16,
+                  ),
                 ),
               ),
             ),
@@ -441,7 +578,7 @@ class _NewTravelPageState extends State<NewTravelPage> {
               child: OutlinedButton(
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  side: const BorderSide(color: Colors.red),
+                  side: BorderSide(color: context.moto.danger),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -452,9 +589,9 @@ class _NewTravelPageState extends State<NewTravelPage> {
                     CancelPendingOrder(orderId: orderId),
                   );
                 },
-                child: const Text(
+                child: Text(
                   'Cancelar e criar novo',
-                  style: TextStyle(color: Colors.red, fontSize: 16),
+                  style: TextStyle(color: context.moto.danger, fontSize: 16),
                 ),
               ),
             ),
@@ -466,9 +603,12 @@ class _NewTravelPageState extends State<NewTravelPage> {
                   Navigator.of(ctx).pop();
                   Modular.to.pop();
                 },
-                child: const Text(
+                child: Text(
                   'Voltar',
-                  style: TextStyle(color: Color(0xFF4E4E4E), fontSize: 16),
+                  style: TextStyle(
+                    color: context.moto.textPrimary,
+                    fontSize: 16,
+                  ),
                 ),
               ),
             ),
@@ -508,7 +648,8 @@ class _RouteBottomSheetContent extends StatefulWidget {
   });
 
   @override
-  State<_RouteBottomSheetContent> createState() => _RouteBottomSheetContentState();
+  State<_RouteBottomSheetContent> createState() =>
+      _RouteBottomSheetContentState();
 }
 
 class _RouteBottomSheetContentState extends State<_RouteBottomSheetContent> {
@@ -526,42 +667,23 @@ class _RouteBottomSheetContentState extends State<_RouteBottomSheetContent> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
-                  'Resumo da Viagem',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                Text(
+                  'Resumo da viagem',
+                  style: Theme.of(context).textTheme.titleLarge,
                 ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    const Icon(Icons.location_on, color: Color(0xFF4685C0), size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        widget.route.destinationAddress,
-                        style: const TextStyle(color: Color(0xFF4E4E4E)),
-                      ),
-                    ),
-                  ],
+                const SizedBox(height: MotoSpace.s4),
+                MotoRoute(
+                  from: (widget.route.departureAddress, 'Embarque'),
+                  to: (widget.route.destinationAddress, 'Destino'),
                 ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    const Icon(Icons.straighten, color: Color(0xFF4685C0), size: 20),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${widget.distKm} km',
-                      style: const TextStyle(color: Color(0xFF4E4E4E)),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    const Icon(Icons.timer_outlined, color: Color(0xFF4685C0), size: 20),
-                    const SizedBox(width: 8),
-                    Text(
+                const SizedBox(height: MotoSpace.s4),
+                MotoMetrics(
+                  items: [
+                    (widget.distKm, 'km', 'Distância'),
+                    (
                       _formatTravelTime(widget.route.timeMinutes),
-                      style: const TextStyle(color: Color(0xFF4E4E4E)),
+                      '',
+                      'Duração',
                     ),
                   ],
                 ),
@@ -574,110 +696,50 @@ class _RouteBottomSheetContentState extends State<_RouteBottomSheetContent> {
                       Switch(
                         value: widget.orderType == OrderType.priority,
                         onChanged: (value) {
-                          widget.orderType = widget.orderType == OrderType.normal ? OrderType.priority : OrderType.normal;
+                          widget.orderType =
+                              widget.orderType == OrderType.normal
+                              ? OrderType.priority
+                              : OrderType.normal;
                           setState(() {});
                         },
                       ),
                       Text(
                         'Pedido com prioridade',
-                        style: const TextStyle(color: Color(0xFF4E4E4E)),
+                        style: TextStyle(color: context.moto.textPrimary),
                       ),
                     ],
                   ),
                 ),
-                if (isCreating) ...[
-                  const Center(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: 16),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                          SizedBox(width: 12),
-                          Text(
-                            'Solicitando viagem...',
-                            style: TextStyle(
-                              color: Color(0xFF4E4E4E),
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
+                const Spacer(),
+                Row(
+                  spacing: MotoSpace.s4,
+                  children: [
+                    Expanded(
+                      child: MotoButton(
+                        label: 'Cancelar',
+                        variant: MotoButtonVariant.glass,
+                        onPressed: isCreating ? null : Modular.to.pop,
                       ),
                     ),
-                  ),
-                ],
-                const Spacer(),
-                SizedBox(
-                  width: MediaQuery.sizeOf(context).width,
-                  child: Row(
-                    spacing: 24,
-                    children: [
-                      Expanded(
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              side: BorderSide(color: AppColors.primary),
-                              borderRadius: BorderRadius.circular(100),
-                            ),
-                          ),
-                          onPressed: isCreating ? null : Modular.to.pop,
-                          child: isCreating
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Text(
-                                  'Cancelar',
-                                  style: TextStyle(color: AppColors.primary, fontSize: 16),
+                    Expanded(
+                      flex: 2,
+                      child: MotoButton(
+                        label: 'Solicitar viagem',
+                        loading: isCreating,
+                        onPressed: isCreating
+                            ? null
+                            : () => BlocProvider.of<NewTravelBloc>(context).add(
+                                ConfirmTravel(
+                                  originLat: widget.route.originLat,
+                                  originLng: widget.route.originLng,
+                                  destinationLat: widget.route.destinationLat,
+                                  destinationLng: widget.route.destinationLng,
+                                  orderType: widget.orderType,
                                 ),
-                        ),
+                              ),
                       ),
-                      Expanded(
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: isCreating ? Colors.grey : AppColors.primary,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(100),
-                            ),
-                          ),
-                          onPressed: isCreating
-                              ? null
-                              : () => BlocProvider.of<NewTravelBloc>(context).add(
-                                  ConfirmTravel(
-                                    originLat: widget.route.originLat,
-                                    originLng: widget.route.originLng,
-                                    destinationLat: widget.route.destinationLat,
-                                    destinationLng: widget.route.destinationLng,
-                                    orderType: widget.orderType,
-                                  ),
-                                ),
-                          child: isCreating
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Text(
-                                  'Solicitar Viagem',
-                                  style: TextStyle(color: Colors.white, fontSize: 16),
-                                ),
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ],
             ),

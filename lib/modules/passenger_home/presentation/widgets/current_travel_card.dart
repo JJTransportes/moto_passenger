@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:moto_passenger/design_system/design_system.dart';
 import 'package:moto_passenger/modules/passenger_home/domain/entities/travel_summary_entity.dart';
 
 class CurrentTravelCard extends StatelessWidget {
@@ -14,82 +15,43 @@ class CurrentTravelCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isEmAndamento = travel.status == 'InProgress';
+    final tripStatus = isEmAndamento ? TripStatus.emAndamento : TripStatus.aceita;
 
     return GestureDetector(
       onTap: onTap,
-      child: Card(
-        elevation: 4,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-          side: BorderSide(color: Colors.grey.shade300),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Viagem Atual',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: Color(0xFF4E4E4E),
+      child: MotoGlass(
+        painted: true,
+        padding: const EdgeInsets.all(MotoSpace.s4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const MotoTile(icon: Icons.directions_car, accent: true, size: 40),
+                const SizedBox(width: MotoSpace.s3),
+                Expanded(
+                  child: Text('Viagem atual', style: Theme.of(context).textTheme.titleMedium),
                 ),
-              ),
-              const SizedBox(height: 12),
+                MotoStatusBadge.trip(tripStatus),
+              ],
+            ),
+            if (travel.driverName != null) ...[
+              const SizedBox(height: MotoSpace.s2),
               Row(
                 children: [
-                  const Icon(Icons.location_on,
-                      color: Color(0xFF4685C0), size: 20),
-                  const SizedBox(width: 8),
-                  const Expanded(
-                    child: Text(
-                      'Destino da viagem',
-                      style: TextStyle(
-                        color: Color(0xFF4E4E4E),
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
+                  Icon(Icons.person, color: context.moto.textTertiary, size: 18),
+                  const SizedBox(width: MotoSpace.s2),
+                  Text(travel.driverName!, style: Theme.of(context).textTheme.bodyMedium),
                 ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Icon(Icons.timer_outlined,
-                      color: Color(0xFF4685C0), size: 20),
-                  const SizedBox(width: 8),
-                  Text(
-                    isEmAndamento ? 'Em andamento' : 'Aguardando início',
-                    style: const TextStyle(
-                      color: Color(0xFF4E4E4E),
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: isEmAndamento
-                      ? Colors.green.shade100
-                      : Colors.orange.shade100,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  isEmAndamento ? 'Em andamento' : 'Aceita',
-                  style: TextStyle(
-                    color:
-                        isEmAndamento ? Colors.green.shade800 : Colors.orange.shade800,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
               ),
             ],
-          ),
+            const SizedBox(height: MotoSpace.s3),
+            MotoButton(
+              label: 'Ver viagem',
+              large: false,
+              onPressed: onTap,
+            ),
+          ],
         ),
       ),
     );
