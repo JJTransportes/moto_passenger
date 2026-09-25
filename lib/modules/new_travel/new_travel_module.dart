@@ -1,3 +1,4 @@
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:moto_passenger/core/auth/auth_storage.dart';
@@ -25,7 +26,17 @@ class NewTravelModule extends Module {
   void binds(i) {
     i.add<INewTravelDatasource>(NewTravelDatasource.new);
     i.add<NewTravelRepository>(NewTravelRepository.new);
-    i.addSingleton<NewTravelBloc>(
+    // Eram `addSingleton` — mas cada viagem precisa de estado zerado (bloc
+    // parte de `NewTravelCheckingPending`/`TravelTrackingInitial`). Como
+    // `/new-travel` fica "vivo" na pilha durante toda a viagem (waiting →
+    // tracking usa pushReplacementNamed, mas o `NewTravelPage` de baixo
+    // nunca sai da pilha), o Modular não descartava o singleton entre
+    // corridas seguidas na mesma sessão do app — a segunda corrida herdava
+    // estado (inclusive guardas como "nunca regredir de InProgress") da
+    // corrida anterior, travando a tela em loading até um evento de SignalR
+    // que ignora esses guards (TravelStarted/TravelCompleted) forçar a saída
+    // do estado preso. `.add` cria uma instância nova a cada resolução.
+    i.add<NewTravelBloc>(
       () => NewTravelBloc(
         Modular.get<NewTravelRepository>(),
         Modular.get<LocationService>(),
@@ -36,7 +47,7 @@ class NewTravelModule extends Module {
     );
     i.add<ITravelTrackingDatasource>(TravelTrackingDatasource.new);
     i.add<ITravelTrackingRepository>(TravelTrackingRepository.new);
-    i.addSingleton<TravelTrackingBloc>(TravelTrackingBloc.new);
+    i.add<TravelTrackingBloc>(TravelTrackingBloc.new);
   }
 
   @override
@@ -51,9 +62,14 @@ class NewTravelModule extends Module {
     r.child(
       '/tracking',
       child: (_) {
+        print('[DIAG] /tracking route builder running, Modular.args.data=${Modular.args.data}');
         final args = Modular.args.data as Map<String, dynamic>;
         return BlocProvider<TravelTrackingBloc>(
-          create: (_) => Modular.get<TravelTrackingBloc>(),
+          create: (_) {
+            final b = Modular.get<TravelTrackingBloc>();
+            print('[DIAG] BlocProvider.create built bloc hash=${b.hashCode} for travelId=${args['travelId']}');
+            return b;
+          },
           child: TravelTrackingPage(
             travelId: args['travelId'] as String,
             orderId: args['orderId'] as String?,

@@ -1,11 +1,12 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:moto_passenger/core/auth/auth_storage.dart';
 import 'package:moto_passenger/core/config/app_config.dart';
 import 'package:moto_passenger/core/network/signalr_service.dart';
-import 'package:moto_passenger/core/theme/app_theme.dart';
+import 'package:moto_passenger/design_system/design_system.dart';
 import 'package:moto_passenger/modules/new_travel/data/datasources/new_travel_datasource.dart';
 
 class WaitingPage extends StatefulWidget {
@@ -17,14 +18,32 @@ class WaitingPage extends StatefulWidget {
   State<WaitingPage> createState() => _WaitingPageState();
 }
 
-class _WaitingPageState extends State<WaitingPage> {
+class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
   StreamSubscription? _acceptedSub;
   StreamSubscription? _cancelledSub;
   StreamSubscription? _driverContactedSub;
   final _startTime = DateTime.now();
   Timer? _elapsedTimer;
-  Duration _elapsed = Duration.zero;
+  final ValueNotifier<int> _elapsedSeconds = ValueNotifier(0);
   bool _isCancelling = false;
+
+  // PSG-08: WaitingPage dependia só de SignalR — se o evento OrderAccepted
+  // se perdesse (reconexão, app voltando de background, hub instável), o
+  // passageiro ficava preso na tela de espera mesmo com o motorista já a
+  // caminho. Esse polling é o mesmo fallback que TravelTrackingPage já tem
+  // via TravelTrackingBloc, adaptado aqui porque WaitingPage não usa bloc.
+  Timer? _pollTimer;
+  static const _pollInterval = Duration(seconds: 8);
+
+  // O SignalR (onOrderAccepted) e o polling acima detectam a mesma
+  // aceitação por caminhos independentes — sem essa guarda, se os dois
+  // dispararem perto um do outro, `_onOrderAccepted` roda duas vezes e
+  // navega duas vezes seguidas pra `/new-travel/tracking`. A segunda
+  // navegação substitui a tela recém-aberta por outra instância nova (bloc
+  // novo), deixando a primeira chamada de rede "pendurada" respondendo pra
+  // uma página que já não existe mais — e a tela visível (a segunda) nunca
+  // recebe essa resposta, ficando presa no spinner.
+  bool _orderAcceptedHandled = false;
 
   String? _authToken;
 
@@ -35,24 +54,83 @@ class _WaitingPageState extends State<WaitingPage> {
   DateTime? _contactedExpiresAt; // UTC
   DateTime? _contactedReceivedAt; // UTC, momento local de recebimento do evento
   Timer? _countdownTimer;
+  final ValueNotifier<DateTime> _countdownNow = ValueNotifier(
+    DateTime.now().toUtc(),
+  );
 
   @override
   void initState() {
     super.initState();
 
+    WidgetsBinding.instance.addObserver(this);
     _initSignalR();
+    _startPolling();
 
     // Update elapsed time every second
     _elapsedTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) {
-        setState(() {
-          _elapsed = DateTime.now().difference(_startTime);
-        });
-      }
+      _elapsedSeconds.value = DateTime.now().difference(_startTime).inSeconds;
     });
   }
 
+  // PSG-08: pausa o polling e desconecta o SignalR quando o app vai para
+  // background (nada pra checar enquanto a UI não está visível); ao voltar,
+  // reconecta e faz uma checagem imediata em vez de esperar o próximo tick,
+  // já que o pedido pode ter sido aceito/cancelado durante o tempo fora.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _pollTimer?.cancel();
+      Modular.get<SignalRService>().disconnectAll();
+    } else if (state == AppLifecycleState.resumed) {
+      _initSignalR();
+      _pollOnce();
+      _startPolling();
+    }
+  }
+
+  void _startPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(_pollInterval, (_) => _pollOnce());
+  }
+
+  Future<void> _pollOnce() async {
+    if (!mounted) return;
+    try {
+      final dio = Modular.get<Dio>();
+      final response = await dio.get('/api/travels/active');
+      if (!mounted) return;
+
+      final data = response.data as Map<String, dynamic>?;
+      if (data == null || data['orderId'] != widget.orderId) return;
+
+      final status = data['status'] as String?;
+      print('[DIAG] _pollOnce got status=$status travelId=${data['travelId']}');
+      if (status == 'Accepted' || status == 'InProgress') {
+        _onOrderAccepted({
+          'orderId': widget.orderId,
+          'travelId': data['travelId'],
+        });
+      } else if (status == 'Cancelled') {
+        _onOrderCancelled({
+          'orderId': widget.orderId,
+          'reason': data['cancellationReason'],
+        });
+      }
+    } on DioException {
+      // Best-effort — SignalR continua sendo o caminho primário, e o
+      // próximo tick tenta de novo.
+    }
+  }
+
   Future<void> _initSignalR() async {
+    // Chamado de novo em cada retorno ao foreground (ver
+    // didChangeAppLifecycleState) — sem cancelar antes, cada resume
+    // empilhava mais um listener duplicado nos streams do SignalR.
+    _acceptedSub?.cancel();
+    _cancelledSub?.cancel();
+    _driverContactedSub?.cancel();
+
     final token = await AuthStorage().getToken();
     if (token == null) return;
 
@@ -91,7 +169,9 @@ class _WaitingPageState extends State<WaitingPage> {
   void _onDriverContacted(Map<String, dynamic> event) {
     if (event['orderId'] != widget.orderId) return;
 
-    final expiresAt = DateTime.tryParse(event['expiresAt'] as String? ?? '')?.toUtc();
+    final expiresAt = DateTime.tryParse(
+      event['expiresAt'] as String? ?? '',
+    )?.toUtc();
     if (expiresAt == null || !mounted) return;
 
     setState(() {
@@ -103,24 +183,28 @@ class _WaitingPageState extends State<WaitingPage> {
 
     _countdownTimer?.cancel();
     _countdownTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
-      if (mounted) setState(() {});
+      final now = DateTime.now().toUtc();
+      _countdownNow.value = now;
+      if (!now.isBefore(expiresAt)) {
+        _countdownTimer?.cancel();
+      }
     });
   }
 
-  Duration get _remaining {
+  Duration _remainingAt(DateTime now) {
     final expiresAt = _contactedExpiresAt;
     if (expiresAt == null) return Duration.zero;
-    final diff = expiresAt.difference(DateTime.now().toUtc());
+    final diff = expiresAt.difference(now);
     return diff.isNegative ? Duration.zero : diff;
   }
 
-  double get _progressFraction {
+  double _progressFractionAt(DateTime now) {
     final expiresAt = _contactedExpiresAt;
     final receivedAt = _contactedReceivedAt;
     if (expiresAt == null || receivedAt == null) return 0;
     final total = expiresAt.difference(receivedAt).inMilliseconds;
     if (total <= 0) return 0;
-    return (_remaining.inMilliseconds / total).clamp(0.0, 1.0);
+    return (_remainingAt(now).inMilliseconds / total).clamp(0.0, 1.0);
   }
 
   String _resolveImageUrl(String url) {
@@ -185,10 +269,29 @@ class _WaitingPageState extends State<WaitingPage> {
   }
 
   void _onOrderAccepted(Map<String, dynamic> event) {
+    print(
+      '[DIAG] _onOrderAccepted called, event=$event, alreadyHandled=$_orderAcceptedHandled, mounted=$mounted',
+    );
+    if (_orderAcceptedHandled) return;
     if (event['orderId'] == widget.orderId) {
       final travelId = event['travelId'] as String?;
       if (travelId != null && mounted) {
-        Navigator.of(context).pushReplacementNamed(
+        _orderAcceptedHandled = true;
+        print(
+          '[DIAG] navigating to /new-travel/tracking travelId=$travelId orderId=${widget.orderId}',
+        );
+        // Achado: `Navigator.of(context).pushReplacementNamed(...)` é o
+        // Navigator imperativo puro do Flutter — num app com flutter_modular
+        // (Router API declarativo), isso NÃO passa os `arguments` pelo canal
+        // que a rota `/tracking` lê (`Modular.args.data`, populado só por
+        // `Modular.to.*`). A página de acompanhamento abria sem saber qual
+        // `travelId` carregar e ficava presa no spinner de carregamento até
+        // um evento de SignalR que não depende desses argumentos (ex.:
+        // `TravelStarted`, que sempre emite `TravelTrackingInProgress`
+        // incondicionalmente) forçar uma transição de estado — batendo
+        // exatamente com "só volta ao normal quando o motorista inicia a
+        // viagem". `Modular.to.pushReplacementNamed` é o equivalente correto.
+        Modular.to.pushReplacementNamed(
           '/new-travel/tracking',
           arguments: {
             'travelId': travelId,
@@ -235,11 +338,15 @@ class _WaitingPageState extends State<WaitingPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _acceptedSub?.cancel();
     _cancelledSub?.cancel();
     _driverContactedSub?.cancel();
     _elapsedTimer?.cancel();
     _countdownTimer?.cancel();
+    _pollTimer?.cancel();
+    _elapsedSeconds.dispose();
+    _countdownNow.dispose();
     super.dispose();
   }
 
@@ -251,18 +358,23 @@ class _WaitingPageState extends State<WaitingPage> {
     return PopScope(
       canPop: false,
       child: Scaffold(
-        backgroundColor: AppColors.white,
         appBar: AppBar(
-          title: const Text('Aguardando Motorista', style: TextStyle(color: Color(0xFF4E4E4E))),
-          backgroundColor: AppColors.white,
+          title: Text(
+            'Aguardando Motorista',
+            style: TextStyle(color: context.moto.textPrimary),
+          ),
           elevation: 0,
           automaticallyImplyLeading: false,
         ),
-        body: SafeArea(
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(32),
-              child: _contactedDriverName == null ? _buildWaitingCard() : _buildContactingCard(),
+        body: MotoCanvas(
+          child: SafeArea(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: _contactedDriverName == null
+                    ? _buildWaitingCard()
+                    : _buildContactingCard(),
+              ),
             ),
           ),
         ),
@@ -271,43 +383,37 @@ class _WaitingPageState extends State<WaitingPage> {
   }
 
   Widget _buildWaitingCard() {
-    final seconds = _elapsed.inSeconds;
-
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const SizedBox(
-          width: 64,
-          height: 64,
-          child: CircularProgressIndicator(
-            strokeWidth: 3,
-            color: Color(0xFF4685C0),
-          ),
-        ),
+        const MotoSonar(),
         const SizedBox(height: 32),
-        const Text(
+        Text(
           'Pedido enviado!',
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: Color(0xFF4E4E4E),
+            color: context.moto.textPrimary,
           ),
         ),
         const SizedBox(height: 8),
-        const Text(
+        Text(
           'Aguardando um motorista aceitar sua viagem...',
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 16,
-            color: Color(0xFF4E4E4E),
+            color: context.moto.textPrimary,
           ),
         ),
         const SizedBox(height: 24),
-        Text(
-          'Aguardando ha ${seconds}s',
-          style: const TextStyle(
-            fontSize: 14,
-            color: Colors.grey,
+        ValueListenableBuilder<int>(
+          valueListenable: _elapsedSeconds,
+          builder: (context, seconds, _) => Text(
+            'Aguardando ha ${seconds}s',
+            style: TextStyle(
+              fontSize: 14,
+              color: context.moto.textTertiary,
+            ),
           ),
         ),
         const SizedBox(height: 48),
@@ -318,55 +424,64 @@ class _WaitingPageState extends State<WaitingPage> {
 
   Widget _buildContactingCard() {
     final photoUrl = _contactedDriverPhotoUrl;
-    final remainingSeconds = _remaining.inSeconds;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        CircleAvatar(
-          radius: 48,
-          backgroundColor: const Color(0xFF4685C0).withAlpha(30),
-          backgroundImage: photoUrl != null && photoUrl.isNotEmpty
+        MotoAvatar(
+          initials: _initialsOf(_contactedDriverName),
+          size: 96,
+          image: photoUrl != null && photoUrl.isNotEmpty
               ? NetworkImage(_resolveImageUrl(photoUrl), headers: _authHeaders)
-              : null,
-          child: photoUrl == null || photoUrl.isEmpty
-              ? const Icon(Icons.person, size: 48, color: Color(0xFF4685C0))
               : null,
         ),
         const SizedBox(height: 24),
         Text(
           'Contatando motorista $_contactedDriverName',
           textAlign: TextAlign.center,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: Color(0xFF4E4E4E),
+            color: context.moto.textPrimary,
           ),
         ),
         const SizedBox(height: 8),
-        const Text(
+        Text(
           'O motorista pode recusar ou o tempo esgotar — nesse caso, o pedido é '
           'repassado automaticamente para o próximo motorista mais próximo.',
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 14,
-            color: Color(0xFF4E4E4E),
+            color: context.moto.textPrimary,
           ),
         ),
         const SizedBox(height: 24),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: _progressFraction,
-            minHeight: 8,
-            backgroundColor: Colors.grey.shade200,
-            valueColor: const AlwaysStoppedAnimation(Color(0xFF4685C0)),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          '${remainingSeconds}s',
-          style: const TextStyle(fontSize: 12, color: Colors.grey),
+        ValueListenableBuilder<DateTime>(
+          valueListenable: _countdownNow,
+          builder: (context, now, _) {
+            final remainingSeconds = _remainingAt(now).inSeconds;
+            return Column(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: _progressFractionAt(now),
+                    minHeight: 8,
+                    backgroundColor: context.moto.bgSunken,
+                    valueColor: AlwaysStoppedAnimation(context.moto.accent),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${remainingSeconds}s',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: context.moto.textTertiary,
+                  ),
+                ),
+              ],
+            );
+          },
         ),
         const SizedBox(height: 32),
         _buildCancelButton(),
@@ -375,31 +490,19 @@ class _WaitingPageState extends State<WaitingPage> {
   }
 
   Widget _buildCancelButton() {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton(
-        style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          side: const BorderSide(color: Colors.red),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ),
-        onPressed: _isCancelling ? null : _cancelOrder,
-        child: _isCancelling
-            ? const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.red,
-                ),
-              )
-            : const Text(
-                'Cancelar pedido',
-                style: TextStyle(color: Colors.red, fontSize: 16),
-              ),
-      ),
+    return MotoButton(
+      label: 'Cancelar pedido',
+      variant: MotoButtonVariant.danger,
+      loading: _isCancelling,
+      onPressed: _isCancelling ? null : _cancelOrder,
     );
+  }
+
+  String _initialsOf(String? name) {
+    if (name == null || name.trim().isEmpty) return '?';
+    final parts = name.trim().split(RegExp(r'\s+'));
+    final first = parts.first.characters.first;
+    final last = parts.length > 1 ? parts.last.characters.first : '';
+    return (first + last).toUpperCase();
   }
 }

@@ -61,7 +61,6 @@ class _UsageTermsGuardPageState extends State<UsageTermsGuardPage> {
         },
         builder: (context, state) {
           return Scaffold(
-            backgroundColor: Colors.white,
             body: _buildBody(state),
           );
         },

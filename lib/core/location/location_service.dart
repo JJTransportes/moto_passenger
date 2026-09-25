@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -31,8 +32,23 @@ class LocationService {
       return const LocationResult(status: LocationStatus.deniedForever);
     }
 
-    final position = await Geolocator.getCurrentPosition();
-    return LocationResult(position: position, status: LocationStatus.granted);
+    try {
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 12),
+        ),
+      );
+      return LocationResult(position: position, status: LocationStatus.granted);
+    } on TimeoutException {
+      // GPS não respondeu a tempo (sinal fraco, indoor, GPS "frio"). Cai para
+      // a última posição conhecida em vez de deixar a tela travada para sempre.
+      final lastKnown = await Geolocator.getLastKnownPosition();
+      if (lastKnown != null) {
+        return LocationResult(position: lastKnown, status: LocationStatus.granted);
+      }
+      return const LocationResult(status: LocationStatus.timeout);
+    }
   }
 
   Future<void> openAppSettings() async {
@@ -71,4 +87,5 @@ enum LocationStatus {
   denied,
   deniedForever,
   serviceDisabled,
+  timeout,
 }

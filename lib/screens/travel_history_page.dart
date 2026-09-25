@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
+import 'package:moto_passenger/design_system/design_system.dart';
 
 class TravelHistoryPage extends StatefulWidget {
   const TravelHistoryPage({super.key});
@@ -41,8 +42,7 @@ class _TravelHistoryPageState extends State<TravelHistoryPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Histórico de Viagens'),
-        backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF4E4E4E),
+        foregroundColor: context.moto.textSecondary,
         elevation: 0,
       ),
       body: _isLoading
@@ -69,13 +69,13 @@ class _TravelHistoryPageState extends State<TravelHistoryPage> {
                         itemBuilder: (_, i) => ListTile(
                           leading: Icon(
                             _statusIcon(_travels[i]['status'] as String?),
-                            color: _statusColor(_travels[i]['status'] as String?),
+                            color: _statusColor(context, _travels[i]['status'] as String?),
                           ),
                           title: Text(_travels[i]['driverName'] as String? ?? 'Motorista'),
                           subtitle: Text('Status: ${_travels[i]['status']}'),
                           trailing: Text(
                             _formatDate(_travels[i]['createdAt'] as String?),
-                            style: const TextStyle(fontSize: 12, color: Color(0xFF4E4E4E)),
+                            style: TextStyle(fontSize: 12, color: context.moto.textSecondary),
                           ),
                         ),
                       ),
@@ -92,12 +92,12 @@ class _TravelHistoryPageState extends State<TravelHistoryPage> {
     }
   }
 
-  Color _statusColor(String? status) {
+  Color _statusColor(BuildContext context, String? status) {
     switch (status) {
-      case 'Completed': return Colors.green;
-      case 'Cancelled': return Colors.red;
-      case 'InProgress': return const Color(0xFF4685C0);
-      default: return Colors.orange;
+      case 'Completed': return context.moto.success;
+      case 'Cancelled': return context.moto.danger;
+      case 'InProgress': return context.moto.accent;
+      default: return context.moto.warning;
     }
   }
 
