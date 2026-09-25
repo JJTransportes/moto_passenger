@@ -8,9 +8,7 @@ import 'package:moto_passenger/core/utils/validators.dart' as validators;
 import 'package:moto_passenger/design_system/design_system.dart';
 import 'package:moto_passenger/modules/auth/domain/entities/user_entity.dart';
 import 'package:moto_passenger/modules/auth/presentation/blocs/login_bloc.dart';
-import 'package:moto_passenger/widgets/app_button.dart';
 import 'package:moto_passenger/widgets/app_text_field.dart';
-import 'package:moto_passenger/widgets/gradient_text.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -81,8 +79,6 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.sizeOf(context);
-
     return BlocConsumer<LoginBloc, LoginState>(
       listener: (context, state) {
         if (state is LoginSuccess) {
@@ -96,87 +92,89 @@ class _LoginPageState extends State<LoginPage> {
         final errorMessage = state is LoginFailure ? state.message : null;
 
         return Scaffold(
-          body: SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 36),
-              child: Column(
-                spacing: size.height * 0.016,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  GradientText(
-                    'App Passageiro',
-                    style: GoogleFonts.inter(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w700,
+          body: MotoCanvas(
+            child: SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 28),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildLogo(),
+                    const SizedBox(height: 32),
+                    Text(
+                      'APP PASSAGEIRO',
+                      style: TextStyle(
+                        fontFamily: MotoFont.ui,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.6,
+                        color: context.moto.accent,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 24),
-                  _buildLogo(),
-                  Column(
-                    spacing: 16,
-                    children: [
-                      AppTextField(
-                        label: 'E-mail',
-                        hint: 'Informe seu e-mail',
-                        controller: _emailController,
-                        keyboardType: TextInputType.emailAddress,
-                        errorText: _emailError,
-                      ),
-                      AppTextField(
-                        label: 'Senha',
-                        hint: 'Informe sua senha',
-                        controller: _passwordController,
-                        obscureText: true,
-                        enableVisibilityToggle: true,
-                        errorText: _passwordError,
-                      ),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton(
-                          onPressed: () => Navigator.of(context).pushNamed('/recovery'),
-                          child: Text(
-                            'Esqueci minha senha',
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              color: context.moto.accent,
+                    const SizedBox(height: MotoSpace.s2),
+                    Text('Bom te ver de novo.', style: Theme.of(context).textTheme.displaySmall),
+                    const SizedBox(height: MotoSpace.s2),
+                    Text(
+                      'Entre para chamar seu carro.',
+                      style: Theme.of(context).textTheme.bodyLarge!.copyWith(color: context.moto.textSecondary),
+                    ),
+                    const SizedBox(height: 40),
+                    Column(
+                      spacing: 16,
+                      children: [
+                        AppTextField(
+                          label: 'E-mail',
+                          hint: 'Informe seu e-mail',
+                          icon: Icons.mail_outline,
+                          controller: _emailController,
+                          keyboardType: TextInputType.emailAddress,
+                          errorText: _emailError,
+                        ),
+                        AppTextField(
+                          label: 'Senha',
+                          hint: 'Informe sua senha',
+                          icon: Icons.lock_outline,
+                          controller: _passwordController,
+                          obscureText: true,
+                          enableVisibilityToggle: true,
+                          errorText: _passwordError,
+                        ),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: () => Navigator.of(context).pushNamed('/recovery'),
+                            child: Text(
+                              'Esqueci minha senha',
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                color: context.moto.accent,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      if (errorMessage != null) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          errorMessage,
-                          style: TextStyle(
-                            color: context.moto.danger,
-                            fontSize: 12,
+                        if (errorMessage != null)
+                          Text(
+                            errorMessage,
+                            style: TextStyle(
+                              color: context.moto.danger,
+                              fontSize: 12,
+                            ),
+                            textAlign: TextAlign.center,
                           ),
-                          textAlign: TextAlign.center,
+                        MotoButton(
+                          label: 'Entrar',
+                          loading: isLoading,
+                          onPressed: _isFormFilled && !_serverErrorBlocked ? _submit : null,
+                        ),
+                        MotoButton(
+                          label: 'Criar conta',
+                          variant: MotoButtonVariant.glass,
+                          onPressed: isLoading ? null : () => Navigator.of(context).pushNamed('/register'),
                         ),
                       ],
-                      AppButton(
-                        label: 'Entrar',
-                        loading: isLoading,
-                        onPressed: _isFormFilled && !_serverErrorBlocked ? _submit : null,
-                      ),
-                      const SizedBox(height: 16),
-                      Align(
-                        alignment: Alignment.center,
-                        child: TextButton(
-                          onPressed: isLoading ? null : () => Navigator.of(context).pushNamed('/register'),
-                          child: Text(
-                            'Criar conta',
-                            style: GoogleFonts.inter(
-                              fontSize: 14,
-                              color: context.moto.accent,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -186,14 +184,19 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Widget _buildLogo() {
-    final size = MediaQuery.sizeOf(context);
-
-    return Image.asset(
-      'assets/images/moto_passenger_logo.png',
-      height: size.height * 0.4,
-      width: size.width * 0.4,
-      fit: BoxFit.contain,
-      errorBuilder: (_, __, ___) => const SizedBox(width: 224, height: 90, child: Placeholder()),
+    return ClipRRect(
+      borderRadius: MotoRadius.brMd,
+      child: Image.asset(
+        'assets/images/moto_passenger_logo.png',
+        height: 72,
+        width: 72,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => Container(
+          width: 72,
+          height: 72,
+          color: context.moto.accent,
+        ),
+      ),
     );
   }
 }
