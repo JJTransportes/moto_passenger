@@ -1,24 +1,25 @@
 workflows:
-  android_release:
-    name: Moto Passenger Android Release
-    max_build_duration: 30
+  android_staging:
+    name: Moto Passenger Android Staging
     instance_type: mac_mini_m2
+    max_build_duration: 30
 
     triggering:
-      events: []
-      # push trigger temporarily disabled while this pipeline is being reconstructed
-      # in a working branch — re-add "- push" under events when ready to resume
-      # automatic builds/publishing on android_release.
+      events:
+      - push
       branch_patterns:
-      - pattern: "android_release"
-      - include: true
-      - source: true
+      - pattern: "android_staging"
+        include: true
+        source: true
+      - pattern: "*"
+        include: false
+        source: true
       cancel_previous_builds: true
 
     environment:
-      flutter: 3.44.0
+      flutter: 3.44.8
       groups:
-      - release
+      - moto_passenger_staging
       android_signing:
       - moto_passenger_keystore
 
@@ -73,5 +74,5 @@ workflows:
 
       google_play:
         credentials: $GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS
-        track: production
+        track: "internal"
         submit_as_draft: false

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:moto_passenger/core/theme/app_theme.dart';
+import 'package:moto_passenger/design_system/design_system.dart';
 
 Future<String?> showConfirmPasswordDialog(
   BuildContext context, {
@@ -50,9 +50,9 @@ class _ConfirmPasswordDialogState extends State<_ConfirmPasswordDialog> {
           const Text('Digite sua senha atual para confirmar a alteração do perfil.'),
           if (widget.showLogoutWarning) ...[
             const SizedBox(height: 12),
-            const Text(
+            Text(
               'Você será desconectado após salvar, pois seu e-mail de acesso vai mudar.',
-              style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
+              style: TextStyle(color: context.moto.danger, fontWeight: FontWeight.w600),
             ),
           ],
           const SizedBox(height: 16),
@@ -77,7 +77,7 @@ class _ConfirmPasswordDialogState extends State<_ConfirmPasswordDialog> {
           onPressed: _isValid
               ? () => Navigator.of(context).pop(_passwordController.text)
               : null,
-          style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+          style: TextButton.styleFrom(foregroundColor: context.moto.accent),
           child: const Text('Salvar'),
         ),
       ],

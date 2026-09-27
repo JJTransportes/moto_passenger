@@ -7,7 +7,6 @@ import 'package:moto_passenger/core/config/app_config.dart';
 import 'package:moto_passenger/core/errors/exceptions.dart';
 import 'package:moto_passenger/core/local_db/repositories/auth_local_repository.dart';
 import 'package:moto_passenger/core/local_db/repositories/travel_local_repository.dart';
-import 'package:moto_passenger/core/theme/app_theme.dart';
 import 'package:moto_passenger/modules/auth/data/datasources/i_auth_datasource.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -135,7 +134,6 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.white,
       body: Center(
         child: Image.asset(
           'assets/images/moto_passenger_logo.png',
