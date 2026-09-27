@@ -87,31 +87,6 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
             );
           },
         ),
-        backgroundColor: Colors.white,
-        body: BlocConsumer<DeleteAccountBloc, DeleteAccountState>(
-          listener: (context, state) {
-            if (state is DeleteAccountSuccess) {
-              _handleSuccess();
-            }
-            if (state is DeleteAccountError) {
-              final exception = switch (state.type) {
-                DeleteAccountErrorType.invalidPassword =>
-                  UnauthorizedException(state.message),
-                DeleteAccountErrorType.activeTravels =>
-                  ValidationException(state.message),
-                DeleteAccountErrorType.other => Exception(state.message),
-              };
-              _showError(exception);
-            }
-          },
-          builder: (context, state) {
-            final isLoading = state is DeleteAccountLoading;
-            return Padding(
-              padding: const EdgeInsets.all(24),
-              child: _buildWarningStep(isLoading),
-            );
-          },
-        ),
       ),
     );
   }

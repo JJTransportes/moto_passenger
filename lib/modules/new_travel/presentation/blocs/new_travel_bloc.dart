@@ -228,18 +228,6 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
     }
   }
 
-  Future<void> _ensureTravelOrdersConnected() async {
-    try {
-      final token = await _authStorage.getToken();
-      if (token == null) return;
-      final baseUrl = AppConfig.getBaseUrl();
-      await _signalR.connect('travel-orders', '$baseUrl/hubs/travel-orders', token);
-    } catch (_) {
-      // Non-critical — WaitingPage tenta conectar de novo (connect() é
-      // idempotente se já estiver conectado) como fallback.
-    }
-  }
-
   Future<void> _onGetCurrentLocation(
     GetCurrentLocation event,
     Emitter<NewTravelState> emit,

@@ -8,26 +8,6 @@ import 'package:moto_passenger/modules/auth/domain/entities/user_entity.dart';
 import 'package:moto_passenger/modules/auth/presentation/blocs/login_bloc.dart';
 import 'package:moto_passenger/design_system/design_system.dart';
 import 'package:moto_passenger/modules/auth/presentation/pages/login_page.dart';
-import 'package:moto_passenger/widgets/app_button.dart';
-
-// LoginPage needs two separate ways of resolving LoginBloc:
-// - BlocConsumer<LoginBloc, LoginState> uses flutter_bloc's own context.read,
-//   which needs a BlocProvider ancestor.
-// - _submit() calls context.read<LoginBloc>() too, but the file imports
-//   flutter_bloc with `hide ReadContext`, so that call resolves to
-//   flutter_modular's ModularWatchExtension instead — it needs a real
-//   ModularApp ancestor with LoginBloc bound in the injector.
-// Both wrappers are required for the widget to work in a test.
-class _LoginTestModule extends Module {
-  final LoginBloc bloc;
-
-  _LoginTestModule(this.bloc);
-
-  @override
-  void binds(Injector i) {
-    i.addInstance<LoginBloc>(bloc);
-  }
-}
 
 // LoginPage needs two separate ways of resolving LoginBloc:
 // - BlocConsumer<LoginBloc, LoginState> uses flutter_bloc's own context.read,

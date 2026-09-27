@@ -169,7 +169,6 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
           ),
         ),
       ),
-      ),
     );
   }
 

@@ -78,12 +78,6 @@ class _PassengerHomePageState extends State<PassengerHomePage>
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    appRouteObserver.subscribe(this, ModalRoute.of(context)! as PageRoute);
-  }
-
-  @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     appRouteObserver.unsubscribe(this);
