@@ -33,7 +33,10 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
   // caminho. Esse polling é o mesmo fallback que TravelTrackingPage já tem
   // via TravelTrackingBloc, adaptado aqui porque WaitingPage não usa bloc.
   Timer? _pollTimer;
-  static const _pollInterval = Duration(seconds: 8);
+  // Enquanto a tela de espera está aberta, dois segundos limitam a janela em
+  // que um OrderCancelled perdido pelo SignalR poderia deixar o passageiro
+  // vendo o contador zerado. O polling existe apenas por até o fim do pedido.
+  static const _pollInterval = Duration(seconds: 2);
 
   // O SignalR (onOrderAccepted) e o polling acima detectam a mesma
   // aceitação por caminhos independentes — sem essa guarda, se os dois
@@ -44,6 +47,12 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
   // uma página que já não existe mais — e a tela visível (a segunda) nunca
   // recebe essa resposta, ficando presa no spinner.
   bool _orderAcceptedHandled = false;
+
+  // Um pedido pode ser observado como cancelado pelo SignalR e pelo polling
+  // quase ao mesmo tempo. Sem esta guarda, cada tick abria outro diálogo de
+  // resultado e a tela parecia congelada, principalmente após a recusa do
+  // último motorista.
+  bool _orderCancelledHandled = false;
 
   String? _authToken;
 
@@ -65,6 +74,7 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _initSignalR();
     _startPolling();
+    _pollOnce();
 
     // Update elapsed time every second
     _elapsedTimer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -102,7 +112,10 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
       if (!mounted) return;
 
       final data = response.data as Map<String, dynamic>?;
-      if (data == null || data['orderId'] != widget.orderId) return;
+      if (data == null || data['orderId'] != widget.orderId) {
+        await _pollOrderStatus(dio);
+        return;
+      }
 
       final status = data['status'] as String?;
       print('[DIAG] _pollOnce got status=$status travelId=${data['travelId']}');
@@ -120,6 +133,51 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
     } on DioException {
       // Best-effort — SignalR continua sendo o caminho primário, e o
       // próximo tick tenta de novo.
+    }
+  }
+
+  /// `GET /travels/active` fica vazio quando a ordem foi cancelada antes de
+  /// criar uma viagem. Esta consulta é a recuperação para um `OrderCancelled`
+  /// perdido durante reconexão do SignalR, evitando espera infinita na tela.
+  Future<void> _pollOrderStatus(Dio dio) async {
+    try {
+      final response = await dio.get('/api/travels/orders/${widget.orderId}');
+      if (!mounted) return;
+
+      final data = response.data as Map<String, dynamic>?;
+      final status = (data?['status'] as String?)?.toLowerCase();
+      if (status == 'cancelled') {
+        _onOrderCancelled({
+          'orderId': widget.orderId,
+          'reason': data?['cancellationReason'],
+        });
+      } else if (status == 'pending') {
+        // Recupera a troca de motorista caso o DriverContacted tenha se
+        // perdido numa reconexão. O backend retorna estes campos apenas para
+        // a oferta que ainda está pendente.
+        final driverId = data?['contactedDriverId'];
+        final driverName = data?['contactedDriverName'];
+        final expiresAt = data?['contactedDriverExpiresAt'];
+        if (driverId != null && driverName != null && expiresAt != null) {
+          _onDriverContacted({
+            'orderId': widget.orderId,
+            'driverId': driverId,
+            'driverName': driverName,
+            'driverPhotoUrl': data?['contactedDriverPhotoUrl'],
+            'expiresAt': expiresAt,
+          });
+        }
+      } else if (status == 'accepted' || status == 'inprogress') {
+        final travelId = data?['travelId'];
+        if (travelId != null && travelId.toString().isNotEmpty) {
+          _onOrderAccepted({
+            'orderId': widget.orderId,
+            'travelId': travelId,
+          });
+        }
+      }
+    } on DioException {
+      // Best-effort: o próximo ciclo e o SignalR continuam como fallback.
     }
   }
 
@@ -187,6 +245,9 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
       _countdownNow.value = now;
       if (!now.isBefore(expiresAt)) {
         _countdownTimer?.cancel();
+        // Não espera o próximo ciclo de 8s quando a última oferta vence.
+        // Se o SignalR final se perdeu, confere a ordem imediatamente.
+        _pollOnce();
       }
     });
   }
@@ -220,7 +281,11 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
 
   void _onOrderCancelled(Map<String, dynamic> event) {
     // OrderCancelled payload: { orderId, reason } — no travelId
-    if (event['orderId'] != widget.orderId) return;
+    if (event['orderId'] != widget.orderId || _orderCancelledHandled) return;
+
+    _orderCancelledHandled = true;
+    _pollTimer?.cancel();
+    _countdownTimer?.cancel();
 
     final reason = event['reason'] as String?;
 
@@ -323,16 +388,28 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
 
     if (confirmed != true || !mounted) return;
 
+    // Interrompe os observadores antes de cancelar. Caso o backend publique o
+    // OrderCancelled enquanto o POST ainda está em curso, ele não pode abrir
+    // um segundo fluxo de saída por cima deste.
+    _orderCancelledHandled = true;
+    _pollTimer?.cancel();
+    _countdownTimer?.cancel();
     setState(() => _isCancelling = true);
 
     try {
-      await Modular.get<INewTravelDatasource>().cancelOrder(widget.orderId);
+      // A decisão de sair da tela não pode depender indefinidamente de uma
+      // conexão que travou. O backend continua recebendo o cancelamento quando
+      // possível; após este limite o usuário volta ao início e não fica preso.
+      await Modular.get<INewTravelDatasource>()
+          .cancelOrder(widget.orderId)
+          .timeout(const Duration(seconds: 8));
     } catch (_) {
-      // Even if cancel fails, go back — the order may already be processed
+      // O pedido pode já ter sido finalizado pelo último motorista ou a rede
+      // pode ter falhado. Em ambos os casos a tela de espera deve encerrar.
     }
 
     if (mounted) {
-      Modular.to.pop();
+      Modular.to.navigate('/home');
     }
   }
 
