@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:moto_passenger/design_system/design_system.dart';
 import 'package:moto_passenger/modules/passenger_home/domain/entities/travel_summary_entity.dart';
 
 class TravelListItem extends StatelessWidget {
@@ -9,43 +10,24 @@ class TravelListItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: MotoSpace.s2),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.directions_car,
-              color: Color(0xFF4685C0), size: 20),
-          const SizedBox(width: 12),
+          MotoTile(icon: Icons.directions_car, tone: _statusTone(travel.status)),
+          const SizedBox(width: MotoSpace.s3),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  _statusLabel(travel.status),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                    color: Color(0xFF4E4E4E),
-                  ),
-                ),
                 if (travel.driverName != null)
-                  Text(
-                    'Motorista: ${travel.driverName}',
-                    style: TextStyle(
-                      color: Colors.grey.shade600,
-                      fontSize: 12,
-                    ),
-                  ),
-                Text(
-                  _formatDate(travel.createdAt),
-                  style: TextStyle(
-                    color: Colors.grey.shade500,
-                    fontSize: 12,
-                  ),
-                ),
+                  Text(travel.driverName!, style: Theme.of(context).textTheme.titleSmall),
+                const SizedBox(height: 4),
+                MotoStatusBadge.trip(_tripStatus(travel.status)),
               ],
             ),
           ),
+          Text(_formatDate(travel.createdAt), style: Theme.of(context).textTheme.bodySmall),
         ],
       ),
     );
@@ -57,18 +39,22 @@ class TravelListItem extends StatelessWidget {
         '${date.year}';
   }
 
-  String _statusLabel(String status) {
+  MotoTone _statusTone(String status) {
     switch (status) {
-      case 'Completed':
-        return 'Viagem concluída';
-      case 'Cancelled':
-        return 'Viagem cancelada';
-      case 'Accepted':
-        return 'Viagem aceita';
-      case 'InProgress':
-        return 'Viagem em andamento';
-      default:
-        return 'Viagem';
+      case 'Completed': return MotoTone.success;
+      case 'Cancelled': return MotoTone.danger;
+      case 'InProgress': return MotoTone.info;
+      default: return MotoTone.warning;
+    }
+  }
+
+  TripStatus _tripStatus(String status) {
+    switch (status) {
+      case 'Completed': return TripStatus.concluida;
+      case 'Cancelled': return TripStatus.cancelada;
+      case 'InProgress': return TripStatus.emAndamento;
+      case 'Accepted': return TripStatus.aceita;
+      default: return TripStatus.solicitada;
     }
   }
 }

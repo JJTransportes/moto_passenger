@@ -6,8 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:moto_passenger/modules/auth/domain/entities/user_entity.dart';
 import 'package:moto_passenger/modules/auth/presentation/blocs/login_bloc.dart';
+import 'package:moto_passenger/design_system/design_system.dart';
 import 'package:moto_passenger/modules/auth/presentation/pages/login_page.dart';
-import 'package:moto_passenger/widgets/app_button.dart';
 
 // LoginPage needs two separate ways of resolving LoginBloc:
 // - BlocConsumer<LoginBloc, LoginState> uses flutter_bloc's own context.read,
@@ -61,7 +61,8 @@ void main() {
 
     await tester.pumpWidget(buildWidget());
 
-    expect(find.text('App Passageiro'), findsOneWidget);
+    expect(find.text('APP PASSAGEIRO'), findsOneWidget);
+    expect(find.text('Bom te ver de novo.'), findsOneWidget);
   });
 
   testWidgets('shows email and password fields', (tester) async {
@@ -98,7 +99,7 @@ void main() {
 
     await tester.pumpWidget(buildWidget());
 
-    final button = tester.widget<AppButton>(find.byType(AppButton));
+    final button = tester.widget<MotoButton>(find.widgetWithText(MotoButton, 'Entrar'));
     expect(button.onPressed, isNull);
   });
 
@@ -113,7 +114,7 @@ void main() {
     );
     await tester.pump();
 
-    final button = tester.widget<AppButton>(find.byType(AppButton));
+    final button = tester.widget<MotoButton>(find.widgetWithText(MotoButton, 'Entrar'));
     expect(button.onPressed, isNull);
   });
 
@@ -152,7 +153,10 @@ void main() {
 
     await tester.pumpWidget(buildWidget());
 
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    final button = tester
+        .widgetList<MotoButton>(find.byType(MotoButton))
+        .firstWhere((b) => b.label == 'Entrar');
+    expect(button.loading, isTrue);
   });
 
   testWidgets('shows error message on failure', (tester) async {

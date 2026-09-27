@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_modular/flutter_modular.dart' hide ModularWatchExtension;
 import 'package:google_fonts/google_fonts.dart';
-import 'package:moto_passenger/core/theme/app_theme.dart';
 import 'package:moto_passenger/core/utils/password_policy_validator.dart';
+import 'package:moto_passenger/design_system/design_system.dart';
 import 'package:moto_passenger/modules/auth/domain/entities/password_policy_entity.dart';
 import 'package:moto_passenger/modules/auth/presentation/blocs/password_reset_bloc.dart';
 import 'package:moto_passenger/modules/auth/presentation/cubits/password_policy_cubit.dart';
@@ -74,7 +74,6 @@ class _PasswordResetPageState extends State<PasswordResetPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.white,
       body: SafeArea(
         child: BlocConsumer<PasswordResetBloc, PasswordResetState>(
           listener: (context, state) {
@@ -111,7 +110,7 @@ class _PasswordResetPageState extends State<PasswordResetPage> {
                         style: GoogleFonts.inter(
                           fontSize: 14,
                           fontWeight: FontWeight.w400,
-                          color: Colors.black,
+                          color: context.moto.textPrimary,
                         ),
                         textAlign: TextAlign.center,
                       ),
@@ -145,7 +144,7 @@ class _PasswordResetPageState extends State<PasswordResetPage> {
                           style: GoogleFonts.inter(
                             fontSize: 13,
                             fontWeight: FontWeight.w400,
-                            color: Colors.red,
+                            color: context.moto.danger,
                           ),
                         ),
                       ],
@@ -158,7 +157,7 @@ class _PasswordResetPageState extends State<PasswordResetPage> {
                             style: GoogleFonts.inter(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
-                              color: AppColors.primary,
+                              color: context.moto.accent,
                             ),
                           ),
                         ),
@@ -200,14 +199,14 @@ class _SuccessView extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.check_circle, color: AppColors.primary, size: 64),
+          Icon(Icons.check_circle, color: context.moto.accent, size: 64),
           const SizedBox(height: 24),
           Text(
             'Senha redefinida com sucesso!',
             style: GoogleFonts.inter(
               fontSize: 18,
               fontWeight: FontWeight.w600,
-              color: AppColors.primary,
+              color: context.moto.accent,
             ),
             textAlign: TextAlign.center,
           ),

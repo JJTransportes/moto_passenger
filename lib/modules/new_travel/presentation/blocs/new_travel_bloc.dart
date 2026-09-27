@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:moto_passenger/core/auth/auth_storage.dart';
@@ -21,6 +23,15 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
 
   /// Persisted across state changes so route calculation always has an origin.
   LatLng? _currentPosition;
+
+  // PSG-09: o transformer padrão do Bloc processa eventos concorrentemente
+  // (sem fila) — um duplo toque em "Solicitar Viagem" dispara dois
+  // `ConfirmTravel` que rodam `_onConfirm` em paralelo, criando dois
+  // pedidos. A UI já desabilita o botão durante `NewTravelCreating`, mas só
+  // depois do rebuild; essa guarda é síncrona, checada antes de qualquer
+  // `await` dentro do próprio handler.
+  bool _confirmInFlight = false;
+  int _searchRequestId = 0;
 
   NewTravelBloc(
     this._repository,
@@ -48,6 +59,8 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
         return 'Permissão de localização negada permanentemente. Ative nas configurações do app.';
       case LocationStatus.granted:
         return 'Erro ao obter localização.';
+      case LocationStatus.timeout:
+        return 'Não foi possível obter sua localização. Verifique se o GPS está ativado e tente novamente.';
     }
   }
 
@@ -95,14 +108,15 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
     CheckPendingOrder event,
     Emitter<NewTravelState> emit,
   ) async {
-    emit(const NewTravelCheckingPending());
-
     try {
-      final order = await _repository.getLatestOrder();
+      // Esta consulta não pode bloquear o mapa. A localização é iniciada em
+      // paralelo pela página; aqui só emitimos quando existe algo que exige
+      // intervenção (pedido pendente ou viagem ativa).
+      final order = await _repository.getLatestOrder().timeout(
+        const Duration(seconds: 5),
+      );
 
       if (order == null) {
-        // No pending order — proceed to normal flow
-        add(const GetCurrentLocation());
         return;
       }
 
@@ -113,7 +127,9 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
           NewTravelPendingOrder(
             orderId: order['orderId'] as String,
             travelId: order['travelId'] as String? ?? '',
-            createdAt: DateTime.tryParse(order['createdAt']?.toString() ?? '') ?? DateTime.now(),
+            createdAt:
+                DateTime.tryParse(order['createdAt']?.toString() ?? '') ??
+                DateTime.now(),
             destinationAddress: order['destinationAddress'] as String?,
           ),
         );
@@ -126,16 +142,11 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
               status: status!,
             ),
           );
-        } else {
-          add(const GetCurrentLocation());
         }
-      } else {
-        // Completed, Cancelled — proceed normally
-        add(const GetCurrentLocation());
       }
     } catch (_) {
-      // Network error — proceed anyway
-      add(const GetCurrentLocation());
+      // A verificação é auxiliar. Erro/timeout não substitui nem interrompe
+      // o estado de localização que alimenta o mapa.
     }
   }
 
@@ -155,6 +166,8 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
     ConfirmTravel event,
     Emitter<NewTravelState> emit,
   ) async {
+    if (_confirmInFlight) return;
+    _confirmInFlight = true;
     emit(const NewTravelCreating());
 
     // Conecta ao hub ANTES de criar o pedido: o backend pode despachar para o
@@ -189,6 +202,8 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
       );
     } catch (e) {
       emit(NewTravelFailure(message: e.toString()));
+    } finally {
+      _confirmInFlight = false;
     }
   }
 
@@ -197,7 +212,16 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
       final token = await _authStorage.getToken();
       if (token == null) return;
       final baseUrl = AppConfig.getBaseUrl();
-      await _signalR.connect('travel-orders', '$baseUrl/hubs/travel-orders', token);
+      // Sem timeout aqui, um handshake do SignalR que trava (rede lenta,
+      // proxy/firewall em homologação) travava _onConfirm pra sempre ANTES
+      // de sequer chamar createOrder — a tela ficava presa em "Solicitando
+      // viagem..." sem erro nem sucesso, sem alternativa a não ser fechar o
+      // app. Essa conexão é só uma otimização (evita perder o primeiro
+      // DriverContacted); se não conectar a tempo, segue o fluxo mesmo
+      // assim — WaitingPage tenta de novo ao montar.
+      await _signalR
+          .connect('travel-orders', '$baseUrl/hubs/travel-orders', token)
+          .timeout(const Duration(seconds: 5));
     } catch (_) {
       // Non-critical — WaitingPage tenta conectar de novo (connect() é
       // idempotente se já estiver conectado) como fallback.
@@ -244,6 +268,7 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
     SearchPlaces event,
     Emitter<NewTravelState> emit,
   ) async {
+    final requestId = ++_searchRequestId;
     if (event.query.length < 3) {
       emit(NewTravelPlacesLoaded(suggestions: [], query: event.query));
       return;
@@ -253,8 +278,10 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
 
     try {
       final results = await _placesService.search(event.query);
+      if (requestId != _searchRequestId) return;
       emit(NewTravelPlacesLoaded(suggestions: results, query: event.query));
     } catch (e) {
+      if (requestId != _searchRequestId) return;
       emit(NewTravelFailure(message: e.toString()));
     }
   }

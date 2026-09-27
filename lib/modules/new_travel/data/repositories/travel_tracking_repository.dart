@@ -54,6 +54,29 @@ class TravelTrackingRepository implements ITravelTrackingRepository {
       routePolyline = destRoute['encodedPolyline'] as String?;
     }
 
+    // GET /api/travels/{id} agora vem com nome/foto/veículo do motorista
+    // embutidos (backend) — antes disso, o app buscava esses dados à parte
+    // via GET /api/drivers/{id}, endpoint que hoje exige papel GlobalAdmin
+    // (fechamos o IDOR que deixava qualquer autenticado ler o perfil
+    // completo — CPF/RG incluídos — de qualquer motorista). Um passageiro
+    // chamando aquele endpoint sempre tomava 403; a UI de acompanhamento
+    // ficava sem nome/foto/veículo do motorista (e, em alguns fluxos,
+    // presa esperando essa chamada nunca completar direito).
+    final driverId = data['driverId'] as String?;
+    final driverName = data['driverName'] as String?;
+    DriverInfoEntity? driver;
+    if (driverId != null && driverName != null) {
+      driver = DriverInfoEntity(
+        driverId: driverId,
+        fullName: driverName,
+        photoUrl: data['driverPhotoUrl'] as String?,
+        vehicleBrand: data['vehicleBrand'] as String?,
+        vehicleModel: data['vehicleModel'] as String?,
+        vehiclePlate: data['vehiclePlate'] as String?,
+        travelCount: data['driverTravelCount'] as int?,
+      );
+    }
+
     return TravelTrackingEntity(
       travelId: data['travelId'] as String,
       orderId: data['orderId'] as String,
@@ -64,7 +87,8 @@ class TravelTrackingRepository implements ITravelTrackingRepository {
       finishedAt: DateTime.tryParse(data['finishedAt']?.toString() ?? ''),
       cancelledAt: DateTime.tryParse(data['cancelledAt']?.toString() ?? ''),
       cancellationReason: data['cancellationReason'] as String?,
-      driverId: data['driverId'] as String?,
+      driverId: driverId,
+      driver: driver,
       destinationLatitude: destLat,
       destinationLongitude: destLng,
       routePolyline: routePolyline,
