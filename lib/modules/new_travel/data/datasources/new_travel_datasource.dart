@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:moto_passenger/core/errors/exceptions.dart';
 
 abstract class INewTravelDatasource {
   Future<Map<String, dynamic>> createOrder(Map<String, dynamic> request);
@@ -40,7 +41,21 @@ class NewTravelDatasource implements INewTravelDatasource {
           );
         }
       }
-      throw Exception(e.message ?? 'Erro ao criar viagem');
+      if (e.response?.statusCode == 429) {
+        throw RateLimitedException(
+          _extractErrorMessage(e) ??
+              'Muitos pedidos de corrida em pouco tempo. Aguarde alguns minutos e tente novamente.',
+        );
+      }
+      if (e.response?.statusCode == 400) {
+        throw ValidationException(
+          _extractErrorMessage(e) ?? 'Dados inválidos para criar a viagem.',
+        );
+      }
+      if ((e.response?.statusCode ?? 0) >= 500) {
+        throw const ServerException();
+      }
+      throw _mapNetworkFallback(e, 'Erro ao criar viagem');
     }
   }
 
@@ -59,7 +74,21 @@ class NewTravelDatasource implements INewTravelDatasource {
           );
         }
       }
-      throw Exception(e.message ?? 'Erro ao criar viagem');
+      if (e.response?.statusCode == 429) {
+        throw RateLimitedException(
+          _extractErrorMessage(e) ??
+              'Muitos pedidos de corrida em pouco tempo. Aguarde alguns minutos e tente novamente.',
+        );
+      }
+      if (e.response?.statusCode == 400) {
+        throw ValidationException(
+          _extractErrorMessage(e) ?? 'Dados inválidos para criar a viagem.',
+        );
+      }
+      if ((e.response?.statusCode ?? 0) >= 500) {
+        throw const ServerException();
+      }
+      throw _mapNetworkFallback(e, 'Erro ao criar viagem');
     }
   }
 
@@ -73,7 +102,7 @@ class NewTravelDatasource implements INewTravelDatasource {
       if (e.response?.statusCode == 404 || e.response?.statusCode == 204) {
         return null;
       }
-      throw Exception(e.message ?? 'Erro ao verificar pedidos pendentes');
+      throw _mapNetworkFallback(e, 'Erro ao verificar pedidos pendentes');
     }
   }
 
@@ -85,7 +114,31 @@ class NewTravelDatasource implements INewTravelDatasource {
       if (e.response?.statusCode == 404) {
         throw Exception('Pedido não encontrado ou já foi processado');
       }
-      throw Exception(e.message ?? 'Erro ao cancelar pedido');
+      throw _mapNetworkFallback(e, 'Erro ao cancelar pedido');
     }
+  }
+
+  String? _extractErrorMessage(DioException e) {
+    final data = e.response?.data;
+    if (data is Map && data['error'] is String) {
+      return data['error'] as String;
+    }
+    return null;
+  }
+
+  // PSG-10: sem resposta HTTP nenhuma (timeout, sem internet, DNS/conexão
+  // recusada) o código caía num `Exception(e.message)` cru — geralmente a
+  // string técnica do Dio (`DioException [connection error]: ...`), exibida
+  // direto pro passageiro. Mapeia pra `NetworkException`, com mensagem em
+  // português, igual ao padrão já usado nos outros datasources do app.
+  Exception _mapNetworkFallback(DioException e, String fallbackMessage) {
+    if (e.response == null ||
+        e.type == DioExceptionType.connectionTimeout ||
+        e.type == DioExceptionType.receiveTimeout ||
+        e.type == DioExceptionType.sendTimeout ||
+        e.type == DioExceptionType.connectionError) {
+      return const NetworkException();
+    }
+    return Exception(e.message ?? fallbackMessage);
   }
 }

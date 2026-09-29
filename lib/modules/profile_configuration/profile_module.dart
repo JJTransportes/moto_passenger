@@ -2,6 +2,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:moto_passenger/modules/common_module.dart';
 import 'package:moto_passenger/modules/delete_account/delete_account_module.dart';
+import 'package:moto_passenger/modules/passenger_home/passenger_home_module.dart';
 import 'package:moto_passenger/modules/profile_configuration/data/datasources/i_profile_datasource.dart';
 import 'package:moto_passenger/modules/profile_configuration/data/datasources/profile_datasource.dart';
 import 'package:moto_passenger/modules/profile_configuration/data/repositories/i_profile_repository.dart';
@@ -21,6 +22,7 @@ class ProfileModule extends Module {
   @override
   List<Module> get imports => [
     CommonModule(),
+    PassengerHomeModule(),
   ];
 
   @override

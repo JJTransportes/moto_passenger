@@ -56,6 +56,13 @@ class DeviceConflictException implements Exception {
   String toString() => message;
 }
 
+class ForbiddenException implements Exception {
+  final String message;
+  const ForbiddenException([this.message = 'Ação não permitida.']);
+  @override
+  String toString() => message;
+}
+
 class DeviceMismatchException implements Exception {
   final String message;
   const DeviceMismatchException([
