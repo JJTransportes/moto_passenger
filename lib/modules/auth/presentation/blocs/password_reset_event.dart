@@ -5,11 +5,7 @@ sealed class PasswordResetEvent {
 }
 
 final class ResetConfirmSubmitted extends PasswordResetEvent {
-  final String code;
   final String newPassword;
 
-  const ResetConfirmSubmitted({
-    required this.code,
-    required this.newPassword,
-  });
+  const ResetConfirmSubmitted({required this.newPassword});
 }

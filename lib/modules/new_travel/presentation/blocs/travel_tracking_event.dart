@@ -46,3 +46,11 @@ class DistanceUpdated extends TravelTrackingEvent {
   final Map<String, dynamic> data;
   const DistanceUpdated(this.data);
 }
+
+/// PSG-08: disparado quando o app vai para background — para o timer de
+/// polling (SignalR também some nesse período) até o app voltar ao
+/// foreground e a página disparar um novo [LoadTravel], que já reinicia o
+/// polling e força um refresh do estado mais atual.
+class PollingPaused extends TravelTrackingEvent {
+  const PollingPaused();
+}

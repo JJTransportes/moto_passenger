@@ -1,3 +1,4 @@
+import 'package:moto_passenger/core/config/app_config.dart';
 import 'package:moto_passenger/modules/profile_configuration/domain/entities/profile_entity.dart';
 
 class ProfileModel {
@@ -16,23 +17,20 @@ class ProfileModel {
   });
 
   factory ProfileModel.fromJson(Map<String, dynamic> json) {
+    var photoUrl = json['photoUrl'] as String?;
+    if (photoUrl != null &&
+        photoUrl.isNotEmpty &&
+        !photoUrl.startsWith('http://') &&
+        !photoUrl.startsWith('https://')) {
+      photoUrl = '${AppConfig.getBaseUrl()}$photoUrl';
+    }
     return ProfileModel(
-      id: json['id'] as String,
-      fullName: json['name'] as String,
+      id: json['passengerId'] as String,
+      fullName: json['fullName'] as String,
       email: json['email'] as String,
       phone: json['phone'] as String?,
-      photoUrl: json['photoUrl'] as String?,
+      photoUrl: photoUrl,
     );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'name': fullName,
-      'email': email,
-      if (phone != null) 'phone': phone,
-      if (photoUrl != null) 'photoUrl': photoUrl,
-    };
   }
 
   ProfileEntity toEntity() {
