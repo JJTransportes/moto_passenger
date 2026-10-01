@@ -39,6 +39,7 @@ class _NewTravelPageState extends State<NewTravelPage> {
   // "Resumo da Viagem" empilhadas ao tocar em vários pontos antes da
   // primeira rota calculada terminar/fechar.
   bool _isSelectingDestination = false;
+  bool _isRouteBottomSheetOpen = false;
 
   // PSG-02: defesa em profundidade, independente do bloc — o PSG-01 já
   // corrige a causa raiz do travamento (status `timeout` gera diálogo com
@@ -98,10 +99,15 @@ class _NewTravelPageState extends State<NewTravelPage> {
               },
             );
           case NewTravelNoDriversAvailable(:final message):
-            if (Navigator.of(context).canPop()) {
+            // `canPop` também é true para a própria página. O código antigo
+            // podia fechar a NewTravelPage antes de exibir o diálogo, deixando
+            // o passageiro sem retorno visível do 404 da API.
+            if (_isRouteBottomSheetOpen) {
               Navigator.of(context).pop();
             }
-            _showNoDriversDialog(message);
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _showNoDriversDialog(message);
+            });
           case NewTravelFailure(:final message):
             setState(() => _isSelectingDestination = false);
             ScaffoldMessenger.of(context).showSnackBar(
@@ -457,6 +463,7 @@ class _NewTravelPageState extends State<NewTravelPage> {
 
   void _showRouteBottomSheet(TravelRouteEntity route) {
     final distKm = (route.distanceMeters / 1000).toStringAsFixed(1);
+    _isRouteBottomSheetOpen = true;
 
     showModalBottomSheet(
       context: context,
@@ -478,7 +485,12 @@ class _NewTravelPageState extends State<NewTravelPage> {
         },
       ),
     ).whenComplete(() {
-      if (mounted) setState(() => _isSelectingDestination = false);
+      if (mounted) {
+        setState(() {
+          _isRouteBottomSheetOpen = false;
+          _isSelectingDestination = false;
+        });
+      }
     });
   }
 
