@@ -185,8 +185,12 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
       };
 
       final result = event.orderType == OrderType.normal
-          ? await _repository.createOrder(request) //
-          : await _repository.createPriorityOrder(request);
+          ? await _repository.createOrder(request).timeout(
+              const Duration(seconds: 12),
+            )
+          : await _repository.createPriorityOrder(request).timeout(
+              const Duration(seconds: 12),
+            );
 
       emit(
         NewTravelCreated(
