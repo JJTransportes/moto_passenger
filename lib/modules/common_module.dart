@@ -10,7 +10,6 @@ import 'package:moto_passenger/core/location/location_service.dart';
 import 'package:moto_passenger/core/maps/i_places_autocomplete_service.dart';
 import 'package:moto_passenger/core/maps/places_autocomplete_service.dart';
 import 'package:moto_passenger/core/network/signalr_service.dart';
-import 'package:moto_passenger/core/notifications/push_notification_service.dart';
 import 'package:moto_passenger/modules/auth/data/datasources/auth_datasource.dart';
 import 'package:moto_passenger/modules/auth/data/datasources/i_auth_datasource.dart';
 import 'package:moto_passenger/modules/auth/data/repositories/auth_repository.dart';
@@ -26,7 +25,6 @@ class CommonModule extends Module {
     i.addSingleton<TravelLocalRepository>(TravelLocalRepository.new);
     i.addSingleton<SignOutService>(SignOutService.new);
     i.addSingleton<SignalRService>(SignalRService.new);
-    i.addSingleton<PushNotificationService>(PushNotificationService.new);
     i.addSingleton<LocationService>(LocationService.new);
     i.addSingleton<IPlacesAutocompleteService>(PlacesAutocompleteService.new);
     i.add<IAuthDatasource>(AuthDatasource.new);

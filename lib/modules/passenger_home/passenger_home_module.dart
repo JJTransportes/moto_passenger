@@ -1,7 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_modular/flutter_modular.dart';
-import 'package:moto_passenger/core/local_db/repositories/profile_local_repository.dart';
-import 'package:moto_passenger/core/local_db/repositories/travel_local_repository.dart';
 import 'package:moto_passenger/modules/common_module.dart';
 import 'package:moto_passenger/modules/passenger_home/data/datasources/i_passenger_home_datasource.dart';
 import 'package:moto_passenger/modules/passenger_home/data/datasources/passenger_home_datasource.dart';
@@ -28,15 +26,7 @@ class PassengerHomeModule extends Module {
     i.add<IGetPassengerProfileUsecase>(GetPassengerProfileUsecase.new);
     i.add<IGetActiveTravelUsecase>(GetActiveTravelUsecase.new);
     i.add<IGetLastTravelsUsecase>(GetLastTravelsUsecase.new);
-    i.addSingleton<PassengerHomeBloc>(
-      () => PassengerHomeBloc(
-        getProfile: i.get<IGetPassengerProfileUsecase>(),
-        getActiveTravel: i.get<IGetActiveTravelUsecase>(),
-        getLastTravels: i.get<IGetLastTravelsUsecase>(),
-        profileLocal: i.get<ProfileLocalRepository>(),
-        travelLocal: i.get<TravelLocalRepository>(),
-      ),
-    );
+    i.addSingleton<PassengerHomeBloc>(PassengerHomeBloc.new);
   }
 
   @override

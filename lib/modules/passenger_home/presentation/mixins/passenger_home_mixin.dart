@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:moto_passenger/core/auth/sign_out_service.dart';
-import 'package:moto_passenger/core/theme/app_theme.dart';
+import 'package:moto_passenger/design_system/design_system.dart';
 import 'package:moto_passenger/modules/passenger_home/domain/entities/passenger_profile_entity.dart';
 import 'package:moto_passenger/modules/passenger_home/domain/entities/travel_summary_entity.dart';
 import 'package:moto_passenger/modules/passenger_home/presentation/blocs/passenger_home_bloc.dart';
@@ -38,13 +38,16 @@ mixin PassengerHomeMixin on State<PassengerHomePage> {
           if (currentTravel != null) ...[
             CurrentTravelCard(
               travel: currentTravel,
-              onTap: () {
-                Modular.to.pushNamed(
+              onTap: () async {
+                await Modular.to.pushNamed(
                   '/new-travel/tracking',
                   arguments: {
                     'travelId': currentTravel.travelId,
                   },
                 );
+                if (mounted) {
+                  BlocProvider.of<PassengerHomeBloc>(context).add(const RefreshPassengerHome());
+                }
               },
             ),
             const SizedBox(height: 16),
@@ -58,7 +61,6 @@ mixin PassengerHomeMixin on State<PassengerHomePage> {
   Widget defaultState() => const SizedBox.shrink();
 
   Widget failureState(String message) => Scaffold(
-    backgroundColor: AppColors.white,
     body: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: SafeArea(
@@ -70,13 +72,13 @@ mixin PassengerHomeMixin on State<PassengerHomePage> {
               onSettings: () => Modular.to.pushNamed('/profile'),
               onAvatarTap: () => Modular.to.pushNamed('/profile'),
             ),
-            const Expanded(
+            Expanded(
               child: Center(
                 child: Padding(
-                  padding: EdgeInsets.all(32),
+                  padding: const EdgeInsets.all(32),
                   child: Text(
                     'Erro ao carregar. Toque para tentar novamente.',
-                    style: TextStyle(color: Colors.grey, fontSize: 16),
+                    style: TextStyle(color: context.moto.textSecondary, fontSize: 16),
                     textAlign: TextAlign.center,
                   ),
                 ),
@@ -88,15 +90,26 @@ mixin PassengerHomeMixin on State<PassengerHomePage> {
     ),
   );
 
-  FloatingActionButton homeFab() => FloatingActionButton(
+  FloatingActionButton homeFab({bool hasActiveTravel = false}) => FloatingActionButton(
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(
         MediaQuery.sizeOf(context).height * 0.1,
       ),
     ),
-    backgroundColor: AppColors.primary,
-    onPressed: () => Modular.to.pushNamed('/new-travel'),
-    child: const Icon(Icons.add, color: Colors.white),
+    backgroundColor: hasActiveTravel ? context.moto.textDisabled : context.moto.accent,
+    onPressed: hasActiveTravel
+        ? null
+        : () async {
+            // A Home não recarrega sozinha ao voltar dessa tela (só no pull-
+            // to-refresh) — sem isso, o FAB ficava com o estado antigo (ex.:
+            // habilitado mesmo já tendo uma corrida ativa) até um refresh
+            // manual.
+            await Modular.to.pushNamed('/new-travel');
+            if (mounted) {
+              BlocProvider.of<PassengerHomeBloc>(context).add(const RefreshPassengerHome());
+            }
+          },
+    child: Icon(Icons.add, color: context.moto.textOnAccent),
   );
 
   Widget loadedState(
@@ -110,7 +123,6 @@ mixin PassengerHomeMixin on State<PassengerHomePage> {
   );
 
   Widget loadingState() => Scaffold(
-    backgroundColor: AppColors.white,
     body: SafeArea(
       child: Column(
         children: [

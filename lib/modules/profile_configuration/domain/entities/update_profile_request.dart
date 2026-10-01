@@ -1,17 +1,20 @@
 class UpdateProfileRequest {
-  final String fullName;
-  final String email;
+  final String? fullName;
+  final String? email;
   final String? phone;
+  final String password;
 
   const UpdateProfileRequest({
-    required this.fullName,
-    required this.email,
+    this.fullName,
+    this.email,
     this.phone,
+    required this.password,
   });
 
   Map<String, dynamic> toJson() => {
-        'name': fullName,
-        'email': email,
+        if (fullName != null) 'name': fullName,
+        if (email != null) 'email': email,
         if (phone != null) 'phone': phone,
+        'password': password,
       };
 }

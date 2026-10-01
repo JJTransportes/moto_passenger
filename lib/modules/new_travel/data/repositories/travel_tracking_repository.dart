@@ -43,6 +43,7 @@ class TravelTrackingRepository implements ITravelTrackingRepository {
     // Try sequenceIndex==1 first, fallback to routes[0] for backward compatibility.
     final routes = data['routes'] as List?;
     double? destLat, destLng;
+    String? routePolyline;
     if (routes != null && routes.isNotEmpty) {
       final destRoute = routes.cast<Map<String, dynamic>>().firstWhere(
         (r) => r['sequenceIndex'] == 1,
@@ -50,6 +51,30 @@ class TravelTrackingRepository implements ITravelTrackingRepository {
       );
       destLat = (destRoute['destinationLatitude'] as num?)?.toDouble();
       destLng = (destRoute['destinationLongitude'] as num?)?.toDouble();
+      routePolyline = destRoute['encodedPolyline'] as String?;
+    }
+
+    // GET /api/travels/{id} agora vem com nome/foto/veículo do motorista
+    // embutidos (backend) — antes disso, o app buscava esses dados à parte
+    // via GET /api/drivers/{id}, endpoint que hoje exige papel GlobalAdmin
+    // (fechamos o IDOR que deixava qualquer autenticado ler o perfil
+    // completo — CPF/RG incluídos — de qualquer motorista). Um passageiro
+    // chamando aquele endpoint sempre tomava 403; a UI de acompanhamento
+    // ficava sem nome/foto/veículo do motorista (e, em alguns fluxos,
+    // presa esperando essa chamada nunca completar direito).
+    final driverId = data['driverId'] as String?;
+    final driverName = data['driverName'] as String?;
+    DriverInfoEntity? driver;
+    if (driverId != null && driverName != null) {
+      driver = DriverInfoEntity(
+        driverId: driverId,
+        fullName: driverName,
+        photoUrl: data['driverPhotoUrl'] as String?,
+        vehicleBrand: data['vehicleBrand'] as String?,
+        vehicleModel: data['vehicleModel'] as String?,
+        vehiclePlate: data['vehiclePlate'] as String?,
+        travelCount: data['driverTravelCount'] as int?,
+      );
     }
 
     return TravelTrackingEntity(
@@ -62,8 +87,11 @@ class TravelTrackingRepository implements ITravelTrackingRepository {
       finishedAt: DateTime.tryParse(data['finishedAt']?.toString() ?? ''),
       cancelledAt: DateTime.tryParse(data['cancelledAt']?.toString() ?? ''),
       cancellationReason: data['cancellationReason'] as String?,
+      driverId: driverId,
+      driver: driver,
       destinationLatitude: destLat,
       destinationLongitude: destLng,
+      routePolyline: routePolyline,
     );
   }
 
@@ -74,13 +102,18 @@ class TravelTrackingRepository implements ITravelTrackingRepository {
 
   @override
   Future<DriverInfoEntity> getDriverProfile(String driverId) async {
+    // Backend response (DriverProfileResponse) uses "id"/"name", not
+    // "driverId"/"fullName" — a previous mismatch here meant this always fell
+    // back to a generic name and could throw when "driverId" was missing.
     final data = await _datasource.getDriverProfile(driverId);
     return DriverInfoEntity(
-      driverId: data['driverId'] as String,
-      fullName: data['fullName'] as String? ?? 'Motorista',
+      driverId: data['id'] as String? ?? driverId,
+      fullName: data['name'] as String? ?? 'Motorista',
+      photoUrl: data['photoUrl'] as String?,
+      vehicleBrand: data['vehicle']?['brand'] as String?,
       vehicleModel: data['vehicle']?['model'] as String?,
       vehiclePlate: data['vehicle']?['plate'] as String?,
-      vehicleColor: data['vehicle']?['color'] as String?,
+      travelCount: data['travelCount'] as int?,
     );
   }
 }

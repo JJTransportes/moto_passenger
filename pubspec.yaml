@@ -1,13 +1,15 @@
 name: moto_passenger
 description: "Moto Passenger app."
 publish_to: 'none'
-version: 1.0.0+35
+version: 2.0.0+41
 
 environment:
-  sdk: ^3.8.1
+  sdk: ^3.12.0
 
 dependencies:
   flutter:
+    sdk: flutter
+  flutter_localizations:
     sdk: flutter
   flutter_modular: ^6.3.4
   flutter_bloc: ^9.1.0
@@ -26,7 +28,7 @@ dependencies:
   path_provider: ^2.1.0
   image_picker: ^1.0.0
   permission_handler: ^11.0.0
-  onesignal_flutter: ^5.2.0
+  in_app_update: ^5.0.0
 
 dev_dependencies:
   flutter_test:
@@ -48,3 +50,16 @@ flutter:
   assets:
   - assets/images/
   - ".env"
+  fonts:
+    - family: Sora
+      fonts:
+        - { asset: assets/fonts/Sora-Variable.ttf, weight: 400 }
+        - { asset: assets/fonts/Sora-Variable.ttf, weight: 500 }
+        - { asset: assets/fonts/Sora-Variable.ttf, weight: 600 }
+        - { asset: assets/fonts/Sora-Variable.ttf, weight: 700 }
+    - family: PlusJakartaSans
+      fonts:
+        - { asset: assets/fonts/PlusJakartaSans-Variable.ttf, weight: 400 }
+        - { asset: assets/fonts/PlusJakartaSans-Variable.ttf, weight: 500 }
+        - { asset: assets/fonts/PlusJakartaSans-Variable.ttf, weight: 600 }
+        - { asset: assets/fonts/PlusJakartaSans-Variable.ttf, weight: 700 }
