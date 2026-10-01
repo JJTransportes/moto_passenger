@@ -35,12 +35,12 @@ class RegistrationDatasource implements IRegistrationDatasource {
   Exception _mapDioException(DioException e) {
     switch (e.response?.statusCode) {
       case 400:
-        return const ValidationException(
-          'Dados inválidos. Verifique as informações.',
+        return ValidationException(
+          _extractErrorMessage(e) ?? 'Dados inválidos. Verifique as informações.',
         );
       case 409:
-        return const ValidationException(
-          'Este e-mail ou CPF já está cadastrado.',
+        return ConflictException(
+          _extractErrorMessage(e) ?? 'Este e-mail ou CPF já está cadastrado.',
         );
       case var code when code != null && code >= 500:
         return const ServerException();
@@ -52,5 +52,18 @@ class RegistrationDatasource implements IRegistrationDatasource {
         }
         return NetworkException(e.message ?? 'Erro inesperado');
     }
+  }
+
+  /// O `409` de `/api/registrations` distingue o campo duplicado só pela
+  /// mensagem do servidor (campo `error`: "E-mail já cadastrado.", "CPF já
+  /// cadastrado.", "RG já cadastrado.", "Matrícula já cadastrada." —
+  /// confirmado via chamada real ao backend local) — repassada como está para
+  /// a UI destacar o campo específico.
+  String? _extractErrorMessage(DioException e) {
+    final data = e.response?.data;
+    if (data is Map && data['error'] is String) {
+      return data['error'] as String;
+    }
+    return null;
   }
 }

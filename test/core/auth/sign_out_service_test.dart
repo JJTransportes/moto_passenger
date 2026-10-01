@@ -7,8 +7,6 @@ import 'package:moto_passenger/core/auth/sign_out_service.dart';
 import 'package:moto_passenger/core/local_db/repositories/auth_local_repository.dart';
 import 'package:moto_passenger/core/local_db/repositories/profile_local_repository.dart';
 import 'package:moto_passenger/core/local_db/repositories/travel_local_repository.dart';
-import 'package:moto_passenger/core/notifications/push_notification_service.dart';
-import 'package:moto_passenger/modules/auth/data/datasources/i_auth_datasource.dart';
 
 class MockAuthStorage extends Mock implements AuthStorage {}
 
@@ -17,10 +15,6 @@ class MockAuthLocalRepository extends Mock implements AuthLocalRepository {}
 class MockProfileLocalRepository extends Mock implements ProfileLocalRepository {}
 
 class MockTravelLocalRepository extends Mock implements TravelLocalRepository {}
-
-class MockPushNotificationService extends Mock implements PushNotificationService {}
-
-class MockAuthDatasource extends Mock implements IAuthDatasource {}
 
 class _TestModule extends Module {
   @override
@@ -35,8 +29,6 @@ void main() {
   late MockAuthLocalRepository authLocal;
   late MockProfileLocalRepository profileLocal;
   late MockTravelLocalRepository travelLocal;
-  late MockPushNotificationService pushService;
-  late MockAuthDatasource authDatasource;
   late SignOutService service;
 
   setUp(() {
@@ -44,15 +36,12 @@ void main() {
     authLocal = MockAuthLocalRepository();
     profileLocal = MockProfileLocalRepository();
     travelLocal = MockTravelLocalRepository();
-    pushService = MockPushNotificationService();
-    authDatasource = MockAuthDatasource();
+
     service = SignOutService(
       authStorage,
       authLocal,
       profileLocal,
       travelLocal,
-      pushService,
-      authDatasource,
     );
   });
 
@@ -72,12 +61,9 @@ void main() {
   }
 
   group('SignOutService.signOut', () {
-    testWidgets('calls backend sign-out before clearing local state',
-        (tester) async {
+    testWidgets('clears all local state and navigates to /login', (tester) async {
       await pumpModularApp(tester);
 
-      when(() => pushService.logout()).thenAnswer((_) async {});
-      when(() => authDatasource.signOut()).thenAnswer((_) async {});
       when(() => authStorage.clear()).thenAnswer((_) async {});
       when(() => authLocal.clearAuth()).thenAnswer((_) async {});
       when(() => profileLocal.clearProfile()).thenAnswer((_) async {});
@@ -87,24 +73,22 @@ void main() {
       // Flush do timer de debounce (500ms) do ModularRouterDelegate.navigate
       await tester.pump(const Duration(milliseconds: 600));
 
-      // Ordem: OneSignal → backend sign-out (neutraliza device) → limpeza local
-      verifyInOrder([
-        () => pushService.logout(),
-        () => authDatasource.signOut(),
-        () => authStorage.clear(),
-      ]);
+      // PSG-11: `signOut()` é 100% local (limpa `AuthStorage`/
+      // `AuthLocalRepository`/`ProfileLocalRepository`/`TravelLocalRepository`
+      // e navega pra `/login`) — não há chamada de backend nem de push aqui.
+      // O app passageiro nunca integrou o OneSignal de verdade (decisão de
+      // 24/09/2026, ver PSG-05 no CHECKLIST-MASTER.md); os comentários e
+      // nomes de teste antigos ("OneSignal → backend sign-out") descreviam
+      // um fluxo que nunca existiu neste serviço.
+      verify(() => authStorage.clear()).called(1);
       verify(() => authLocal.clearAuth()).called(1);
       verify(() => profileLocal.clearProfile()).called(1);
       verify(() => travelLocal.clearTravels()).called(1);
     });
 
-    testWidgets('backend sign-out failure does not block local sign out',
-        (tester) async {
+    testWidgets('clears all local state exactly once per call', (tester) async {
       await pumpModularApp(tester);
 
-      when(() => pushService.logout()).thenAnswer((_) async {});
-      when(() => authDatasource.signOut())
-          .thenThrow(Exception('token expirado'));
       when(() => authStorage.clear()).thenAnswer((_) async {});
       when(() => authLocal.clearAuth()).thenAnswer((_) async {});
       when(() => profileLocal.clearProfile()).thenAnswer((_) async {});
@@ -113,26 +97,10 @@ void main() {
       await service.signOut();
       await tester.pump(const Duration(milliseconds: 600));
 
-      verify(() => authDatasource.signOut()).called(1);
       verify(() => authStorage.clear()).called(1);
       verify(() => authLocal.clearAuth()).called(1);
-    });
-
-    testWidgets('push logout failure does not block sign out', (tester) async {
-      await pumpModularApp(tester);
-
-      when(() => pushService.logout()).thenThrow(Exception('OneSignal down'));
-      when(() => authDatasource.signOut()).thenAnswer((_) async {});
-      when(() => authStorage.clear()).thenAnswer((_) async {});
-      when(() => authLocal.clearAuth()).thenAnswer((_) async {});
-      when(() => profileLocal.clearProfile()).thenAnswer((_) async {});
-      when(() => travelLocal.clearTravels()).thenAnswer((_) async {});
-
-      await service.signOut();
-      await tester.pump(const Duration(milliseconds: 600));
-
-      verify(() => authDatasource.signOut()).called(1);
-      verify(() => authStorage.clear()).called(1);
+      verify(() => profileLocal.clearProfile()).called(1);
+      verify(() => travelLocal.clearTravels()).called(1);
     });
   });
 }

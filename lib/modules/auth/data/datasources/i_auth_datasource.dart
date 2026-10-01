@@ -1,3 +1,4 @@
+import 'package:moto_passenger/modules/auth/data/models/password_policy_model.dart';
 import 'package:moto_passenger/modules/auth/data/models/sign_in_response_model.dart';
 
 abstract class IAuthDatasource {
@@ -30,23 +31,41 @@ abstract class IAuthDatasource {
   /// Idempotent — backend does UPSERT.
   Future<void> registerDeviceToken(String playerId, String platform);
 
-  /// Solicita o código de redefinição de senha para [email].
+  /// Solicita o código de redefinição de senha para [email] (envia
+  /// `expectedRole: "Passenger"` fixo, já que este app é exclusivo desse
+  /// perfil).
   ///
-  /// Não lança para e-mail não cadastrado (HTTP 404): por design anti-enumeração,
-  /// "e-mail existe" e "e-mail não existe" são indistinguíveis para quem está do
-  /// lado de fora. Apenas [RateLimitedException] e falhas de rede/servidor são
-  /// propagadas.
+  /// Lança [NotFoundException] com a mensagem do servidor quando o e-mail não
+  /// está cadastrado (ou está cadastrado só com outra role) — decisão de
+  /// segurança do backend, o app expõe essa mensagem ao usuário (não é mais
+  /// anti-enumeração). [RateLimitedException] e falhas de rede/servidor
+  /// também são propagadas.
   Future<void> requestPasswordReset(String email);
 
-  /// Confirma a redefinição de senha com o [code] de 6 dígitos recebido por
-  /// e-mail e a [newPassword].
+  /// Verifica o [code] de 6 dígitos recebido por e-mail para [email] e retorna
+  /// o `resetToken` de uso único (válido por 10 min) a ser usado em
+  /// [confirmPasswordReset].
   ///
-  /// Lança [ValidationException] (código inválido/expirado ou senha fora da
-  /// política — a mensagem do servidor distingue os dois), [ConflictException]
-  /// (código já utilizado) ou [RateLimitedException].
-  Future<void> confirmPasswordReset({
+  /// Lança [ValidationException] (código inválido/expirado),
+  /// [ConflictException] (código já utilizado) ou [RateLimitedException] (5
+  /// tentativas erradas em 30 min).
+  Future<String> verifyPasswordResetCode({
     required String email,
     required String code,
+  });
+
+  /// Confirma a redefinição de senha com o [resetToken] obtido em
+  /// [verifyPasswordResetCode] e a [newPassword].
+  ///
+  /// Lança [ValidationException] (token inválido/expirado ou senha fora da
+  /// política — a mensagem do servidor distingue os dois) ou
+  /// [ConflictException] (token já utilizado).
+  Future<void> confirmPasswordReset({
+    required String resetToken,
     required String newPassword,
   });
+
+  /// Busca a política de senha vigente (`GET /api/auth/password-policy`,
+  /// público, sem auth).
+  Future<PasswordPolicyModel> getPasswordPolicy();
 }
