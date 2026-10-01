@@ -308,9 +308,9 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        title: const Text('Nenhum motorista disponível'),
+        title: const Text('Nenhum motorista foi encontrado'),
         content: const Text(
-          'No momento não há motoristas disponíveis para atender sua viagem. '
+          'Nenhum motorista foi encontrado no momento para atender sua viagem. '
           'Tente novamente em alguns instantes.',
         ),
         actions: [

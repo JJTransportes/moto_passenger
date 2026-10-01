@@ -39,6 +39,8 @@ class _NewTravelPageState extends State<NewTravelPage> {
   // "Resumo da Viagem" empilhadas ao tocar em vários pontos antes da
   // primeira rota calculada terminar/fechar.
   bool _isSelectingDestination = false;
+  bool _isRouteBottomSheetOpen = false;
+  Future<dynamic>? _routeBottomSheetClosed;
 
   // PSG-02: defesa em profundidade, independente do bloc — o PSG-01 já
   // corrige a causa raiz do travamento (status `timeout` gera diálogo com
@@ -98,10 +100,7 @@ class _NewTravelPageState extends State<NewTravelPage> {
               },
             );
           case NewTravelNoDriversAvailable(:final message):
-            if (Navigator.of(context).canPop()) {
-              Navigator.of(context).pop();
-            }
-            _showNoDriversDialog(message);
+            unawaited(_handleNoDriversAvailable(message));
           case NewTravelFailure(:final message):
             setState(() => _isSelectingDestination = false);
             ScaffoldMessenger.of(context).showSnackBar(
@@ -457,8 +456,9 @@ class _NewTravelPageState extends State<NewTravelPage> {
 
   void _showRouteBottomSheet(TravelRouteEntity route) {
     final distKm = (route.distanceMeters / 1000).toStringAsFixed(1);
+    _isRouteBottomSheetOpen = true;
 
-    showModalBottomSheet(
+    final closed = showModalBottomSheet<void>(
       context: context,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -477,9 +477,27 @@ class _NewTravelPageState extends State<NewTravelPage> {
           );
         },
       ),
-    ).whenComplete(() {
-      if (mounted) setState(() => _isSelectingDestination = false);
+    );
+    _routeBottomSheetClosed = closed;
+    closed.whenComplete(() {
+      if (mounted) {
+        setState(() {
+          _isRouteBottomSheetOpen = false;
+          _isSelectingDestination = false;
+        });
+      }
     });
+  }
+
+  Future<void> _handleNoDriversAvailable(String message) async {
+    // `canPop` também é true para a própria página. Fechamos somente o
+    // resumo, esperamos a rota modal encerrar e só então apresentamos o
+    // diálogo. Isso evita que a animação de fechamento descarte o modal novo.
+    if (_isRouteBottomSheetOpen) {
+      Navigator.of(context).pop();
+      await _routeBottomSheetClosed;
+    }
+    if (mounted) await _showNoDriversDialog(message);
   }
 
   Future<void> _showNoDriversDialog(String message) async {
@@ -489,7 +507,7 @@ class _NewTravelPageState extends State<NewTravelPage> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        title: const Text('Nenhum motorista disponível'),
+        title: const Text('Nenhum motorista foi encontrado'),
         content: Text(message),
         actions: [
           TextButton(
@@ -664,82 +682,105 @@ class _RouteBottomSheetContentState extends State<_RouteBottomSheetContent> {
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  'Resumo da viagem',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: MotoSpace.s4),
-                MotoRoute(
-                  from: (widget.route.departureAddress, 'Embarque'),
-                  to: (widget.route.destinationAddress, 'Destino'),
-                ),
-                const SizedBox(height: MotoSpace.s4),
-                MotoMetrics(
-                  items: [
-                    (widget.distKm, 'km', 'Distância'),
-                    (
-                      _formatTravelTime(widget.route.timeMinutes),
-                      '',
-                      'Duração',
-                    ),
-                  ],
-                ),
-                Visibility(
-                  visible: widget.hasPriorityAccess,
-                  child: Row(
-                    spacing: 16,
-                    mainAxisAlignment: MainAxisAlignment.start,
-                    children: [
-                      Switch(
-                        value: widget.orderType == OrderType.priority,
-                        onChanged: (value) {
-                          widget.orderType =
-                              widget.orderType == OrderType.normal
-                              ? OrderType.priority
-                              : OrderType.normal;
-                          setState(() {});
-                        },
-                      ),
-                      Text(
-                        'Pedido com prioridade',
-                        style: TextStyle(color: context.moto.textPrimary),
-                      ),
-                    ],
-                  ),
-                ),
-                const Spacer(),
-                Row(
-                  spacing: MotoSpace.s4,
-                  children: [
-                    Expanded(
-                      child: MotoButton(
-                        label: 'Cancelar',
-                        variant: MotoButtonVariant.glass,
-                        onPressed: isCreating ? null : Modular.to.pop,
-                      ),
-                    ),
-                    Expanded(
-                      flex: 2,
-                      child: MotoButton(
-                        label: 'Solicitar viagem',
-                        loading: isCreating,
-                        onPressed: isCreating
-                            ? null
-                            : () => BlocProvider.of<NewTravelBloc>(context).add(
-                                ConfirmTravel(
-                                  originLat: widget.route.originLat,
-                                  originLng: widget.route.originLng,
-                                  destinationLat: widget.route.destinationLat,
-                                  destinationLng: widget.route.destinationLng,
-                                  orderType: widget.orderType,
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Resumo da viagem',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: MotoSpace.s4),
+                        MotoRoute(
+                          from: (widget.route.departureAddress, 'Embarque'),
+                          to: (widget.route.destinationAddress, 'Destino'),
+                        ),
+                        const SizedBox(height: MotoSpace.s4),
+                        MotoMetrics(
+                          items: [
+                            (widget.distKm, 'km', 'Distância'),
+                            (
+                              _formatTravelTime(widget.route.timeMinutes),
+                              '',
+                              'Duração',
+                            ),
+                          ],
+                        ),
+                        Visibility(
+                          visible: widget.hasPriorityAccess,
+                          child: Row(
+                            spacing: 16,
+                            children: [
+                              Switch(
+                                value: widget.orderType == OrderType.priority,
+                                onChanged: (value) {
+                                  widget.orderType =
+                                      widget.orderType == OrderType.normal
+                                      ? OrderType.priority
+                                      : OrderType.normal;
+                                  setState(() {});
+                                },
+                              ),
+                              Expanded(
+                                child: Text(
+                                  'Pedido com prioridade',
+                                  style: TextStyle(color: context.moto.textPrimary),
                                 ),
                               ),
-                      ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
+                ),
+                const SizedBox(height: MotoSpace.s3),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final stackActions = constraints.maxWidth < 320 ||
+                        MediaQuery.textScalerOf(context).scale(14) > 17;
+                    final cancelButton = MotoButton(
+                      label: 'Cancelar',
+                      variant: MotoButtonVariant.glass,
+                      onPressed: isCreating ? null : Modular.to.pop,
+                    );
+                    final requestButton = MotoButton(
+                      label: 'Solicitar viagem',
+                      loading: isCreating,
+                      onPressed: isCreating
+                          ? null
+                          : () => BlocProvider.of<NewTravelBloc>(context).add(
+                              ConfirmTravel(
+                                originLat: widget.route.originLat,
+                                originLng: widget.route.originLng,
+                                destinationLat: widget.route.destinationLat,
+                                destinationLng: widget.route.destinationLng,
+                                orderType: widget.orderType,
+                              ),
+                            ),
+                    );
+
+                    if (stackActions) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          requestButton,
+                          const SizedBox(height: MotoSpace.s2),
+                          cancelButton,
+                        ],
+                      );
+                    }
+
+                    return Row(
+                      spacing: MotoSpace.s4,
+                      children: [
+                        Expanded(child: cancelButton),
+                        Expanded(flex: 2, child: requestButton),
+                      ],
+                    );
+                  },
                 ),
               ],
             ),

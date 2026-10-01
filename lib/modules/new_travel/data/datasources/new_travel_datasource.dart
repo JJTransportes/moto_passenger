@@ -29,7 +29,15 @@ class NewTravelDatasource implements INewTravelDatasource {
   @override
   Future<Map<String, dynamic>> createOrder(Map<String, dynamic> request) async {
     try {
-      final response = await _dio.post('/api/travels/orders', data: request);
+      // Trata o 404 de "sem motoristas" como resposta normal. Assim esse
+      // cenário de negócio não depende da cadeia de interceptadores de erro
+      // do Dio para chegar ao Bloc.
+      final response = await _dio.post(
+        '/api/travels/orders',
+        data: request,
+        options: Options(validateStatus: _acceptNoDriversResponse),
+      );
+      _throwIfNoDriversAvailable(response.statusCode, response.data);
       return response.data as Map<String, dynamic>;
     } on DioException catch (e) {
       if (e.response?.statusCode == 404 && e.response?.data is Map) {
@@ -62,7 +70,12 @@ class NewTravelDatasource implements INewTravelDatasource {
   @override
   Future<Map<String, dynamic>> createPriorityOrder(Map<String, dynamic> request) async {
     try {
-      final response = await _dio.post('/api/travels/priority-orders', data: request);
+      final response = await _dio.post(
+        '/api/travels/priority-orders',
+        data: request,
+        options: Options(validateStatus: _acceptNoDriversResponse),
+      );
+      _throwIfNoDriversAvailable(response.statusCode, response.data);
       return response.data as Map<String, dynamic>;
     } on DioException catch (e) {
       if (e.response?.statusCode == 404 && e.response?.data is Map) {
@@ -124,6 +137,20 @@ class NewTravelDatasource implements INewTravelDatasource {
       return data['error'] as String;
     }
     return null;
+  }
+
+  static bool _acceptNoDriversResponse(int? status) =>
+      status != null && (status < 400 || status == 404);
+
+  void _throwIfNoDriversAvailable(int? statusCode, dynamic data) {
+    if (statusCode != 404 || data is! Map) return;
+    final body = Map<String, dynamic>.from(data);
+    if (body['type'] != 'no_drivers_available') return;
+
+    throw NoDriversAvailableException(
+      partitionAcronym: body['partitionAcronym'] as String? ?? '',
+      message: body['message'] as String? ?? 'Nenhum motorista disponível',
+    );
   }
 
   // PSG-10: sem resposta HTTP nenhuma (timeout, sem internet, DNS/conexão
