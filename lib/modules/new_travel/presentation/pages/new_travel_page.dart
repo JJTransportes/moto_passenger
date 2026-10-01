@@ -40,6 +40,7 @@ class _NewTravelPageState extends State<NewTravelPage> {
   // primeira rota calculada terminar/fechar.
   bool _isSelectingDestination = false;
   bool _isRouteBottomSheetOpen = false;
+  Future<dynamic>? _routeBottomSheetClosed;
 
   // PSG-02: defesa em profundidade, independente do bloc — o PSG-01 já
   // corrige a causa raiz do travamento (status `timeout` gera diálogo com
@@ -99,15 +100,7 @@ class _NewTravelPageState extends State<NewTravelPage> {
               },
             );
           case NewTravelNoDriversAvailable(:final message):
-            // `canPop` também é true para a própria página. O código antigo
-            // podia fechar a NewTravelPage antes de exibir o diálogo, deixando
-            // o passageiro sem retorno visível do 404 da API.
-            if (_isRouteBottomSheetOpen) {
-              Navigator.of(context).pop();
-            }
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              _showNoDriversDialog(message);
-            });
+            unawaited(_handleNoDriversAvailable(message));
           case NewTravelFailure(:final message):
             setState(() => _isSelectingDestination = false);
             ScaffoldMessenger.of(context).showSnackBar(
@@ -465,7 +458,7 @@ class _NewTravelPageState extends State<NewTravelPage> {
     final distKm = (route.distanceMeters / 1000).toStringAsFixed(1);
     _isRouteBottomSheetOpen = true;
 
-    showModalBottomSheet(
+    final closed = showModalBottomSheet<void>(
       context: context,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -484,7 +477,9 @@ class _NewTravelPageState extends State<NewTravelPage> {
           );
         },
       ),
-    ).whenComplete(() {
+    );
+    _routeBottomSheetClosed = closed;
+    closed.whenComplete(() {
       if (mounted) {
         setState(() {
           _isRouteBottomSheetOpen = false;
@@ -492,6 +487,17 @@ class _NewTravelPageState extends State<NewTravelPage> {
         });
       }
     });
+  }
+
+  Future<void> _handleNoDriversAvailable(String message) async {
+    // `canPop` também é true para a própria página. Fechamos somente o
+    // resumo, esperamos a rota modal encerrar e só então apresentamos o
+    // diálogo. Isso evita que a animação de fechamento descarte o modal novo.
+    if (_isRouteBottomSheetOpen) {
+      Navigator.of(context).pop();
+      await _routeBottomSheetClosed;
+    }
+    if (mounted) await _showNoDriversDialog(message);
   }
 
   Future<void> _showNoDriversDialog(String message) async {
