@@ -489,7 +489,7 @@ class _NewTravelPageState extends State<NewTravelPage> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        title: const Text('Nenhum motorista disponível'),
+        title: const Text('Nenhum motorista foi encontrado'),
         content: Text(message),
         actions: [
           TextButton(
