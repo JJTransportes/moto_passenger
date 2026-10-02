@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart' hide ReadContext;
@@ -46,6 +47,7 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
   double? _lastDriverLng;
   String? _authToken;
   LatLng? _myLocation;
+  BitmapDescriptor? _driverMarkerIcon;
 
   @override
   Widget build(BuildContext context) {
@@ -205,6 +207,75 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
       _connectAndLoad();
     });
     _loadMyLocation();
+    _loadDriverMarkerIcon();
+  }
+
+  Future<void> _loadDriverMarkerIcon() async {
+    const size = 112.0;
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    final center = const Offset(size / 2, size / 2);
+
+    canvas.drawCircle(
+      center,
+      50,
+      Paint()..color = const Color(0xFF1F4FE0),
+    );
+    canvas.drawCircle(
+      center,
+      47,
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 5,
+    );
+
+    final carPaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
+    final car = Path()
+      ..moveTo(27, 61)
+      ..lineTo(34, 43)
+      ..quadraticBezierTo(37, 36, 45, 36)
+      ..lineTo(67, 36)
+      ..quadraticBezierTo(75, 36, 78, 43)
+      ..lineTo(85, 61)
+      ..quadraticBezierTo(90, 64, 90, 70)
+      ..lineTo(90, 77)
+      ..quadraticBezierTo(90, 82, 85, 82)
+      ..lineTo(79, 82)
+      ..quadraticBezierTo(75, 82, 75, 77)
+      ..lineTo(37, 77)
+      ..quadraticBezierTo(37, 82, 33, 82)
+      ..lineTo(27, 82)
+      ..quadraticBezierTo(22, 82, 22, 77)
+      ..lineTo(22, 70)
+      ..quadraticBezierTo(22, 64, 27, 61)
+      ..close();
+    canvas.drawPath(car, carPaint);
+    canvas.drawCircle(
+      const Offset(36, 68),
+      5,
+      Paint()..color = const Color(0xFF1F4FE0),
+    );
+    canvas.drawCircle(
+      const Offset(76, 68),
+      5,
+      Paint()..color = const Color(0xFF1F4FE0),
+    );
+
+    final picture = recorder.endRecording();
+    final image = await picture.toImage(size.toInt(), size.toInt());
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    image.dispose();
+    if (!mounted || bytes == null) return;
+    setState(() {
+      _driverMarkerIcon = BitmapDescriptor.bytes(
+        bytes.buffer.asUint8List(),
+        width: 44,
+        height: 44,
+      );
+    });
   }
 
   // PSG-08: com o app em background, o SignalR desconecta e o polling do
@@ -258,7 +329,9 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
         Marker(
           markerId: const MarkerId('driver'),
           position: LatLng(driverLat, driverLng),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
+          icon:
+              _driverMarkerIcon ??
+              BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
           infoWindow: const InfoWindow(title: 'Motorista'),
         ),
       );
