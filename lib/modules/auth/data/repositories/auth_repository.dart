@@ -1,3 +1,7 @@
+import 'dart:async';
+import 'dart:developer';
+
+import 'package:moto_passenger/core/notifications/i_push_notification_service.dart';
 import 'package:moto_passenger/modules/auth/data/datasources/i_auth_datasource.dart';
 import 'package:moto_passenger/modules/auth/domain/entities/password_policy_entity.dart';
 import 'package:moto_passenger/modules/auth/domain/entities/user_entity.dart';
@@ -6,8 +10,9 @@ import 'package:result_dart/result_dart.dart';
 
 class AuthRepository implements IAuthRepository {
   final IAuthDatasource _datasource;
+  final IPushNotificationService _push;
 
-  AuthRepository(this._datasource);
+  AuthRepository(this._datasource, this._push);
 
   @override
   AsyncResult<UserEntity> signIn(
@@ -16,7 +21,11 @@ class AuthRepository implements IAuthRepository {
   ) async {
     try {
       final model = await _datasource.signIn(email, password);
-      return Success(model.toEntity());
+      final user = model.toEntity();
+      // Push (spec passenger-push-notifications): identifica o aparelho com o userId
+      // do token, o mesmo que o backend usa para endereçar. Não espera nem afeta o login.
+      unawaited(_identifyForPush(user.id));
+      return Success(user);
     } on Exception catch (e) {
       return Failure(e);
     }
@@ -81,6 +90,14 @@ class AuthRepository implements IAuthRepository {
       return Success(model.toEntity());
     } on Exception catch (e) {
       return Failure(e);
+    }
+  }
+
+  Future<void> _identifyForPush(String userId) async {
+    try {
+      await _push.identify(userId);
+    } catch (e) {
+      log('[PUSH] Identify after sign-in failed (${e.runtimeType}).', name: 'push', level: 900);
     }
   }
 }

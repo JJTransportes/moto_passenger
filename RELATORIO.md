@@ -237,6 +237,7 @@ específico.
   cenário "fecha o app, motorista aceita, reabre o app" (que o próprio código trata bem, ver PSG-12)
   significa que o usuário depende inteiramente de lembrar de checar o app.
 - **Criticidade**: **Crítico**
+- **Status (02/10/2026)**: opção (a) implementada na spec `passenger-push-notifications` — SDK `onesignal_flutter`, inicialização e permissão no splash, identificação por `userId` no login e na sessão restaurada, remoção no `SignOutService` (logout, exclusão de conta e sessão expirada), registro do aparelho, toque (inclusive cold start via `DeepLinkHolder`) e supressão em primeiro plano só na tela da mesma viagem. Testes automatizados verdes; **pendente validação em aparelho real** e a chave APNs no painel do OneSignal (iOS).
 - **Recomendação**: Decidir entre (a) implementar de fato o OneSignal (adicionar dependência,
   `OneSignal.initialize()` no `main.dart`, chamar `registerDeviceToken` após login, desregistrar no
   `signOut()`) ou (b) remover os resquícios (env var, endpoint morto, comentário de teste incorreto)

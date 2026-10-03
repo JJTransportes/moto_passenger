@@ -6,6 +6,7 @@ import 'package:flutter_modular/flutter_modular.dart';
 import 'package:moto_passenger/core/auth/auth_storage.dart';
 import 'package:moto_passenger/core/config/app_config.dart';
 import 'package:moto_passenger/core/network/signalr_service.dart';
+import 'package:moto_passenger/core/location/background_location_service.dart';
 import 'package:moto_passenger/design_system/design_system.dart';
 import 'package:moto_passenger/modules/new_travel/data/datasources/new_travel_datasource.dart';
 
@@ -75,6 +76,12 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
     _initSignalR();
     _startPolling();
     _pollOnce();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        Modular.get<PassengerBackgroundLocationService>()
+            .requestPermissionAndStart(context);
+      }
+    });
 
     // Update elapsed time every second
     _elapsedTimer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -93,6 +100,8 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
       _pollTimer?.cancel();
       Modular.get<SignalRService>().disconnectAll();
     } else if (state == AppLifecycleState.resumed) {
+      Modular.get<PassengerBackgroundLocationService>()
+          .requestPermissionAndStart(context);
       _initSignalR();
       _pollOnce();
       _startPolling();
@@ -286,6 +295,7 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
     _orderCancelledHandled = true;
     _pollTimer?.cancel();
     _countdownTimer?.cancel();
+    unawaited(Modular.get<PassengerBackgroundLocationService>().stop());
 
     final reason = event['reason'] as String?;
 
@@ -409,6 +419,7 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
     }
 
     if (mounted) {
+      await Modular.get<PassengerBackgroundLocationService>().stop();
       Modular.to.navigate('/home');
     }
   }

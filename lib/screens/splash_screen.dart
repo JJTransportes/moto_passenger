@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:developer';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
@@ -7,6 +10,10 @@ import 'package:moto_passenger/core/config/app_config.dart';
 import 'package:moto_passenger/core/errors/exceptions.dart';
 import 'package:moto_passenger/core/local_db/repositories/auth_local_repository.dart';
 import 'package:moto_passenger/core/local_db/repositories/travel_local_repository.dart';
+import 'package:moto_passenger/core/notifications/i_push_notification_service.dart';
+import 'package:moto_passenger/core/notifications/notification_channel_service.dart';
+import 'package:moto_passenger/core/notifications/pending_notification_router.dart';
+import 'package:moto_passenger/core/notifications/session_readiness.dart';
 import 'package:moto_passenger/modules/auth/data/datasources/i_auth_datasource.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -22,10 +29,37 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  /// userId da sessão restaurada pela renovação do token (para identificar no push).
+  String? _restoredUserId;
+
   @override
   void initState() {
     super.initState();
+    _initPush();
     _checkAuth();
+  }
+
+  /// Inicializa o push e pede a permissão (spec passenger-push-notifications, req 1).
+  /// Em segundo plano: nunca atrasa nem bloqueia a decisão de autenticação, e uma
+  /// falha aqui só é registrada.
+  void _initPush() {
+    unawaited(() async {
+      // O canal do Android com o som do Moto precisa existir antes de o OneSignal inicializar e
+      // de chegar a primeira notificação (spec push-notification-sounds). Falha só é registrada.
+      try {
+        await Modular.get<INotificationChannelService>().ensureRideAlertsChannel();
+      } catch (e) {
+        log('[PUSH] Notification channel failed (${e.runtimeType}).', name: 'push', level: 900);
+      }
+
+      try {
+        final push = Modular.get<IPushNotificationService>();
+        await push.initialize(AppConfig.getOneSignalAppId());
+        await push.requestPermission();
+      } catch (e) {
+        log('[PUSH] Startup failed (${e.runtimeType}).', name: 'push', level: 900);
+      }
+    }());
   }
 
   Future<void> _checkAuth() async {
@@ -41,7 +75,7 @@ class _SplashScreenState extends State<SplashScreen> {
       final refreshed = await _tryRefreshToken(localAuth.refreshToken);
       if (!mounted) return;
       if (refreshed) {
-        await _afterAuthSuccess();
+        await _afterAuthSuccess(_restoredUserId);
         return;
       }
       // Refresh failed (token expired) — sign out and go to login
@@ -52,7 +86,7 @@ class _SplashScreenState extends State<SplashScreen> {
     // Fallback: access token from local cache (no refresh token available)
     if (localAuth != null && localAuth.accessToken.isNotEmpty) {
       if (!mounted) return;
-      await _afterAuthSuccess();
+      await _afterAuthSuccess(localAuth.userId);
       return;
     }
 
@@ -62,16 +96,46 @@ class _SplashScreenState extends State<SplashScreen> {
 
     if (!mounted) return;
     if (token != null) {
-      await _afterAuthSuccess();
+      await _afterAuthSuccess(await storage.getUserId());
     } else {
       Modular.to.navigate('/login');
     }
   }
 
-  Future<void> _afterAuthSuccess() async {
+  Future<void> _afterAuthSuccess(String? userId) async {
+    _identifyForPush(userId);
     final restored = await _checkActiveTravel();
     if (!mounted) return;
-    if (!restored) Modular.to.navigate('/usage-terms-guard');
+    if (!restored) {
+      Modular.to.navigate('/usage-terms-guard');
+      return;
+    }
+    // Viagem ativa restaurada: a sessão está pronta. Abre o toque guardado, se houver
+    // (o handler não navega de novo se a viagem já está na tela). Sem viagem ativa o
+    // toque espera a tela inicial.
+    _dispatchPendingNotification();
+  }
+
+  /// Identifica o aparelho no push com o usuário da sessão restaurada (req 2.2).
+  /// Em segundo plano e tolerante a falha.
+  void _identifyForPush(String? userId) {
+    if (userId == null || userId.isEmpty) return;
+    unawaited(() async {
+      try {
+        await Modular.get<IPushNotificationService>().identify(userId);
+      } catch (e) {
+        log('[PUSH] Identify on session restore failed (${e.runtimeType}).', name: 'push', level: 900);
+      }
+    }());
+  }
+
+  void _dispatchPendingNotification() {
+    try {
+      SessionReadiness.markReady();
+      Modular.get<PendingNotificationRouter>().dispatchPending();
+    } catch (e) {
+      log('[PUSH] Pending notification dispatch failed (${e.runtimeType}).', name: 'push', level: 900);
+    }
   }
 
   /// Tries to refresh the access token using the [refreshToken].
@@ -89,6 +153,7 @@ class _SplashScreenState extends State<SplashScreen> {
         result.refreshToken!,
         result.userId,
       );
+      _restoredUserId = result.userId;
       await authLocal.updateTokens(
         result.accessToken,
         result.refreshToken!,

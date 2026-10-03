@@ -5,6 +5,7 @@ import 'package:moto_passenger/core/auth/auth_storage.dart';
 import 'package:moto_passenger/core/location/location_service.dart';
 import 'package:moto_passenger/core/maps/i_places_autocomplete_service.dart';
 import 'package:moto_passenger/core/network/signalr_service.dart';
+import 'package:moto_passenger/modules/chat/chat_module.dart';
 import 'package:moto_passenger/modules/common_module.dart';
 import 'package:moto_passenger/modules/new_travel/data/datasources/new_travel_datasource.dart';
 import 'package:moto_passenger/modules/new_travel/data/datasources/travel_tracking_datasource.dart';
@@ -20,6 +21,7 @@ class NewTravelModule extends Module {
   @override
   List<Module> get imports => [
         CommonModule(),
+        ChatModule(),
       ];
 
   @override

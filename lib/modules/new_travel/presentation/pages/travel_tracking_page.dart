@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart' hide ReadContext;
@@ -8,8 +9,11 @@ import 'package:moto_passenger/core/auth/auth_storage.dart';
 import 'package:moto_passenger/core/config/app_config.dart';
 import 'package:moto_passenger/core/local_db/repositories/travel_local_repository.dart';
 import 'package:moto_passenger/core/location/location_service.dart';
+import 'package:moto_passenger/core/location/background_location_service.dart';
 import 'package:moto_passenger/core/maps/polyline_decoder.dart';
 import 'package:moto_passenger/core/network/signalr_service.dart';
+import 'package:moto_passenger/modules/chat/presentation/session/chat_session.dart';
+import 'package:moto_passenger/modules/chat/presentation/widgets/chat_action_button.dart';
 import 'package:moto_passenger/design_system/design_system.dart';
 import 'package:moto_passenger/modules/new_travel/domain/entities/travel_tracking_entity.dart';
 import 'package:moto_passenger/modules/new_travel/presentation/blocs/travel_tracking_bloc.dart';
@@ -39,6 +43,8 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
   StreamSubscription? _orderCancelledSub;
   StreamSubscription? _driverLocationSub;
   StreamSubscription? _distanceUpdateSub;
+  StreamSubscription? _driverNearbySub;
+  StreamSubscription? _driverArrivedSub;
 
   GoogleMapController? _mapController;
   bool _isUserInteracting = false;
@@ -46,6 +52,7 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
   double? _lastDriverLng;
   String? _authToken;
   LatLng? _myLocation;
+  BitmapDescriptor? _driverMarkerIcon;
 
   @override
   Widget build(BuildContext context) {
@@ -73,10 +80,23 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
           ),
         ),
         body: BlocListener<TravelTrackingBloc, TravelTrackingState>(
-          listenWhen: (previous, current) =>
-              current is TravelTrackingAccepted ||
-              current is TravelTrackingInProgress,
+          // Todos os estados: além do mapa, o chat (spec pickup-chat-call) só
+          // existe em Accepted e precisa parar nos demais.
+          listenWhen: (previous, current) => true,
           listener: (context, state) {
+            final chatSession = Modular.get<ChatSession>();
+            if (state is TravelTrackingAccepted) {
+              chatSession.start(state.travelId);
+            } else {
+              chatSession.stop();
+            }
+            if (state is TravelTrackingCompleted ||
+                state is TravelTrackingCancelled) {
+              unawaited(
+                Modular.get<PassengerBackgroundLocationService>().stop(),
+              );
+            }
+
             final lat = switch (state) {
               TravelTrackingAccepted(:final driverLatitude) => driverLatitude,
               TravelTrackingInProgress(:final driverLatitude) => driverLatitude,
@@ -124,6 +144,7 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
                   remainingTimeMinutes: final time,
                   routePolyline: final polyline,
                   requestedAt: final requestedAt,
+                  pickupProximity: final pickupProximity,
                 ) =>
                   _buildAcceptedState(
                     driver,
@@ -135,6 +156,7 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
                     remainingTimeMinutes: time,
                     routePolyline: polyline,
                     requestedAt: requestedAt,
+                    pickupProximity: pickupProximity,
                   ),
                 TravelTrackingInProgress(
                   driver: final driver,
@@ -174,6 +196,11 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
 
   @override
   void dispose() {
+    try {
+      Modular.get<ChatSession>().stop();
+    } catch (_) {
+      // Módulo já descartado: nada a parar.
+    }
     WidgetsBinding.instance.removeObserver(this);
     _orderAcceptedSub?.cancel();
     _travelStartedSub?.cancel();
@@ -182,6 +209,8 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
     _orderCancelledSub?.cancel();
     _driverLocationSub?.cancel();
     _distanceUpdateSub?.cancel();
+    _driverNearbySub?.cancel();
+    _driverArrivedSub?.cancel();
     _mapController?.dispose();
     Modular.get<SignalRService>().disconnectAll();
     print(
@@ -203,8 +232,81 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
         '[DIAG] postFrameCallback firing _connectAndLoad, pageHash=$hashCode, mounted=$mounted',
       );
       _connectAndLoad();
+      if (mounted) {
+        Modular.get<PassengerBackgroundLocationService>()
+            .requestPermissionAndStart(context);
+      }
     });
     _loadMyLocation();
+    _loadDriverMarkerIcon();
+  }
+
+  Future<void> _loadDriverMarkerIcon() async {
+    const size = 112.0;
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    final center = const Offset(size / 2, size / 2);
+
+    canvas.drawCircle(
+      center,
+      50,
+      Paint()..color = const Color(0xFF1F4FE0),
+    );
+    canvas.drawCircle(
+      center,
+      47,
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 5,
+    );
+
+    final carPaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
+    final car = Path()
+      ..moveTo(27, 61)
+      ..lineTo(34, 43)
+      ..quadraticBezierTo(37, 36, 45, 36)
+      ..lineTo(67, 36)
+      ..quadraticBezierTo(75, 36, 78, 43)
+      ..lineTo(85, 61)
+      ..quadraticBezierTo(90, 64, 90, 70)
+      ..lineTo(90, 77)
+      ..quadraticBezierTo(90, 82, 85, 82)
+      ..lineTo(79, 82)
+      ..quadraticBezierTo(75, 82, 75, 77)
+      ..lineTo(37, 77)
+      ..quadraticBezierTo(37, 82, 33, 82)
+      ..lineTo(27, 82)
+      ..quadraticBezierTo(22, 82, 22, 77)
+      ..lineTo(22, 70)
+      ..quadraticBezierTo(22, 64, 27, 61)
+      ..close();
+    canvas.drawPath(car, carPaint);
+    canvas.drawCircle(
+      const Offset(36, 68),
+      5,
+      Paint()..color = const Color(0xFF1F4FE0),
+    );
+    canvas.drawCircle(
+      const Offset(76, 68),
+      5,
+      Paint()..color = const Color(0xFF1F4FE0),
+    );
+
+    final picture = recorder.endRecording();
+    final image = await picture.toImage(size.toInt(), size.toInt());
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    image.dispose();
+    if (!mounted || bytes == null) return;
+    setState(() {
+      _driverMarkerIcon = BitmapDescriptor.bytes(
+        bytes.buffer.asUint8List(),
+        width: 44,
+        height: 44,
+      );
+    });
   }
 
   // PSG-08: com o app em background, o SignalR desconecta e o polling do
@@ -219,6 +321,8 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
       BlocProvider.of<TravelTrackingBloc>(context).add(const PollingPaused());
       Modular.get<SignalRService>().disconnectAll();
     } else if (state == AppLifecycleState.resumed) {
+      Modular.get<PassengerBackgroundLocationService>()
+          .requestPermissionAndStart(context);
       _connectAndLoad();
     }
   }
@@ -258,7 +362,9 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
         Marker(
           markerId: const MarkerId('driver'),
           position: LatLng(driverLat, driverLng),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
+          icon:
+              _driverMarkerIcon ??
+              BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
           infoWindow: const InfoWindow(title: 'Motorista'),
         ),
       );
@@ -336,6 +442,7 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
     int? distanceToDestinationMeters,
     int? remainingTimeMinutes,
     bool showCancelButton = false,
+    Widget? extraAction,
   }) {
     return MotoGlass(
       level: GlassLevel.sheet,
@@ -460,6 +567,10 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
               ],
             ),
           ],
+          if (extraAction != null) ...[
+            const SizedBox(height: MotoSpace.s3),
+            extraAction,
+          ],
           if (showCancelButton) ...[
             const SizedBox(height: MotoSpace.s4),
             MotoButton(
@@ -481,6 +592,14 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
     return '$hour:$minute';
   }
 
+  /// Abre o chat temporário da viagem (spec pickup-chat-call).
+  void _openChat() {
+    Modular.to.pushNamed(
+      '/chat/',
+      arguments: {'travelId': widget.travelId, 'title': 'Chat com o motorista'},
+    );
+  }
+
   Widget _buildAcceptedState(
     DriverInfoEntity? driver, {
     double? driverLat,
@@ -491,16 +610,27 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
     int? remainingTimeMinutes,
     String? routePolyline,
     DateTime? requestedAt,
+    PickupProximity pickupProximity = PickupProximity.none,
   }) {
+    final (title, titleIcon) = switch (pickupProximity) {
+      PickupProximity.arrived => ('Motorista chegou!', Icons.place),
+      PickupProximity.nearby => ('Motorista próximo!', Icons.near_me),
+      PickupProximity.none => ('Motorista a caminho!', Icons.check_circle),
+    };
     final infoSheet = _buildInfoSheet(
-      title: 'Motorista a caminho!',
-      titleIcon: Icons.check_circle,
+      title: title,
+      titleIcon: titleIcon,
       titleColor: context.moto.success,
       driver: driver,
       requestedAt: requestedAt,
       distanceToDestinationMeters: distanceToDestinationMeters,
       remainingTimeMinutes: remainingTimeMinutes,
       showCancelButton: true,
+      extraAction: ChatActionButton(
+        session: Modular.get<ChatSession>(),
+        onPressed: _openChat,
+        label: 'Chat com o motorista',
+      ),
     );
 
     return _buildWithMap(
@@ -701,6 +831,8 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
     _orderCancelledSub?.cancel();
     _driverLocationSub?.cancel();
     _distanceUpdateSub?.cancel();
+    _driverNearbySub?.cancel();
+    _driverArrivedSub?.cancel();
 
     final token = await AuthStorage().getToken();
     _authToken = token;
@@ -745,6 +877,16 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
     });
     _distanceUpdateSub = signalR.onDistanceUpdate.listen((data) {
       if (data['travelId'] == widget.travelId) bloc.add(DistanceUpdated(data));
+    });
+    _driverNearbySub = signalR.onDriverNearby.listen((data) {
+      if (data['travelId'] == widget.travelId) {
+        bloc.add(DriverProximityAlerted(data));
+      }
+    });
+    _driverArrivedSub = signalR.onDriverArrived.listen((data) {
+      if (data['travelId'] == widget.travelId) {
+        bloc.add(DriverProximityAlerted(data));
+      }
     });
 
     try {

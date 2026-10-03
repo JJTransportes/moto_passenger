@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:moto_passenger/core/navigation/app_messenger.dart';
+import 'package:moto_passenger/core/location/mandatory_location_gate.dart';
 import 'package:moto_passenger/core/navigation/route_observer.dart';
 import 'package:moto_passenger/core/update/mandatory_update_gate.dart';
 import 'package:moto_passenger/design_system/design_system.dart';
@@ -26,7 +27,9 @@ class AppWidget extends StatelessWidget {
       supportedLocales: const [
         Locale('pt', 'BR'),
       ],
-      builder: (context, child) => MandatoryUpdateGate(child: child!),
+      builder: (context, child) => MandatoryUpdateGate(
+        child: MandatoryLocationGate(child: child!),
+      ),
       routerConfig: Modular.routerConfig,
     );
   }
