@@ -54,3 +54,10 @@ class DistanceUpdated extends TravelTrackingEvent {
 class PollingPaused extends TravelTrackingEvent {
   const PollingPaused();
 }
+
+/// `DriverNearby` / `DriverArrived` do hub `travel-management` (spec
+/// pickup-arrival-alerts). `data` = `{travelId, kind: "Nearby"|"Arrived", occurredAt}`.
+class DriverProximityAlerted extends TravelTrackingEvent {
+  final Map<String, dynamic> data;
+  const DriverProximityAlerted(this.data);
+}

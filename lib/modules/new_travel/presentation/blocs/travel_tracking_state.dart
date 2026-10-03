@@ -33,6 +33,7 @@ class TravelTrackingAccepted extends TravelTrackingState {
   final int? remainingTimeMinutes;
   final String? routePolyline;
   final DateTime? requestedAt;
+  final PickupProximity pickupProximity;
 
   const TravelTrackingAccepted({
     required this.travelId,
@@ -45,7 +46,22 @@ class TravelTrackingAccepted extends TravelTrackingState {
     this.remainingTimeMinutes,
     this.routePolyline,
     this.requestedAt,
+    this.pickupProximity = PickupProximity.none,
   });
+
+  TravelTrackingAccepted copyWith({PickupProximity? pickupProximity}) => TravelTrackingAccepted(
+        travelId: travelId,
+        driver: driver,
+        driverLatitude: driverLatitude,
+        driverLongitude: driverLongitude,
+        destinationLatitude: destinationLatitude,
+        destinationLongitude: destinationLongitude,
+        distanceToDestinationMeters: distanceToDestinationMeters,
+        remainingTimeMinutes: remainingTimeMinutes,
+        routePolyline: routePolyline,
+        requestedAt: requestedAt,
+        pickupProximity: pickupProximity ?? this.pickupProximity,
+      );
 }
 
 class TravelTrackingInProgress extends TravelTrackingState {

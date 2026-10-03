@@ -28,6 +28,7 @@ class TravelTrackingBloc extends Bloc<TravelTrackingEvent, TravelTrackingState> 
     on<DriverLocationUpdated>(_onDriverLocationUpdated);
     on<DistanceUpdated>(_onDistanceUpdated);
     on<PollingPaused>(_onPollingPaused);
+    on<DriverProximityAlerted>(_onDriverProximityAlerted);
   }
 
   @override
@@ -116,8 +117,16 @@ class TravelTrackingBloc extends Bloc<TravelTrackingEvent, TravelTrackingState> 
           emit(TravelTrackingPending(travelId: travel.travelId, orderId: travel.orderId));
         }
       case TravelStatus.accepted:
-        final existingDriver = currentState is TravelTrackingAccepted ? currentState.driver : null;
-        if (existingDriver != null && existingDriver.driverId == travel.driverId) return;
+        final existingAccepted = currentState is TravelTrackingAccepted ? currentState : null;
+        final existingDriver = existingAccepted?.driver;
+        if (existingAccepted != null && existingDriver != null && existingDriver.driverId == travel.driverId) {
+          // Mesmo motorista: só a proximidade pode ter mudado (alerta perdido por
+          // SignalR). Nunca regride: um poll atrasado com `none` não apaga `arrived`.
+          if (travel.pickupProximity.index > existingAccepted.pickupProximity.index) {
+            emit(existingAccepted.copyWith(pickupProximity: travel.pickupProximity));
+          }
+          return;
+        }
         await _emitAcceptedState(travel, emit);
       case TravelStatus.inProgress:
         final existingDriver = currentState is TravelTrackingInProgress
@@ -153,6 +162,7 @@ class TravelTrackingBloc extends Bloc<TravelTrackingEvent, TravelTrackingState> 
       destinationLongitude: travel.destinationLongitude,
       routePolyline: travel.routePolyline,
       requestedAt: travel.createdAt,
+      pickupProximity: travel.pickupProximity,
     ));
     print('[DIAG] emitted Accepted, bloc.state is now ${state.runtimeType}');
   }
@@ -275,13 +285,13 @@ class TravelTrackingBloc extends Bloc<TravelTrackingEvent, TravelTrackingState> 
       case TravelTrackingAccepted(:final travelId, :final driver,
             :final destinationLatitude, :final destinationLongitude,
             :final distanceToDestinationMeters, :final remainingTimeMinutes,
-            :final routePolyline, :final requestedAt):
+            :final routePolyline, :final requestedAt, :final pickupProximity):
         emit(TravelTrackingAccepted(
           travelId: travelId, driver: driver,
           driverLatitude: lat, driverLongitude: lng,
           destinationLatitude: destinationLatitude, destinationLongitude: destinationLongitude,
           distanceToDestinationMeters: distanceToDestinationMeters, remainingTimeMinutes: remainingTimeMinutes,
-          routePolyline: routePolyline, requestedAt: requestedAt,
+          routePolyline: routePolyline, requestedAt: requestedAt, pickupProximity: pickupProximity,
         ));
       case TravelTrackingInProgress(:final travelId, :final driver,
             :final destinationLatitude, :final destinationLongitude,
@@ -311,13 +321,13 @@ class TravelTrackingBloc extends Bloc<TravelTrackingEvent, TravelTrackingState> 
       case TravelTrackingAccepted(:final travelId, :final driver,
             :final driverLatitude, :final driverLongitude,
             :final destinationLatitude, :final destinationLongitude,
-            :final routePolyline, :final requestedAt):
+            :final routePolyline, :final requestedAt, :final pickupProximity):
         emit(TravelTrackingAccepted(
           travelId: travelId, driver: driver,
           driverLatitude: driverLatitude, driverLongitude: driverLongitude,
           destinationLatitude: destinationLatitude, destinationLongitude: destinationLongitude,
           distanceToDestinationMeters: dist, remainingTimeMinutes: time,
-          routePolyline: routePolyline, requestedAt: requestedAt,
+          routePolyline: routePolyline, requestedAt: requestedAt, pickupProximity: pickupProximity,
         ));
       case TravelTrackingInProgress(:final travelId, :final driver,
             :final driverLatitude, :final driverLongitude,
@@ -355,5 +365,23 @@ class TravelTrackingBloc extends Bloc<TravelTrackingEvent, TravelTrackingState> 
       routePolyline: routePolyline,
       requestedAt: requestedAt,
     ));
+  }
+
+  /// Alerta de proximidade do backend. Só vale em Accepted, para a viagem desta
+  /// tela, e nunca regride (Arrived não volta a Nearby se o evento chegar fora de
+  /// ordem). Em InProgress/Cancelled o estado nem carrega a indicação.
+  Future<void> _onDriverProximityAlerted(
+    DriverProximityAlerted event,
+    Emitter<TravelTrackingState> emit,
+  ) async {
+    final currentState = state;
+    if (currentState is! TravelTrackingAccepted) return;
+    if (event.data['travelId'] != currentState.travelId) return;
+
+    final kind = PickupProximity.parse(event.data['kind'] as String?);
+    if (kind == PickupProximity.none) return;
+    if (kind.index <= currentState.pickupProximity.index) return;
+
+    emit(currentState.copyWith(pickupProximity: kind));
   }
 }

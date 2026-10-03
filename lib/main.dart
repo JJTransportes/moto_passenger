@@ -2,12 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:moto_passenger/app/app_module.dart';
 import 'package:moto_passenger/app/app_widget.dart';
 import 'package:moto_passenger/core/config/app_config.dart';
 import 'package:moto_passenger/core/local_db/local_database_service.dart';
 import 'package:moto_passenger/core/location/location_service.dart';
+import 'package:moto_passenger/core/location/background_location_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,6 +17,9 @@ Future<void> main() async {
   await dotenv.load();
   await AppConfig.loadEnv();
   await LocalDatabaseService.init();
+
+  FlutterForegroundTask.initCommunicationPort();
+  PassengerBackgroundLocationService.initialize();
 
   await LocationService.requestPermissionIfNeeded();
 

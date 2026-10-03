@@ -19,6 +19,7 @@ import 'package:moto_passenger/modules/auth/presentation/pages/login_page.dart';
 import 'package:moto_passenger/modules/auth/presentation/pages/password_recovery_page.dart';
 import 'package:moto_passenger/modules/auth/presentation/pages/password_reset_page.dart';
 import 'package:moto_passenger/modules/auth/presentation/pages/password_verify_code_page.dart';
+import 'package:moto_passenger/modules/chat/chat_module.dart';
 import 'package:moto_passenger/modules/common_module.dart';
 import 'package:moto_passenger/modules/delete_account/delete_account_module.dart';
 import 'package:moto_passenger/modules/new_travel/new_travel_module.dart';
@@ -97,6 +98,7 @@ class AppModule extends Module {
     r.module('/register', module: PassengerRegistrationModule());
     r.module('/home', module: PassengerHomeModule());
     r.module('/new-travel', module: NewTravelModule());
+    r.module('/chat', module: ChatModule());
     r.module('/profile', module: ProfileModule());
     r.module('/delete-account', module: DeleteAccountModule());
     r.module('/usage-terms-guard', module: UsageTermsModule());

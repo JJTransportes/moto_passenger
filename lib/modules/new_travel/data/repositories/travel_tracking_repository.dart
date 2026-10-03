@@ -92,6 +92,7 @@ class TravelTrackingRepository implements ITravelTrackingRepository {
       destinationLatitude: destLat,
       destinationLongitude: destLng,
       routePolyline: routePolyline,
+      pickupProximity: PickupProximity.parse(data['pickupProximity'] as String?),
     );
   }
 
