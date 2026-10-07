@@ -28,6 +28,7 @@ class _RegisterPageState extends State<RegisterPage> {
   final _cpfController = TextEditingController();
   final _rgController = TextEditingController();
   final _registrationController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
   final _confirmEmailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -45,6 +46,7 @@ class _RegisterPageState extends State<RegisterPage> {
   String? _cpfError;
   String? _rgError;
   String? _registrationError;
+  String? _phoneError;
   String? _emailError;
   String? _confirmEmailError;
   String? _passwordError;
@@ -72,6 +74,7 @@ class _RegisterPageState extends State<RegisterPage> {
       _confirmEmailController,
       _passwordController,
       _confirmPasswordController,
+      _phoneController,
     ]) {
       controller.addListener(_onFieldsChanged);
     }
@@ -96,6 +99,7 @@ class _RegisterPageState extends State<RegisterPage> {
       _cpfController.text.trim().isNotEmpty &&
       _rgController.text.trim().isNotEmpty &&
       _registrationController.text.trim().isNotEmpty &&
+      validators.validatePhone(_phoneController.text) == null &&
       validators.validateEmail(_emailController.text) == null &&
       _confirmEmailController.text.trim() == _emailController.text.trim() &&
       unmetPasswordRequirements(
@@ -140,6 +144,7 @@ class _RegisterPageState extends State<RegisterPage> {
     _cpfController.dispose();
     _rgController.dispose();
     _registrationController.dispose();
+    _phoneController.dispose();
     _emailController.dispose();
     _confirmEmailController.dispose();
     _passwordController.dispose();
@@ -218,6 +223,7 @@ class _RegisterPageState extends State<RegisterPage> {
             'Matrícula',
             30,
           );
+      _phoneError = validators.validatePhone(_phoneController.text);
       _emailError = validators.validateEmail(_emailController.text);
       if (_confirmEmailController.text.trim().isEmpty) {
         _confirmEmailError = 'Confirme seu e-mail';
@@ -251,6 +257,7 @@ class _RegisterPageState extends State<RegisterPage> {
           _cpfError == null &&
           _rgError == null &&
           _registrationError == null &&
+          _phoneError == null &&
           _emailError == null &&
           _confirmEmailError == null &&
           _passwordError == null &&
@@ -271,6 +278,7 @@ class _RegisterPageState extends State<RegisterPage> {
         registration: _registrationController.text.trim(),
         birthdate: _birthdate!,
         email: _emailController.text.trim(),
+        phone: _phoneController.text.trim(),
         initialPassword: _passwordController.text,
         department: _selectedDepartmentName,
         publicPartitionId: _selectedPartitionId!,
@@ -451,6 +459,15 @@ class _RegisterPageState extends State<RegisterPage> {
           maxLength: 30,
         ),
         _buildBirthdateField(),
+        AppTextField(
+          label: 'Telefone *',
+          hint: '(12) 91234-5678',
+          controller: _phoneController,
+          keyboardType: TextInputType.phone,
+          errorText: _phoneError,
+          inputFormatters: [PhoneInputFormatter()],
+          maxLength: 15,
+        ),
         AppTextField(
           label: 'E-mail *',
           hint: 'Informe seu e-mail',

@@ -8,10 +8,10 @@ enum PickupProximity {
   arrived;
 
   static PickupProximity parse(String? value) => switch (value) {
-        'Nearby' => PickupProximity.nearby,
-        'Arrived' => PickupProximity.arrived,
-        _ => PickupProximity.none,
-      };
+    'Nearby' => PickupProximity.nearby,
+    'Arrived' => PickupProximity.arrived,
+    _ => PickupProximity.none,
+  };
 }
 
 class TravelTrackingEntity {

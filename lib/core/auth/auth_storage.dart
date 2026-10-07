@@ -11,7 +11,11 @@ class AuthStorage {
 
   AuthStorage() : _storage = const FlutterSecureStorage();
 
-  Future<void> saveTokens(String accessToken, String refreshToken, String userId) async {
+  Future<void> saveTokens(
+    String accessToken,
+    String refreshToken,
+    String userId,
+  ) async {
     await Future.wait([
       _storage.write(key: _tokenKey, value: accessToken),
       _storage.write(key: _refreshTokenKey, value: refreshToken),

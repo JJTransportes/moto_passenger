@@ -61,7 +61,8 @@ ChatMessageEntity chatMessageFromJson(Map<String, dynamic> json) {
     travelId: json['travelId'] as String,
     senderRole: json['senderRole'] as String? ?? '',
     text: json['text'] as String? ?? '',
-    sentAt: DateTime.tryParse(json['sentAt']?.toString() ?? '') ?? DateTime.now(),
+    sentAt:
+        DateTime.tryParse(json['sentAt']?.toString() ?? '') ?? DateTime.now(),
     mine: json['mine'] as bool? ?? false,
   );
 }

@@ -44,7 +44,9 @@ class CommonModule extends Module {
         Modular.get<IAuthDatasource>(),
       ),
     );
-    i.addSingleton<INotificationChannelService>(() => NotificationChannelService());
+    i.addSingleton<INotificationChannelService>(
+      () => NotificationChannelService(),
+    );
     i.addSingleton<PendingNotificationRouter>(
       () =>
           PendingNotificationRouter(NotificationHandler.handleNotificationTap),

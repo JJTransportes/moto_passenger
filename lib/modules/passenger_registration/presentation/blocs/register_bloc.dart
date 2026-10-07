@@ -1,4 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:moto_passenger/core/errors/user_error_message.dart';
 import 'package:moto_passenger/modules/passenger_registration/domain/entities/public_partition_entity.dart';
 import 'package:moto_passenger/modules/passenger_registration/domain/entities/register_passenger_request.dart';
 import 'package:moto_passenger/modules/passenger_registration/domain/usecases/i_load_partitions_usecase.dart';
@@ -12,7 +13,7 @@ class RegisterBloc extends Bloc<RegisterEvent, RegisterState> {
   final IRegisterUsecase _registerUsecase;
 
   RegisterBloc(this._loadPartitionsUsecase, this._registerUsecase)
-      : super(const RegisterInitial()) {
+    : super(const RegisterInitial()) {
     on<LoadPartitions>(_onLoadPartitions);
     on<RegisterSubmitted>(_onRegisterSubmitted);
   }
@@ -27,8 +28,7 @@ class RegisterBloc extends Bloc<RegisterEvent, RegisterState> {
 
     result.fold(
       (partitions) => emit(PartitionsLoaded(partitions)),
-      (error) =>
-          emit(PartitionsError(error.toString())),
+      (error) => emit(PartitionsError(userErrorMessage(error))),
     );
   }
 
@@ -45,6 +45,7 @@ class RegisterBloc extends Bloc<RegisterEvent, RegisterState> {
       registration: event.registration,
       birthdate: event.birthdate,
       email: event.email,
+      phone: event.phone,
       initialPassword: event.initialPassword,
       department: event.department,
       publicPartitionId: event.publicPartitionId,
@@ -54,7 +55,7 @@ class RegisterBloc extends Bloc<RegisterEvent, RegisterState> {
 
     result.fold(
       (_) => emit(const RegisterSuccess()),
-      (error) => emit(RegisterFailure(error.toString())),
+      (error) => emit(RegisterFailure(userErrorMessage(error))),
     );
   }
 }

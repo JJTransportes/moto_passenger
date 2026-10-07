@@ -44,11 +44,15 @@ abstract class IOneSignalGateway {
 
   /// Toque na notificação (inclusive o que abriu o app: o SDK guarda o clique até
   /// o listener ser registrado).
-  void onNotificationClicked(void Function(PushNotificationContent content) listener);
+  void onNotificationClicked(
+    void Function(PushNotificationContent content) listener,
+  );
 
   /// Notificação prestes a ser exibida com o app em primeiro plano. O [shouldSuppress]
   /// decide de forma síncrona; `true` impede o banner do sistema.
-  void onNotificationWillDisplay(bool Function(PushNotificationContent content) shouldSuppress);
+  void onNotificationWillDisplay(
+    bool Function(PushNotificationContent content) shouldSuppress,
+  );
 }
 
 class OneSignalSdkGateway implements IOneSignalGateway {
@@ -62,7 +66,8 @@ class OneSignalSdkGateway implements IOneSignalGateway {
   Future<void> initialize(String appId) => OneSignal.initialize(appId);
 
   @override
-  Future<bool> requestPermission() => OneSignal.Notifications.requestPermission(false);
+  Future<bool> requestPermission() =>
+      OneSignal.Notifications.requestPermission(false);
 
   @override
   Future<void> login(String externalId) => OneSignal.login(externalId);
@@ -75,16 +80,24 @@ class OneSignalSdkGateway implements IOneSignalGateway {
 
   @override
   void onSubscriptionChanged(void Function(String? id) listener) {
-    OneSignal.User.pushSubscription.addObserver((state) => listener(state.current.id));
+    OneSignal.User.pushSubscription.addObserver(
+      (state) => listener(state.current.id),
+    );
   }
 
   @override
-  void onNotificationClicked(void Function(PushNotificationContent content) listener) {
-    OneSignal.Notifications.addClickListener((event) => listener(_content(event.notification)));
+  void onNotificationClicked(
+    void Function(PushNotificationContent content) listener,
+  ) {
+    OneSignal.Notifications.addClickListener(
+      (event) => listener(_content(event.notification)),
+    );
   }
 
   @override
-  void onNotificationWillDisplay(bool Function(PushNotificationContent content) shouldSuppress) {
+  void onNotificationWillDisplay(
+    bool Function(PushNotificationContent content) shouldSuppress,
+  ) {
     OneSignal.Notifications.addForegroundWillDisplayListener((event) {
       // `preventDefault` precisa ser chamado de forma síncrona dentro do listener.
       if (shouldSuppress(_content(event.notification))) {
@@ -93,7 +106,8 @@ class OneSignalSdkGateway implements IOneSignalGateway {
     });
   }
 
-  static PushNotificationContent _content(OSNotification notification) => PushNotificationContent(
+  static PushNotificationContent _content(OSNotification notification) =>
+      PushNotificationContent(
         additionalData: notification.additionalData,
         title: notification.title,
         body: notification.body,

@@ -49,7 +49,8 @@ class TravelTrackingAccepted extends TravelTrackingState {
     this.pickupProximity = PickupProximity.none,
   });
 
-  TravelTrackingAccepted copyWith({PickupProximity? pickupProximity}) => TravelTrackingAccepted(
+  TravelTrackingAccepted copyWith({PickupProximity? pickupProximity}) =>
+      TravelTrackingAccepted(
         travelId: travelId,
         driver: driver,
         driverLatitude: driverLatitude,

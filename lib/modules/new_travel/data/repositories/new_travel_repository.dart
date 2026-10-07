@@ -9,7 +9,9 @@ class NewTravelRepository {
     return await _datasource.createOrder(request);
   }
 
-  Future<Map<String, dynamic>> createPriorityOrder(Map<String, dynamic> request) async {
+  Future<Map<String, dynamic>> createPriorityOrder(
+    Map<String, dynamic> request,
+  ) async {
     return await _datasource.createPriorityOrder(request);
   }
 

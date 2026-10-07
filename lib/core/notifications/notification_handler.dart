@@ -46,8 +46,10 @@ class NotificationHandler {
       case 'DriverNearby':
       case 'DriverArrived':
         if (data.travelId != null) {
-          Modular.to.navigate(_trackingPath,
-              arguments: {'travelId': data.travelId});
+          Modular.to.navigate(
+            _trackingPath,
+            arguments: {'travelId': data.travelId},
+          );
         } else {
           Modular.to.navigate('/home');
         }

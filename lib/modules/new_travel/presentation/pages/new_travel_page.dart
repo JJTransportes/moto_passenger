@@ -11,11 +11,14 @@ import 'package:flutter_modular/flutter_modular.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:moto_passenger/core/auth/auth_storage.dart';
 import 'package:moto_passenger/core/location/location_service.dart';
+import 'package:moto_passenger/core/maps/places_autocomplete_service.dart';
 import 'package:moto_passenger/design_system/design_system.dart';
 import 'package:moto_passenger/modules/new_travel/domain/entities/travel_route_entity.dart';
 import 'package:moto_passenger/modules/new_travel/presentation/blocs/new_travel_bloc.dart';
 import 'package:moto_passenger/modules/new_travel/presentation/blocs/new_travel_event.dart';
 import 'package:moto_passenger/modules/new_travel/presentation/blocs/new_travel_state.dart';
+
+enum _PickupSelectionMode { destination, address, map }
 
 class NewTravelPage extends StatefulWidget {
   const NewTravelPage({super.key});
@@ -25,7 +28,9 @@ class NewTravelPage extends StatefulWidget {
 }
 
 class _NewTravelPageState extends State<NewTravelPage> {
+  final _originController = TextEditingController();
   final _destinationController = TextEditingController();
+  final _originFocusNode = FocusNode();
   GoogleMapController? _mapController;
   final ValueNotifier<bool> _hasPriorityAccess = ValueNotifier(false);
 
@@ -39,6 +44,9 @@ class _NewTravelPageState extends State<NewTravelPage> {
   // "Resumo da Viagem" empilhadas ao tocar em vários pontos antes da
   // primeira rota calculada terminar/fechar.
   bool _isSelectingDestination = false;
+  bool _isConfirmingPickup = false;
+  bool _searchingOrigin = false;
+  _PickupSelectionMode _pickupSelectionMode = _PickupSelectionMode.destination;
   bool _isRouteBottomSheetOpen = false;
   Future<dynamic>? _routeBottomSheetClosed;
 
@@ -76,6 +84,8 @@ class _NewTravelPageState extends State<NewTravelPage> {
             );
           case NewTravelLocationLoaded(:final position):
             _onLocationLoaded(position);
+          case NewTravelOriginSelected(:final position, :final address):
+            _onOriginSelected(position, address);
           case NewTravelLocationError(:final message, :final status):
             _showLocationErrorDialog(message, status);
           case NewTravelRouteReady(:final route):
@@ -143,7 +153,9 @@ class _NewTravelPageState extends State<NewTravelPage> {
   void dispose() {
     _mapTimeoutTimer?.cancel();
     _searchDebounceTimer?.cancel();
+    _originController.dispose();
     _destinationController.dispose();
+    _originFocusNode.dispose();
     _mapController?.dispose();
     super.dispose();
   }
@@ -234,8 +246,9 @@ class _NewTravelPageState extends State<NewTravelPage> {
       );
     }
 
-    if (state is NewTravelCheckingPending ||
-        state is NewTravelLocationLoading) {
+    if (_currentLocation == null &&
+        (state is NewTravelCheckingPending ||
+            state is NewTravelLocationLoading)) {
       return Container(
         color: context.moto.bgSunken,
         child: const Center(child: CircularProgressIndicator()),
@@ -253,17 +266,7 @@ class _NewTravelPageState extends State<NewTravelPage> {
             markers: _markers,
             polylines: _polylines,
             onMapCreated: (controller) => _mapController = controller,
-            onTap: _isSelectingDestination
-                ? null
-                : (latLng) {
-                    setState(() => _isSelectingDestination = true);
-                    BlocProvider.of<NewTravelBloc>(context).add(
-                      CalculateRoute(
-                        latitude: latLng.latitude,
-                        longitude: latLng.longitude,
-                      ),
-                    );
-                  },
+            onTap: _isSelectingDestination ? null : _handleMapTap,
             myLocationEnabled: true,
             myLocationButtonEnabled: false,
             zoomControlsEnabled: false,
@@ -296,6 +299,27 @@ class _NewTravelPageState extends State<NewTravelPage> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          Row(
+            children: [
+              Expanded(
+                child: _buildAddressField(
+                  controller: _originController,
+                  focusNode: _originFocusNode,
+                  hintText: 'Embarque: sua localização atual',
+                  icon: Icons.trip_origin,
+                  enabled: _pickupSelectionMode == _PickupSelectionMode.address,
+                  onTap: () => setState(() => _searchingOrigin = true),
+                ),
+              ),
+              const SizedBox(width: MotoSpace.s2),
+              IconButton.filledTonal(
+                tooltip: 'Alterar local de embarque',
+                onPressed: _showPickupOptions,
+                icon: const Icon(Icons.edit_location_alt_outlined),
+              ),
+            ],
+          ),
+          const SizedBox(height: MotoSpace.s2),
           Material(
             color: context.moto.bgRaised,
             shape: StadiumBorder(
@@ -306,6 +330,7 @@ class _NewTravelPageState extends State<NewTravelPage> {
             clipBehavior: Clip.antiAlias,
             child: TextField(
               controller: _destinationController,
+              onTap: () => setState(() => _searchingOrigin = false),
               style: TextStyle(
                 fontFamily: MotoFont.ui,
                 fontSize: 16,
@@ -365,11 +390,16 @@ class _NewTravelPageState extends State<NewTravelPage> {
                         overflow: TextOverflow.ellipsis,
                       ),
                       onTap: () {
-                        _destinationController.text =
-                            state.suggestions[i].address;
-                        BlocProvider.of<NewTravelBloc>(context).add(
-                          SelectPlace(suggestion: state.suggestions[i]),
-                        );
+                        final suggestion = state.suggestions[i];
+                        if (_searchingOrigin) {
+                          unawaited(_confirmOriginSuggestion(suggestion));
+                        } else {
+                          setState(() => _isSelectingDestination = true);
+                          _destinationController.text = suggestion.address;
+                          BlocProvider.of<NewTravelBloc>(context).add(
+                            SelectPlace(suggestion: suggestion),
+                          );
+                        }
                       },
                     ),
                   ),
@@ -388,6 +418,7 @@ class _NewTravelPageState extends State<NewTravelPage> {
     setState(() {
       _mapTimedOut = false;
       _currentLocation = position;
+      _originController.text = 'Sua localização atual';
       _markers = {
         Marker(
           markerId: const MarkerId('current_location'),
@@ -400,6 +431,209 @@ class _NewTravelPageState extends State<NewTravelPage> {
     _mapController?.animateCamera(
       CameraUpdate.newLatLngZoom(position, 15),
     );
+  }
+
+  void _onOriginSelected(LatLng position, String address) {
+    if (!mounted) return;
+    setState(() {
+      _currentLocation = position;
+      _searchingOrigin = false;
+      _pickupSelectionMode = _PickupSelectionMode.destination;
+      _originController.text = address;
+      _markers = {
+        Marker(
+          markerId: const MarkerId('pickup_location'),
+          position: position,
+          infoWindow: const InfoWindow(title: 'Local de embarque'),
+        ),
+      };
+    });
+    _mapController?.animateCamera(CameraUpdate.newLatLngZoom(position, 15));
+  }
+
+  Widget _buildAddressField({
+    required TextEditingController controller,
+    required FocusNode focusNode,
+    required String hintText,
+    required IconData icon,
+    required bool enabled,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: context.moto.bgRaised,
+      shape: StadiumBorder(side: BorderSide(color: context.moto.borderSubtle)),
+      elevation: 3,
+      clipBehavior: Clip.antiAlias,
+      child: TextField(
+        controller: controller,
+        focusNode: focusNode,
+        enabled: enabled,
+        onTap: onTap,
+        decoration: InputDecoration(
+          hintText: hintText,
+          prefixIcon: Icon(icon, color: context.moto.accent),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: MotoSpace.s4,
+            vertical: 14,
+          ),
+        ),
+        onChanged: (query) {
+          _searchingOrigin = true;
+          _dispatchPlaceSearch(query);
+        },
+      ),
+    );
+  }
+
+  Future<void> _showPickupOptions() async {
+    FocusScope.of(context).unfocus();
+    final option = await showModalBottomSheet<_PickupSelectionMode>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: MotoSpace.s3),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const ListTile(
+                title: Text('Alterar local de embarque'),
+                subtitle: Text(
+                  'Se não alterar, usaremos sua localização atual.',
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.search),
+                title: const Text('Digitar endereço'),
+                onTap: () => Navigator.of(ctx).pop(
+                  _PickupSelectionMode.address,
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.map_outlined),
+                title: const Text('Selecionar no mapa'),
+                onTap: () => Navigator.of(ctx).pop(_PickupSelectionMode.map),
+              ),
+              ListTile(
+                leading: const Icon(Icons.my_location),
+                title: const Text('Usar minha localização atual'),
+                onTap: () => Navigator.of(ctx).pop(
+                  _PickupSelectionMode.destination,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (!mounted || option == null) return;
+
+    setState(() {
+      _pickupSelectionMode = option;
+      _searchingOrigin = option == _PickupSelectionMode.address;
+    });
+
+    switch (option) {
+      case _PickupSelectionMode.address:
+        _originController.clear();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _originFocusNode.requestFocus();
+        });
+      case _PickupSelectionMode.map:
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Toque no mapa para marcar o local de embarque.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      case _PickupSelectionMode.destination:
+        _originController.text = 'Sua localização atual';
+        BlocProvider.of<NewTravelBloc>(context).add(const GetCurrentLocation());
+    }
+  }
+
+  Future<void> _handleMapTap(LatLng latLng) async {
+    if (_pickupSelectionMode == _PickupSelectionMode.map) {
+      if (_isConfirmingPickup) return;
+      setState(() => _isConfirmingPickup = true);
+      final confirmed = await _confirmPickup(
+        'Usar este ponto como local de embarque?',
+        'O ponto selecionado no mapa será usado para o motorista encontrar você.',
+      );
+      if (!mounted) return;
+      setState(() => _isConfirmingPickup = false);
+      if (!confirmed) return;
+      BlocProvider.of<NewTravelBloc>(context).add(
+        SetOriginOnMap(
+          latitude: latLng.latitude,
+          longitude: latLng.longitude,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isSelectingDestination = true);
+    BlocProvider.of<NewTravelBloc>(context).add(
+      CalculateRoute(
+        latitude: latLng.latitude,
+        longitude: latLng.longitude,
+      ),
+    );
+  }
+
+  Future<void> _confirmOriginSuggestion(PlaceSuggestion suggestion) async {
+    if (_isConfirmingPickup) return;
+    setState(() => _isConfirmingPickup = true);
+    final confirmed = await _confirmPickup(
+      'Confirmar local de embarque?',
+      suggestion.address,
+    );
+    if (!mounted) return;
+    setState(() => _isConfirmingPickup = false);
+    if (!confirmed) return;
+    _originController.text = suggestion.address;
+    BlocProvider.of<NewTravelBloc>(context).add(
+      SelectOriginPlace(suggestion: suggestion),
+    );
+  }
+
+  Future<bool> _confirmPickup(String title, String description) async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Text(title),
+            content: Text(description),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Voltar'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text('Confirmar'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
+  void _dispatchPlaceSearch(String query) {
+    _searchDebounceTimer?.cancel();
+    final normalizedQuery = query.trim();
+    if (normalizedQuery.length < 3) {
+      BlocProvider.of<NewTravelBloc>(
+        context,
+      ).add(SearchPlaces(query: normalizedQuery));
+      return;
+    }
+    _searchDebounceTimer = Timer(_searchDebounceDuration, () {
+      if (!mounted) return;
+      BlocProvider.of<NewTravelBloc>(
+        context,
+      ).add(SearchPlaces(query: normalizedQuery));
+    });
   }
 
   Future<void> _showLocationErrorDialog(
@@ -726,7 +960,9 @@ class _RouteBottomSheetContentState extends State<_RouteBottomSheetContent> {
                               Expanded(
                                 child: Text(
                                   'Pedido com prioridade',
-                                  style: TextStyle(color: context.moto.textPrimary),
+                                  style: TextStyle(
+                                    color: context.moto.textPrimary,
+                                  ),
                                 ),
                               ),
                             ],
@@ -739,7 +975,8 @@ class _RouteBottomSheetContentState extends State<_RouteBottomSheetContent> {
                 const SizedBox(height: MotoSpace.s3),
                 LayoutBuilder(
                   builder: (context, constraints) {
-                    final stackActions = constraints.maxWidth < 320 ||
+                    final stackActions =
+                        constraints.maxWidth < 320 ||
                         MediaQuery.textScalerOf(context).scale(14) > 17;
                     final cancelButton = MotoButton(
                       label: 'Cancelar',

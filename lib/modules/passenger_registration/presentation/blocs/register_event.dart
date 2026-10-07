@@ -15,6 +15,7 @@ final class RegisterSubmitted extends RegisterEvent {
   final String registration;
   final DateTime birthdate;
   final String email;
+  final String phone;
   final String initialPassword;
   final String? department;
   final String publicPartitionId;
@@ -26,6 +27,7 @@ final class RegisterSubmitted extends RegisterEvent {
     required this.registration,
     required this.birthdate,
     required this.email,
+    required this.phone,
     required this.initialPassword,
     this.department,
     required this.publicPartitionId,

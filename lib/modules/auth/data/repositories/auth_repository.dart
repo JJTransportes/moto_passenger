@@ -97,7 +97,11 @@ class AuthRepository implements IAuthRepository {
     try {
       await _push.identify(userId);
     } catch (e) {
-      log('[PUSH] Identify after sign-in failed (${e.runtimeType}).', name: 'push', level: 900);
+      log(
+        '[PUSH] Identify after sign-in failed (${e.runtimeType}).',
+        name: 'push',
+        level: 900,
+      );
     }
   }
 }

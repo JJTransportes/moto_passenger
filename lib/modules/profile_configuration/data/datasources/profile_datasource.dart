@@ -37,7 +37,9 @@ class ProfileDatasource implements IProfileDatasource {
       // não enviam senha). Usar a mensagem genérica de "_mapException" aqui
       // confundia o usuário: parecia que nada tinha acontecido.
       if (e.response?.statusCode == 401) {
-        throw UnauthorizedException(_extractErrorMessage(e) ?? 'Senha incorreta.');
+        throw UnauthorizedException(
+          _extractErrorMessage(e) ?? 'Senha incorreta.',
+        );
       }
       throw _mapException(e);
     }
@@ -88,10 +90,13 @@ class ProfileDatasource implements IProfileDatasource {
     switch (e.response?.statusCode) {
       case 400:
         return ValidationException(
-          serverMessage ?? 'Dados inválidos. Verifique as informações e tente novamente.',
+          serverMessage ??
+              'Dados inválidos. Verifique as informações e tente novamente.',
         );
       case 401:
-        return const UnauthorizedException('Sessão expirada. Faça login novamente.');
+        return const UnauthorizedException(
+          'Sessão expirada. Faça login novamente.',
+        );
       case 403:
         return ValidationException(
           serverMessage ?? 'Você só pode editar o próprio perfil.',
@@ -101,13 +106,17 @@ class ProfileDatasource implements IProfileDatasource {
       case 409:
         return const ValidationException('Este email já está em uso.');
       case 413:
-        return const ValidationException('Arquivo muito grande. Envie uma imagem menor.');
+        return const ValidationException(
+          'Arquivo muito grande. Envie uma imagem menor.',
+        );
       case 415:
         return const ValidationException(
           'Formato de arquivo não suportado. Use JPEG ou PNG.',
         );
       case var code when code != null && code >= 500:
-        return const ServerException('Erro interno do servidor. Tente novamente mais tarde.');
+        return const ServerException(
+          'Erro interno do servidor. Tente novamente mais tarde.',
+        );
       default:
         if (e.type == DioExceptionType.connectionTimeout ||
             e.type == DioExceptionType.receiveTimeout ||

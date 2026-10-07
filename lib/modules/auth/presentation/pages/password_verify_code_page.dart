@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_modular/flutter_modular.dart' hide ModularWatchExtension;
+import 'package:flutter_modular/flutter_modular.dart'
+    hide ModularWatchExtension;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:moto_passenger/design_system/design_system.dart';
 import 'package:moto_passenger/modules/auth/presentation/blocs/password_verify_code_bloc.dart';
@@ -65,8 +66,9 @@ class _PasswordVerifyCodePageState extends State<PasswordVerifyCodePage> {
             final isLoading = state is PasswordVerifyCodeSubmitting;
             final requestNewCode =
                 state is PasswordVerifyCodeError && state.requestNewCode;
-            final remainingAttemptsHint =
-                _wrongAttempts >= 2 ? 5 - _wrongAttempts : null;
+            final remainingAttemptsHint = _wrongAttempts >= 2
+                ? 5 - _wrongAttempts
+                : null;
 
             return SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 36),
@@ -98,7 +100,8 @@ class _PasswordVerifyCodePageState extends State<PasswordVerifyCodePage> {
                     keyboardType: TextInputType.number,
                     errorText: _codeServerError,
                   ),
-                  if (remainingAttemptsHint != null && remainingAttemptsHint > 0) ...[
+                  if (remainingAttemptsHint != null &&
+                      remainingAttemptsHint > 0) ...[
                     const SizedBox(height: 8),
                     Text(
                       'Restam $remainingAttemptsHint tentativas antes de precisar pedir um novo código.',
@@ -127,7 +130,9 @@ class _PasswordVerifyCodePageState extends State<PasswordVerifyCodePage> {
                   AppButton(
                     label: 'Confirmar',
                     loading: isLoading,
-                    onPressed: _codeController.text.trim().isEmpty || _codeServerError != null
+                    onPressed:
+                        _codeController.text.trim().isEmpty ||
+                            _codeServerError != null
                         ? null
                         : _submit,
                   ),

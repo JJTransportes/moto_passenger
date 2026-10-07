@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
+import 'package:moto_passenger/core/errors/user_error_message.dart';
 import 'package:moto_passenger/design_system/design_system.dart';
 
 class TravelHistoryPage extends StatefulWidget {
@@ -26,12 +27,16 @@ class _TravelHistoryPageState extends State<TravelHistoryPage> {
       final dio = Modular.get<Dio>();
       final response = await dio.get('/api/travels/passenger?pageSize=50');
       setState(() {
-        _travels = (response.data['items'] as List).cast<Map<String, dynamic>>();
+        _travels = (response.data['items'] as List)
+            .cast<Map<String, dynamic>>();
         _isLoading = false;
       });
     } catch (e) {
       setState(() {
-        _error = e.toString();
+        _error = userErrorMessage(
+          e,
+          fallback: 'Não foi possível carregar seu histórico.',
+        );
         _isLoading = false;
       });
     }
@@ -48,56 +53,75 @@ class _TravelHistoryPageState extends State<TravelHistoryPage> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text('Erro ao carregar: $_error'),
-                      const SizedBox(height: 16),
-                      ElevatedButton(onPressed: _loadHistory, child: const Text('Tentar novamente')),
-                    ],
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(_error!),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _loadHistory,
+                    child: const Text('Tentar novamente'),
                   ),
-                )
-              : _travels.isEmpty
-                  ? const Center(child: Text('Nenhuma viagem encontrada'))
-                  : RefreshIndicator(
-                      onRefresh: _loadHistory,
-                      child: ListView.separated(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: _travels.length,
-                        separatorBuilder: (_, __) => const Divider(),
-                        itemBuilder: (_, i) => ListTile(
-                          leading: Icon(
-                            _statusIcon(_travels[i]['status'] as String?),
-                            color: _statusColor(context, _travels[i]['status'] as String?),
-                          ),
-                          title: Text(_travels[i]['driverName'] as String? ?? 'Motorista'),
-                          subtitle: Text('Status: ${_travels[i]['status']}'),
-                          trailing: Text(
-                            _formatDate(_travels[i]['createdAt'] as String?),
-                            style: TextStyle(fontSize: 12, color: context.moto.textSecondary),
-                          ),
-                        ),
-                      ),
+                ],
+              ),
+            )
+          : _travels.isEmpty
+          ? const Center(child: Text('Nenhuma viagem encontrada'))
+          : RefreshIndicator(
+              onRefresh: _loadHistory,
+              child: ListView.separated(
+                padding: const EdgeInsets.all(16),
+                itemCount: _travels.length,
+                separatorBuilder: (_, __) => const Divider(),
+                itemBuilder: (_, i) => ListTile(
+                  leading: Icon(
+                    _statusIcon(_travels[i]['status'] as String?),
+                    color: _statusColor(
+                      context,
+                      _travels[i]['status'] as String?,
                     ),
+                  ),
+                  title: Text(
+                    _travels[i]['driverName'] as String? ?? 'Motorista',
+                  ),
+                  subtitle: Text('Status: ${_travels[i]['status']}'),
+                  trailing: Text(
+                    _formatDate(_travels[i]['createdAt'] as String?),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: context.moto.textSecondary,
+                    ),
+                  ),
+                ),
+              ),
+            ),
     );
   }
 
   IconData _statusIcon(String? status) {
     switch (status) {
-      case 'Completed': return Icons.task_alt;
-      case 'Cancelled': return Icons.cancel;
-      case 'InProgress': return Icons.directions_car;
-      default: return Icons.access_time;
+      case 'Completed':
+        return Icons.task_alt;
+      case 'Cancelled':
+        return Icons.cancel;
+      case 'InProgress':
+        return Icons.directions_car;
+      default:
+        return Icons.access_time;
     }
   }
 
   Color _statusColor(BuildContext context, String? status) {
     switch (status) {
-      case 'Completed': return context.moto.success;
-      case 'Cancelled': return context.moto.danger;
-      case 'InProgress': return context.moto.accent;
-      default: return context.moto.warning;
+      case 'Completed':
+        return context.moto.success;
+      case 'Cancelled':
+        return context.moto.danger;
+      case 'InProgress':
+        return context.moto.accent;
+      default:
+        return context.moto.warning;
     }
   }
 

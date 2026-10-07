@@ -19,6 +19,7 @@ import 'package:moto_passenger/modules/new_travel/domain/entities/travel_trackin
 import 'package:moto_passenger/modules/new_travel/presentation/blocs/travel_tracking_bloc.dart';
 import 'package:moto_passenger/modules/new_travel/presentation/blocs/travel_tracking_event.dart';
 import 'package:moto_passenger/modules/new_travel/presentation/blocs/travel_tracking_state.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 class TravelTrackingPage extends StatefulWidget {
   final String travelId;
@@ -92,6 +93,7 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
             }
             if (state is TravelTrackingCompleted ||
                 state is TravelTrackingCancelled) {
+              unawaited(WakelockPlus.disable());
               unawaited(
                 Modular.get<PassengerBackgroundLocationService>().stop(),
               );
@@ -123,9 +125,6 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
           },
           child: BlocBuilder<TravelTrackingBloc, TravelTrackingState>(
             builder: (context, state) {
-              print(
-                '[DIAG] BlocBuilder rebuild, state=${state.runtimeType}, bloc hash=${BlocProvider.of<TravelTrackingBloc>(context).hashCode}',
-              );
               return switch (state) {
                 TravelTrackingInitial() => const Center(
                   child: CircularProgressIndicator(),
@@ -184,7 +183,42 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
                 TravelTrackingCancelled(reason: final reason) =>
                   _buildCancelledState(reason),
                 TravelTrackingFailure(message: final msg) => Center(
-                  child: Text('Erro: $msg'),
+                  child: Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.wifi_off_rounded,
+                          size: 48,
+                          color: context.moto.danger,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Não foi possível atualizar a viagem',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: context.moto.textPrimary,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          msg,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: context.moto.textSecondary),
+                        ),
+                        const SizedBox(height: 20),
+                        ElevatedButton(
+                          onPressed: () => context
+                              .read<TravelTrackingBloc>()
+                              .add(LoadTravel(widget.travelId)),
+                          child: const Text('Tentar novamente'),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               };
             },
@@ -196,6 +230,7 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
 
   @override
   void dispose() {
+    WakelockPlus.disable();
     try {
       Modular.get<ChatSession>().stop();
     } catch (_) {
@@ -213,24 +248,16 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
     _driverArrivedSub?.cancel();
     _mapController?.dispose();
     Modular.get<SignalRService>().disconnectAll();
-    print(
-      '[DIAG] TravelTrackingPage.dispose pageHash=$hashCode travelId=${widget.travelId}',
-    );
     super.dispose();
   }
 
   @override
   void initState() {
     super.initState();
-    print(
-      '[DIAG] TravelTrackingPage.initState travelId=${widget.travelId} orderId=${widget.orderId} pageHash=$hashCode',
-    );
+    WakelockPlus.enable();
     WidgetsBinding.instance.addObserver(this);
     // Delay to ensure BlocProvider ancestor is established
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      print(
-        '[DIAG] postFrameCallback firing _connectAndLoad, pageHash=$hashCode, mounted=$mounted',
-      );
       _connectAndLoad();
       if (mounted) {
         Modular.get<PassengerBackgroundLocationService>()
@@ -902,23 +929,13 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
       // Fallback: polling will handle updates
     }
 
-    print(
-      '[DIAG] about to dispatch LoadTravel, mounted=$mounted, pageHash=$hashCode',
-    );
     if (mounted) {
       try {
         final bloc2 = BlocProvider.of<TravelTrackingBloc>(context);
-        print(
-          '[DIAG] dispatching LoadTravel travelId=${widget.travelId} to bloc hash=${bloc2.hashCode} isClosed=${bloc2.isClosed}',
-        );
         bloc2.add(LoadTravel(widget.travelId));
-      } catch (e, st) {
-        print('[DIAG] EXCEPTION dispatching LoadTravel: $e\n$st');
+      } catch (_) {
+        debugPrint('Não foi possível atualizar o acompanhamento da viagem.');
       }
-    } else {
-      print(
-        '[DIAG] NOT mounted, skipping LoadTravel dispatch entirely! pageHash=$hashCode',
-      );
     }
   }
 

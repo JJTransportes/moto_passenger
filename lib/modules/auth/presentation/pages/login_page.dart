@@ -95,7 +95,10 @@ class _LoginPageState extends State<LoginPage> {
           body: MotoCanvas(
             child: SafeArea(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 28),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 28,
+                  vertical: 28,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -112,11 +115,16 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                     const SizedBox(height: MotoSpace.s2),
-                    Text('Bom te ver de novo.', style: Theme.of(context).textTheme.displaySmall),
+                    Text(
+                      'Bom te ver de novo.',
+                      style: Theme.of(context).textTheme.displaySmall,
+                    ),
                     const SizedBox(height: MotoSpace.s2),
                     Text(
                       'Entre para chamar seu carro.',
-                      style: Theme.of(context).textTheme.bodyLarge!.copyWith(color: context.moto.textSecondary),
+                      style: Theme.of(context).textTheme.bodyLarge!.copyWith(
+                        color: context.moto.textSecondary,
+                      ),
                     ),
                     const SizedBox(height: 40),
                     Column(
@@ -142,7 +150,8 @@ class _LoginPageState extends State<LoginPage> {
                         Align(
                           alignment: Alignment.centerRight,
                           child: TextButton(
-                            onPressed: () => Navigator.of(context).pushNamed('/recovery'),
+                            onPressed: () =>
+                                Navigator.of(context).pushNamed('/recovery'),
                             child: Text(
                               'Esqueci minha senha',
                               style: GoogleFonts.inter(
@@ -164,12 +173,18 @@ class _LoginPageState extends State<LoginPage> {
                         MotoButton(
                           label: 'Entrar',
                           loading: isLoading,
-                          onPressed: _isFormFilled && !_serverErrorBlocked ? _submit : null,
+                          onPressed: _isFormFilled && !_serverErrorBlocked
+                              ? _submit
+                              : null,
                         ),
                         MotoButton(
                           label: 'Criar conta',
                           variant: MotoButtonVariant.glass,
-                          onPressed: isLoading ? null : () => Navigator.of(context).pushNamed('/register'),
+                          onPressed: isLoading
+                              ? null
+                              : () => Navigator.of(
+                                  context,
+                                ).pushNamed('/register'),
                         ),
                       ],
                     ),

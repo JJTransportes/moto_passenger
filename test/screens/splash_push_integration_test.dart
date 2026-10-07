@@ -36,11 +36,14 @@ class MockTravelLocalRepository extends Mock implements TravelLocalRepository {}
 
 class MockDio extends Mock implements Dio {}
 
-class MockPushNotificationService extends Mock implements IPushNotificationService {}
+class MockPushNotificationService extends Mock
+    implements IPushNotificationService {}
 
-class MockPendingNotificationRouter extends Mock implements PendingNotificationRouter {}
+class MockPendingNotificationRouter extends Mock
+    implements PendingNotificationRouter {}
 
-class MockNotificationChannelService extends Mock implements INotificationChannelService {}
+class MockNotificationChannelService extends Mock
+    implements INotificationChannelService {}
 
 class MockModularNavigator extends Mock implements IModularNavigator {}
 
@@ -107,34 +110,49 @@ void main() {
     router = MockPendingNotificationRouter();
     navigator = MockModularNavigator();
 
-    dotenv.loadFromString(envString: 'API_BASE_URL=http://api.test\nONE_SIGNAL_ID=app-xyz');
+    dotenv.loadFromString(
+      envString: 'API_BASE_URL=http://api.test\nONE_SIGNAL_ID=app-xyz',
+    );
     await AppConfig.loadEnv();
     SessionReadiness.reset();
 
-    when(() => channels.ensureRideAlertsChannel()).thenAnswer((_) async => order.add('channel'));
-    when(() => push.initialize(any())).thenAnswer((_) async => order.add('initialize'));
+    when(
+      () => channels.ensureRideAlertsChannel(),
+    ).thenAnswer((_) async => order.add('channel'));
+    when(
+      () => push.initialize(any()),
+    ).thenAnswer((_) async => order.add('initialize'));
     when(() => push.requestPermission()).thenAnswer((_) async => true);
     when(() => push.identify(any())).thenAnswer((_) async {});
     when(() => router.dispatchPending()).thenReturn(false);
     when(() => travelLocal.getActiveTravel()).thenAnswer((_) async => null);
-    when(() => storage.saveTokens(any(), any(), any())).thenAnswer((_) async {});
+    when(
+      () => storage.saveTokens(any(), any(), any()),
+    ).thenAnswer((_) async {});
     when(() => authLocal.updateTokens(any(), any())).thenAnswer((_) async {});
-    when(() => signOut.signOut()).thenAnswer((_) async {});
-    when(() => navigator.navigate(any(), arguments: any(named: 'arguments'))).thenReturn(null);
-    when(() => navigator.pushNamed(any(), arguments: any(named: 'arguments')))
-        .thenAnswer((_) async => null);
+    when(
+      () => signOut.signOut(message: any(named: 'message')),
+    ).thenAnswer((_) async {});
+    when(
+      () => navigator.navigate(any(), arguments: any(named: 'arguments')),
+    ).thenReturn(null);
+    when(
+      () => navigator.pushNamed(any(), arguments: any(named: 'arguments')),
+    ).thenAnswer((_) async => null);
 
-    Modular.init(_TestModule(
-      authLocal: authLocal,
-      datasource: datasource,
-      storage: storage,
-      signOut: signOut,
-      travelLocal: travelLocal,
-      dio: dio,
-      push: push,
-      router: router,
-      channels: channels,
-    ));
+    Modular.init(
+      _TestModule(
+        authLocal: authLocal,
+        datasource: datasource,
+        storage: storage,
+        signOut: signOut,
+        travelLocal: travelLocal,
+        dio: dio,
+        push: push,
+        router: router,
+        channels: channels,
+      ),
+    );
     Modular.navigatorDelegate = navigator;
   });
 
@@ -147,12 +165,15 @@ void main() {
   });
 
   Future<void> pumpSplash(WidgetTester tester) async {
-    await tester.pumpWidget(const MaterialApp(home: SplashScreen(delay: Duration.zero)));
+    await tester.pumpWidget(
+      const MaterialApp(home: SplashScreen(delay: Duration.zero)),
+    );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
   }
 
-  SignInResponseModel refreshed({String userId = 'user-1'}) => SignInResponseModel(
+  SignInResponseModel refreshed({String userId = 'user-1'}) =>
+      SignInResponseModel(
         accessToken: 'new',
         refreshToken: 'new-refresh',
         expiresAt: DateTime(2026, 12, 1),
@@ -168,17 +189,22 @@ void main() {
       expect(AppConfig.getOneSignalAppId(), 'app-xyz');
     });
 
-    testWidgets('inicializa com o identificador configurado e pede a permissão', (tester) async {
-      when(() => authLocal.getAuth()).thenAnswer((_) async => null);
-      when(() => storage.getToken()).thenAnswer((_) async => null);
+    testWidgets(
+      'inicializa com o identificador configurado e pede a permissão',
+      (tester) async {
+        when(() => authLocal.getAuth()).thenAnswer((_) async => null);
+        when(() => storage.getToken()).thenAnswer((_) async => null);
 
-      await pumpSplash(tester);
+        await pumpSplash(tester);
 
-      verify(() => push.initialize('app-xyz')).called(1);
-      verify(() => push.requestPermission()).called(1);
-    });
+        verify(() => push.initialize('app-xyz')).called(1);
+        verify(() => push.requestPermission()).called(1);
+      },
+    );
 
-    testWidgets('a permissão só é pedida depois da inicialização', (tester) async {
+    testWidgets('a permissão só é pedida depois da inicialização', (
+      tester,
+    ) async {
       when(() => authLocal.getAuth()).thenAnswer((_) async => null);
       when(() => storage.getToken()).thenAnswer((_) async => null);
       final init = Completer<void>();
@@ -194,34 +220,52 @@ void main() {
       verify(() => push.requestPermission()).called(1);
     });
 
-    testWidgets('inicialização que não termina não atrasa a decisão de autenticação', (tester) async {
-      when(() => authLocal.getAuth()).thenAnswer((_) async => null);
-      when(() => storage.getToken()).thenAnswer((_) async => null);
-      when(() => push.initialize(any())).thenAnswer((_) => Completer<void>().future);
+    testWidgets(
+      'inicialização que não termina não atrasa a decisão de autenticação',
+      (tester) async {
+        when(() => authLocal.getAuth()).thenAnswer((_) async => null);
+        when(() => storage.getToken()).thenAnswer((_) async => null);
+        when(
+          () => push.initialize(any()),
+        ).thenAnswer((_) => Completer<void>().future);
 
-      await pumpSplash(tester);
+        await pumpSplash(tester);
 
-      verify(() => navigator.navigate('/login', arguments: any(named: 'arguments'))).called(1);
-    });
+        verify(
+          () =>
+              navigator.navigate('/login', arguments: any(named: 'arguments')),
+        ).called(1);
+      },
+    );
 
-    testWidgets('falha do push na inicialização não impede o app de abrir', (tester) async {
+    testWidgets('falha do push na inicialização não impede o app de abrir', (
+      tester,
+    ) async {
       when(() => authLocal.getAuth()).thenAnswer((_) async => null);
       when(() => storage.getToken()).thenAnswer((_) async => null);
       when(() => push.initialize(any())).thenThrow(StateError('push quebrou'));
 
       await pumpSplash(tester);
 
-      verify(() => navigator.navigate('/login', arguments: any(named: 'arguments'))).called(1);
+      verify(
+        () => navigator.navigate('/login', arguments: any(named: 'arguments')),
+      ).called(1);
     });
 
-    testWidgets('falha ao pedir a permissão não impede o app de abrir', (tester) async {
+    testWidgets('falha ao pedir a permissão não impede o app de abrir', (
+      tester,
+    ) async {
       when(() => authLocal.getAuth()).thenAnswer((_) async => null);
       when(() => storage.getToken()).thenAnswer((_) async => null);
-      when(() => push.requestPermission()).thenThrow(StateError('permissão quebrou'));
+      when(
+        () => push.requestPermission(),
+      ).thenThrow(StateError('permissão quebrou'));
 
       await pumpSplash(tester);
 
-      verify(() => navigator.navigate('/login', arguments: any(named: 'arguments'))).called(1);
+      verify(
+        () => navigator.navigate('/login', arguments: any(named: 'arguments')),
+      ).called(1);
     });
   });
 
@@ -242,7 +286,9 @@ void main() {
       verify(() => channels.ensureRideAlertsChannel()).called(1);
     });
 
-    testWidgets('cria o canal ANTES de inicializar o OneSignal', (tester) async {
+    testWidgets('cria o canal ANTES de inicializar o OneSignal', (
+      tester,
+    ) async {
       stubNoSession();
 
       await pumpSplash(tester);
@@ -250,42 +296,74 @@ void main() {
       expect(order.take(2).toList(), ['channel', 'initialize']);
     });
 
-    testWidgets('falha ao criar o canal não impede o OneSignal nem o app', (tester) async {
+    testWidgets('falha ao criar o canal não impede o OneSignal nem o app', (
+      tester,
+    ) async {
       stubNoSession();
-      when(() => channels.ensureRideAlertsChannel()).thenThrow(StateError('canal quebrou'));
+      when(
+        () => channels.ensureRideAlertsChannel(),
+      ).thenThrow(StateError('canal quebrou'));
 
       await pumpSplash(tester);
 
       verify(() => push.initialize('app-xyz')).called(1);
-      verify(() => navigator.navigate('/login', arguments: any(named: 'arguments'))).called(1);
+      verify(
+        () => navigator.navigate('/login', arguments: any(named: 'arguments')),
+      ).called(1);
     });
 
-    testWidgets('canal que demora não atrasa a decisão de autenticação', (tester) async {
+    testWidgets('canal que demora não atrasa a decisão de autenticação', (
+      tester,
+    ) async {
       stubNoSession();
-      when(() => channels.ensureRideAlertsChannel()).thenAnswer((_) => Completer<void>().future);
+      when(
+        () => channels.ensureRideAlertsChannel(),
+      ).thenAnswer((_) => Completer<void>().future);
 
       await pumpSplash(tester);
 
-      verify(() => navigator.navigate('/login', arguments: any(named: 'arguments'))).called(1);
+      verify(
+        () => navigator.navigate('/login', arguments: any(named: 'arguments')),
+      ).called(1);
     });
   });
 
   group('sessão restaurada identifica o aparelho', () {
-    testWidgets('por renovação do token: usa o userId da renovação', (tester) async {
+    testWidgets('por renovação do token: usa o userId da renovação', (
+      tester,
+    ) async {
       when(() => authLocal.getAuth()).thenAnswer(
-        (_) async => AuthLocalData(userId: 'antigo', accessToken: 'a', refreshToken: 'r', roles: ['Passenger']),
+        (_) async => AuthLocalData(
+          userId: 'antigo',
+          accessToken: 'a',
+          refreshToken: 'r',
+          roles: ['Passenger'],
+        ),
       );
-      when(() => datasource.refreshToken('r')).thenAnswer((_) async => refreshed(userId: 'user-1'));
+      when(
+        () => datasource.refreshToken('r'),
+      ).thenAnswer((_) async => refreshed(userId: 'user-1'));
 
       await pumpSplash(tester);
 
       verify(() => push.identify('user-1')).called(1);
-      verify(() => navigator.navigate('/usage-terms-guard', arguments: any(named: 'arguments'))).called(1);
+      verify(
+        () => navigator.navigate(
+          '/usage-terms-guard',
+          arguments: any(named: 'arguments'),
+        ),
+      ).called(1);
     });
 
-    testWidgets('por cache local sem refresh token: usa o userId do cache', (tester) async {
+    testWidgets('por cache local sem refresh token: usa o userId do cache', (
+      tester,
+    ) async {
       when(() => authLocal.getAuth()).thenAnswer(
-        (_) async => AuthLocalData(userId: 'user-cache', accessToken: 'a', roles: ['Passenger']),
+        (_) async => AuthLocalData(
+          userId: 'user-cache',
+          accessToken: 'a',
+          roles: ['Passenger'],
+        ),
       );
 
       await pumpSplash(tester);
@@ -293,7 +371,9 @@ void main() {
       verify(() => push.identify('user-cache')).called(1);
     });
 
-    testWidgets('por armazenamento seguro: usa o userId guardado', (tester) async {
+    testWidgets('por armazenamento seguro: usa o userId guardado', (
+      tester,
+    ) async {
       when(() => authLocal.getAuth()).thenAnswer((_) async => null);
       when(() => storage.getToken()).thenAnswer((_) async => 'token');
       when(() => storage.getUserId()).thenAnswer((_) async => 'user-secure');
@@ -303,16 +383,24 @@ void main() {
       verify(() => push.identify('user-secure')).called(1);
     });
 
-    testWidgets('armazenamento seguro sem userId não identifica, mas o app abre', (tester) async {
-      when(() => authLocal.getAuth()).thenAnswer((_) async => null);
-      when(() => storage.getToken()).thenAnswer((_) async => 'token');
-      when(() => storage.getUserId()).thenAnswer((_) async => null);
+    testWidgets(
+      'armazenamento seguro sem userId não identifica, mas o app abre',
+      (tester) async {
+        when(() => authLocal.getAuth()).thenAnswer((_) async => null);
+        when(() => storage.getToken()).thenAnswer((_) async => 'token');
+        when(() => storage.getUserId()).thenAnswer((_) async => null);
 
-      await pumpSplash(tester);
+        await pumpSplash(tester);
 
-      verifyNever(() => push.identify(any()));
-      verify(() => navigator.navigate('/usage-terms-guard', arguments: any(named: 'arguments'))).called(1);
-    });
+        verifyNever(() => push.identify(any()));
+        verify(
+          () => navigator.navigate(
+            '/usage-terms-guard',
+            arguments: any(named: 'arguments'),
+          ),
+        ).called(1);
+      },
+    );
 
     testWidgets('sem sessão não identifica e vai ao login', (tester) async {
       when(() => authLocal.getAuth()).thenAnswer((_) async => null);
@@ -321,86 +409,176 @@ void main() {
       await pumpSplash(tester);
 
       verifyNever(() => push.identify(any()));
-      verify(() => navigator.navigate('/login', arguments: any(named: 'arguments'))).called(1);
+      verify(
+        () => navigator.navigate('/login', arguments: any(named: 'arguments')),
+      ).called(1);
     });
 
-    testWidgets('renovação recusada sai da sessão e não identifica', (tester) async {
+    testWidgets('renovação recusada sai da sessão e não identifica', (
+      tester,
+    ) async {
       when(() => authLocal.getAuth()).thenAnswer(
-        (_) async => AuthLocalData(userId: 'u', accessToken: 'a', refreshToken: 'r', roles: ['Passenger']),
+        (_) async => AuthLocalData(
+          userId: 'u',
+          accessToken: 'a',
+          refreshToken: 'r',
+          roles: ['Passenger'],
+        ),
       );
-      when(() => datasource.refreshToken('r')).thenThrow(const UnauthorizedException());
+      when(
+        () => datasource.refreshToken('r'),
+      ).thenThrow(const UnauthorizedException());
 
       await pumpSplash(tester);
 
-      verify(() => signOut.signOut()).called(1);
+      verify(
+        () => signOut.signOut(
+          message: 'Sua sessão expirou, faça login novamente.',
+        ),
+      ).called(1);
       verifyNever(() => push.identify(any()));
+    });
+
+    testWidgets('falha de rede na renovação preserva a sessão', (tester) async {
+      when(() => authLocal.getAuth()).thenAnswer(
+        (_) async => AuthLocalData(
+          userId: 'user-cache',
+          accessToken: 'a',
+          refreshToken: 'r',
+          roles: ['Passenger'],
+        ),
+      );
+      when(
+        () => datasource.refreshToken('r'),
+      ).thenThrow(const NetworkException());
+
+      await pumpSplash(tester);
+
+      verifyNever(
+        () => signOut.signOut(message: any(named: 'message')),
+      );
+      verify(() => push.identify('user-cache')).called(1);
     });
 
     testWidgets('falha ao identificar não impede a navegação', (tester) async {
       when(() => authLocal.getAuth()).thenAnswer(
-        (_) async => AuthLocalData(userId: 'user-cache', accessToken: 'a', roles: ['Passenger']),
+        (_) async => AuthLocalData(
+          userId: 'user-cache',
+          accessToken: 'a',
+          roles: ['Passenger'],
+        ),
       );
-      when(() => push.identify(any())).thenThrow(StateError('identificar falhou'));
+      when(
+        () => push.identify(any()),
+      ).thenThrow(StateError('identificar falhou'));
 
       await pumpSplash(tester);
 
-      verify(() => navigator.navigate('/usage-terms-guard', arguments: any(named: 'arguments'))).called(1);
+      verify(
+        () => navigator.navigate(
+          '/usage-terms-guard',
+          arguments: any(named: 'arguments'),
+        ),
+      ).called(1);
     });
 
-    testWidgets('a identificação não é esperada: identificar lento não atrasa a navegação', (tester) async {
-      when(() => authLocal.getAuth()).thenAnswer(
-        (_) async => AuthLocalData(userId: 'user-cache', accessToken: 'a', roles: ['Passenger']),
-      );
-      when(() => push.identify(any())).thenAnswer((_) => Completer<void>().future);
+    testWidgets(
+      'a identificação não é esperada: identificar lento não atrasa a navegação',
+      (tester) async {
+        when(() => authLocal.getAuth()).thenAnswer(
+          (_) async => AuthLocalData(
+            userId: 'user-cache',
+            accessToken: 'a',
+            roles: ['Passenger'],
+          ),
+        );
+        when(
+          () => push.identify(any()),
+        ).thenAnswer((_) => Completer<void>().future);
 
-      await pumpSplash(tester);
+        await pumpSplash(tester);
 
-      verify(() => navigator.navigate('/usage-terms-guard', arguments: any(named: 'arguments'))).called(1);
-    });
+        verify(
+          () => navigator.navigate(
+            '/usage-terms-guard',
+            arguments: any(named: 'arguments'),
+          ),
+        ).called(1);
+      },
+    );
   });
 
   // ─── Toque guardado ao restaurar a viagem (5.2) ────────────────────────
 
   group('viagem ativa restaurada', () {
     TravelLocalData active(String status) => TravelLocalData(
-          travelId: 'travel-1',
-          status: status,
-          createdAt: DateTime(2026, 10, 2),
-        );
+      travelId: 'travel-1',
+      status: status,
+      createdAt: DateTime(2026, 10, 2),
+    );
 
     void stubSession() {
       when(() => authLocal.getAuth()).thenAnswer(
-        (_) async => AuthLocalData(userId: 'user-cache', accessToken: 'a', roles: ['Passenger']),
+        (_) async => AuthLocalData(
+          userId: 'user-cache',
+          accessToken: 'a',
+          roles: ['Passenger'],
+        ),
       );
     }
 
-    testWidgets('despacha o toque guardado e marca a sessão como pronta', (tester) async {
+    testWidgets('restaura a viagem sem despachar uma segunda navegação', (
+      tester,
+    ) async {
       stubSession();
-      when(() => travelLocal.getActiveTravel()).thenAnswer((_) async => active('Accepted'));
+      when(
+        () => travelLocal.getActiveTravel(),
+      ).thenAnswer((_) async => active('Accepted'));
       when(() => dio.get(any())).thenAnswer(
-        (_) async => Response(requestOptions: RequestOptions(path: ''), statusCode: 200),
+        (_) async =>
+            Response(requestOptions: RequestOptions(path: ''), statusCode: 200),
       );
 
       await pumpSplash(tester);
 
-      verify(() => navigator.pushNamed('/new-travel/tracking', arguments: any(named: 'arguments'))).called(1);
-      verify(() => router.dispatchPending()).called(1);
+      verify(
+        () => navigator.pushNamed(
+          '/new-travel/tracking',
+          arguments: any(named: 'arguments'),
+        ),
+      ).called(1);
+      verifyNever(() => router.dispatchPending());
       expect(SessionReadiness.isReady, isTrue);
     });
 
-    testWidgets('sem viagem ativa não despacha: o toque espera a tela inicial', (tester) async {
+    testWidgets(
+      'sem viagem ativa não despacha: o toque espera a tela inicial',
+      (tester) async {
+        stubSession();
+
+        await pumpSplash(tester);
+
+        verifyNever(() => router.dispatchPending());
+        expect(SessionReadiness.isReady, isFalse);
+      },
+    );
+
+    testWidgets('viagem que não existe mais no backend não despacha', (
+      tester,
+    ) async {
       stubSession();
-
-      await pumpSplash(tester);
-
-      verifyNever(() => router.dispatchPending());
-      expect(SessionReadiness.isReady, isFalse);
-    });
-
-    testWidgets('viagem que não existe mais no backend não despacha', (tester) async {
-      stubSession();
-      when(() => travelLocal.getActiveTravel()).thenAnswer((_) async => active('Accepted'));
-      when(() => dio.get(any())).thenThrow(DioException(requestOptions: RequestOptions(path: '')));
+      when(
+        () => travelLocal.getActiveTravel(),
+      ).thenAnswer((_) async => active('Accepted'));
+      when(() => dio.get(any())).thenThrow(
+        DioException(
+          requestOptions: RequestOptions(path: ''),
+          response: Response(
+            requestOptions: RequestOptions(path: ''),
+            statusCode: 404,
+          ),
+        ),
+      );
       when(() => travelLocal.clearTravels()).thenAnswer((_) async {});
 
       await pumpSplash(tester);
@@ -408,17 +586,29 @@ void main() {
       verifyNever(() => router.dispatchPending());
     });
 
-    testWidgets('falha no despacho não derruba a abertura do app', (tester) async {
+    testWidgets('falha no despacho não derruba a abertura do app', (
+      tester,
+    ) async {
       stubSession();
-      when(() => travelLocal.getActiveTravel()).thenAnswer((_) async => active('Accepted'));
+      when(
+        () => travelLocal.getActiveTravel(),
+      ).thenAnswer((_) async => active('Accepted'));
       when(() => dio.get(any())).thenAnswer(
-        (_) async => Response(requestOptions: RequestOptions(path: ''), statusCode: 200),
+        (_) async =>
+            Response(requestOptions: RequestOptions(path: ''), statusCode: 200),
       );
-      when(() => router.dispatchPending()).thenThrow(StateError('despacho falhou'));
+      when(
+        () => router.dispatchPending(),
+      ).thenThrow(StateError('despacho falhou'));
 
       await pumpSplash(tester);
 
-      verify(() => navigator.pushNamed('/new-travel/tracking', arguments: any(named: 'arguments'))).called(1);
+      verify(
+        () => navigator.pushNamed(
+          '/new-travel/tracking',
+          arguments: any(named: 'arguments'),
+        ),
+      ).called(1);
     });
   });
 }

@@ -70,7 +70,8 @@ class ChatDatasource implements IChatDatasource {
         );
       case var code when code != null && code >= 500:
         return ServerException(
-          serverMessage ?? 'Não foi possível enviar a mensagem. Tente novamente.',
+          serverMessage ??
+              'Não foi possível enviar a mensagem. Tente novamente.',
         );
       default:
         if (e.type == DioExceptionType.connectionTimeout ||

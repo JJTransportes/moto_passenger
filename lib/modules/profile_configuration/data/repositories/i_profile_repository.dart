@@ -6,7 +6,9 @@ import 'package:moto_passenger/modules/profile_configuration/domain/entities/upd
 abstract class IProfileRepository {
   AsyncResult<ProfileEntity> getProfile(String userId);
   AsyncResult<ProfileEntity> updateProfile(
-      String userId, UpdateProfileRequest request);
+    String userId,
+    UpdateProfileRequest request,
+  );
   AsyncResult<String> uploadPhoto(String userId, File imageFile);
   AsyncResult<bool> removePhoto(String userId);
 }

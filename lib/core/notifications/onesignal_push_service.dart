@@ -32,11 +32,11 @@ class OneSignalPushService implements IPushNotificationService {
     void Function(PushNotificationData data)? navigate,
     String? Function()? travelOnScreen,
     void Function(String message)? log,
-  })  : _initTimeout = initTimeout,
-        _isSessionReady = isSessionReady ?? (() => SessionReadiness.isReady),
-        _navigate = navigate ?? NotificationHandler.handleNotificationTap,
-        _travelOnScreen = travelOnScreen ?? NotificationHandler.travelOnScreen,
-        _log = log ?? ((message) => developer.log(message, name: 'push'));
+  }) : _initTimeout = initTimeout,
+       _isSessionReady = isSessionReady ?? (() => SessionReadiness.isReady),
+       _navigate = navigate ?? NotificationHandler.handleNotificationTap,
+       _travelOnScreen = travelOnScreen ?? NotificationHandler.travelOnScreen,
+       _log = log ?? ((message) => developer.log(message, name: 'push'));
 
   Future<void>? _initFuture;
   bool _initialized = false;
@@ -71,10 +71,14 @@ class OneSignalPushService implements IPushNotificationService {
       _initialized = true;
       _log('[PUSH] Initialized.');
     } on TimeoutException {
-      _log('[PUSH] Initialization timed out; continuing without blocking the app.');
+      _log(
+        '[PUSH] Initialization timed out; continuing without blocking the app.',
+      );
       return;
     } catch (e) {
-      _log('[PUSH] Initialization failed (${e.runtimeType}); continuing without push.');
+      _log(
+        '[PUSH] Initialization failed (${e.runtimeType}); continuing without push.',
+      );
       return;
     }
 
@@ -145,7 +149,8 @@ class OneSignalPushService implements IPushNotificationService {
 
   Future<void> _registerDevice(String userId) async {
     final playerId = _gateway.pushSubscriptionId;
-    if (playerId == null || playerId.isEmpty) return; // o observer chama de novo
+    if (playerId == null || playerId.isEmpty)
+      return; // o observer chama de novo
 
     final key = '$userId|$playerId';
     if (_registeredKey == key) return;

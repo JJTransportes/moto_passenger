@@ -81,7 +81,8 @@ class TravelTrackingRepository implements ITravelTrackingRepository {
       travelId: data['travelId'] as String,
       orderId: data['orderId'] as String,
       status: status,
-      createdAt: DateTime.tryParse(data['createdAt']?.toString() ?? '') ??
+      createdAt:
+          DateTime.tryParse(data['createdAt']?.toString() ?? '') ??
           DateTime.now(),
       startedAt: DateTime.tryParse(data['startedAt']?.toString() ?? ''),
       finishedAt: DateTime.tryParse(data['finishedAt']?.toString() ?? ''),
@@ -92,7 +93,9 @@ class TravelTrackingRepository implements ITravelTrackingRepository {
       destinationLatitude: destLat,
       destinationLongitude: destLng,
       routePolyline: routePolyline,
-      pickupProximity: PickupProximity.parse(data['pickupProximity'] as String?),
+      pickupProximity: PickupProximity.parse(
+        data['pickupProximity'] as String?,
+      ),
     );
   }
 

@@ -1,4 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:moto_passenger/core/errors/user_error_message.dart';
 import 'package:moto_passenger/modules/usage_terms/data/repositories/i_usage_terms_repository.dart';
 import 'package:moto_passenger/modules/usage_terms/domain/entities/usage_term_entity.dart';
 import 'package:moto_passenger/modules/usage_terms/domain/usecases/i_accept_terms_usecase.dart';
@@ -46,7 +47,7 @@ class UsageTermsBloc extends Bloc<UsageTermsEvent, UsageTermsState> {
         }
       },
       (error) {
-        emit(UsageTermsError(error.toString()));
+        emit(UsageTermsError(userErrorMessage(error)));
       },
     );
   }
@@ -61,7 +62,7 @@ class UsageTermsBloc extends Bloc<UsageTermsEvent, UsageTermsState> {
 
     result.fold(
       (terms) => emit(UsageTermsLoaded(terms)),
-      (error) => emit(UsageTermsError(error.toString())),
+      (error) => emit(UsageTermsError(userErrorMessage(error))),
     );
   }
 
@@ -75,7 +76,7 @@ class UsageTermsBloc extends Bloc<UsageTermsEvent, UsageTermsState> {
 
     result.fold(
       (_) => emit(const UsageTermsAccepted()),
-      (error) => emit(UsageTermsError(error.toString())),
+      (error) => emit(UsageTermsError(userErrorMessage(error))),
     );
   }
 

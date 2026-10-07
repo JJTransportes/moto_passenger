@@ -1,12 +1,16 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:moto_passenger/core/errors/exceptions.dart';
+import 'package:moto_passenger/core/errors/user_error_message.dart';
 import 'package:moto_passenger/modules/new_travel/data/repositories/travel_tracking_repository.dart';
 import 'package:moto_passenger/modules/new_travel/domain/entities/travel_tracking_entity.dart';
 import 'package:moto_passenger/modules/new_travel/presentation/blocs/travel_tracking_event.dart';
 import 'package:moto_passenger/modules/new_travel/presentation/blocs/travel_tracking_state.dart';
 
-class TravelTrackingBloc extends Bloc<TravelTrackingEvent, TravelTrackingState> {
+class TravelTrackingBloc
+    extends Bloc<TravelTrackingEvent, TravelTrackingState> {
   final ITravelTrackingRepository _repository;
 
   Timer? _pollTimer;
@@ -17,7 +21,6 @@ class TravelTrackingBloc extends Bloc<TravelTrackingEvent, TravelTrackingState> 
   static const int _maxFailuresBeforeBackoff = 3;
 
   TravelTrackingBloc(this._repository) : super(const TravelTrackingInitial()) {
-    print('[DIAG] bloc CREATED hash=$hashCode');
     on<LoadTravel>(_onLoadTravel);
     on<CancelTravel>(_onCancelTravel);
     on<TravelOrderAccepted>(_onOrderAccepted);
@@ -47,7 +50,10 @@ class TravelTrackingBloc extends Bloc<TravelTrackingEvent, TravelTrackingState> 
   /// síncrono: prioriza o que veio na viagem mais recente, cai pro que já
   /// tinha se por algum motivo não vier (ex.: evento de SignalR sem dados
   /// completos, coberto no próximo poll/load).
-  DriverInfoEntity? _resolveDriver(DriverInfoEntity? fromTravel, DriverInfoEntity? existing) {
+  DriverInfoEntity? _resolveDriver(
+    DriverInfoEntity? fromTravel,
+    DriverInfoEntity? existing,
+  ) {
     return fromTravel ?? existing;
   }
 
@@ -67,11 +73,17 @@ class TravelTrackingBloc extends Bloc<TravelTrackingEvent, TravelTrackingState> 
     _pollFailCount = 0;
   }
 
-  Future<void> _onPollingPaused(PollingPaused event, Emitter<TravelTrackingState> emit) async {
+  Future<void> _onPollingPaused(
+    PollingPaused event,
+    Emitter<TravelTrackingState> emit,
+  ) async {
     _stopPolling();
   }
 
-  Future<void> _onPollTravelStatus(PollTravelStatus event, Emitter<TravelTrackingState> emit) async {
+  Future<void> _onPollTravelStatus(
+    PollTravelStatus event,
+    Emitter<TravelTrackingState> emit,
+  ) async {
     try {
       final travel = await _repository.getTravel(event.travelId);
       _pollFailCount = 0;
@@ -96,34 +108,56 @@ class TravelTrackingBloc extends Bloc<TravelTrackingEvent, TravelTrackingState> 
 
   /// Updates the state based on travel data from polling, but never regresses
   /// to an earlier status (e.g., if already Accepted, polling Pending is ignored).
-  Future<void> _updateStateFromTravel(TravelTrackingEntity travel, Emitter<TravelTrackingState> emit) async {
+  Future<void> _updateStateFromTravel(
+    TravelTrackingEntity travel,
+    Emitter<TravelTrackingState> emit,
+  ) async {
     final currentState = state;
-    print('[DIAG] _updateStateFromTravel hash=$hashCode currentState=${currentState.runtimeType} travelStatus=${travel.status} isClosed=$isClosed');
 
     // Never regress from terminal states
-    if (currentState is TravelTrackingCompleted || currentState is TravelTrackingCancelled) {
-      print('[DIAG] guard: terminal state, ignoring');
+    if (currentState is TravelTrackingCompleted ||
+        currentState is TravelTrackingCancelled) {
       return;
     }
 
     // Never go backwards in the lifecycle
-    if (currentState is TravelTrackingAccepted && travel.status == TravelStatus.pending) return;
-    if (currentState is TravelTrackingInProgress && travel.status == TravelStatus.accepted) return;
-    if (currentState is TravelTrackingInProgress && travel.status == TravelStatus.pending) return;
+    if (currentState is TravelTrackingAccepted &&
+        travel.status == TravelStatus.pending)
+      return;
+    if (currentState is TravelTrackingInProgress &&
+        travel.status == TravelStatus.accepted)
+      return;
+    if (currentState is TravelTrackingInProgress &&
+        travel.status == TravelStatus.pending)
+      return;
 
     switch (travel.status) {
       case TravelStatus.pending:
         if (currentState is! TravelTrackingPending) {
-          emit(TravelTrackingPending(travelId: travel.travelId, orderId: travel.orderId));
+          emit(
+            TravelTrackingPending(
+              travelId: travel.travelId,
+              orderId: travel.orderId,
+            ),
+          );
         }
       case TravelStatus.accepted:
-        final existingAccepted = currentState is TravelTrackingAccepted ? currentState : null;
+        final existingAccepted = currentState is TravelTrackingAccepted
+            ? currentState
+            : null;
         final existingDriver = existingAccepted?.driver;
-        if (existingAccepted != null && existingDriver != null && existingDriver.driverId == travel.driverId) {
+        if (existingAccepted != null &&
+            existingDriver != null &&
+            existingDriver.driverId == travel.driverId) {
           // Mesmo motorista: só a proximidade pode ter mudado (alerta perdido por
           // SignalR). Nunca regride: um poll atrasado com `none` não apaga `arrived`.
-          if (travel.pickupProximity.index > existingAccepted.pickupProximity.index) {
-            emit(existingAccepted.copyWith(pickupProximity: travel.pickupProximity));
+          if (travel.pickupProximity.index >
+              existingAccepted.pickupProximity.index) {
+            emit(
+              existingAccepted.copyWith(
+                pickupProximity: travel.pickupProximity,
+              ),
+            );
           }
           return;
         }
@@ -131,51 +165,83 @@ class TravelTrackingBloc extends Bloc<TravelTrackingEvent, TravelTrackingState> 
       case TravelStatus.inProgress:
         final existingDriver = currentState is TravelTrackingInProgress
             ? currentState.driver
-            : (currentState is TravelTrackingAccepted ? currentState.driver : null);
+            : (currentState is TravelTrackingAccepted
+                  ? currentState.driver
+                  : null);
         final driver = _resolveDriver(travel.driver, existingDriver);
-        if (currentState is! TravelTrackingInProgress || driver?.driverId != existingDriver?.driverId) {
-          emit(TravelTrackingInProgress(
-            travelId: travel.travelId,
-            driver: driver,
-            driverLatitude: currentState is TravelTrackingAccepted ? currentState.driverLatitude : null,
-            driverLongitude: currentState is TravelTrackingAccepted ? currentState.driverLongitude : null,
-            destinationLatitude: travel.destinationLatitude,
-            destinationLongitude: travel.destinationLongitude,
-            routePolyline: travel.routePolyline,
-            requestedAt: travel.createdAt,
-          ));
+        if (currentState is! TravelTrackingInProgress ||
+            driver?.driverId != existingDriver?.driverId) {
+          emit(
+            TravelTrackingInProgress(
+              travelId: travel.travelId,
+              driver: driver,
+              driverLatitude: currentState is TravelTrackingAccepted
+                  ? currentState.driverLatitude
+                  : null,
+              driverLongitude: currentState is TravelTrackingAccepted
+                  ? currentState.driverLongitude
+                  : null,
+              destinationLatitude: travel.destinationLatitude,
+              destinationLongitude: travel.destinationLongitude,
+              routePolyline: travel.routePolyline,
+              requestedAt: travel.createdAt,
+            ),
+          );
         }
       case TravelStatus.completed:
         emit(TravelTrackingCompleted(travelId: travel.travelId));
       case TravelStatus.cancelled:
-        emit(TravelTrackingCancelled(travelId: travel.travelId, reason: travel.cancellationReason));
+        emit(
+          TravelTrackingCancelled(
+            travelId: travel.travelId,
+            reason: travel.cancellationReason,
+          ),
+        );
     }
   }
 
-  Future<void> _emitAcceptedState(TravelTrackingEntity travel, Emitter<TravelTrackingState> emit) async {
+  Future<void> _emitAcceptedState(
+    TravelTrackingEntity travel,
+    Emitter<TravelTrackingState> emit,
+  ) async {
     final driver = _resolveDriver(travel.driver, null);
-    print('[DIAG] emitting Accepted hash=$hashCode travelId=${travel.travelId} isClosed=$isClosed');
-    emit(TravelTrackingAccepted(
-      travelId: travel.travelId,
-      driver: driver,
-      destinationLatitude: travel.destinationLatitude,
-      destinationLongitude: travel.destinationLongitude,
-      routePolyline: travel.routePolyline,
-      requestedAt: travel.createdAt,
-      pickupProximity: travel.pickupProximity,
-    ));
-    print('[DIAG] emitted Accepted, bloc.state is now ${state.runtimeType}');
+    emit(
+      TravelTrackingAccepted(
+        travelId: travel.travelId,
+        driver: driver,
+        destinationLatitude: travel.destinationLatitude,
+        destinationLongitude: travel.destinationLongitude,
+        routePolyline: travel.routePolyline,
+        requestedAt: travel.createdAt,
+        pickupProximity: travel.pickupProximity,
+      ),
+    );
   }
 
   // ─── Event Handlers ────────────────────────────────────────────────────
 
-  Future<void> _onCancelTravel(CancelTravel event, Emitter<TravelTrackingState> emit) async {
+  Future<void> _onCancelTravel(
+    CancelTravel event,
+    Emitter<TravelTrackingState> emit,
+  ) async {
     try {
       await _repository.cancelTravel(event.travelId);
       _stopPolling();
-      emit(TravelTrackingCancelled(travelId: event.travelId, reason: 'Cancelada pelo passageiro'));
+      emit(
+        TravelTrackingCancelled(
+          travelId: event.travelId,
+          reason: 'Cancelada pelo passageiro',
+        ),
+      );
     } catch (e) {
-      emit(TravelTrackingFailure(message: e.toString()));
+      emit(
+        TravelTrackingFailure(
+          message: userErrorMessage(
+            e,
+            fallback: 'Não foi possível cancelar a viagem. Tente novamente.',
+          ),
+        ),
+      );
     }
   }
 
@@ -187,32 +253,44 @@ class TravelTrackingBloc extends Bloc<TravelTrackingEvent, TravelTrackingState> 
   /// desatualizados e nunca regredir de InProgress pra Accepted/Pending —
   /// sem isso, uma resposta atrasada de uma chamada anterior sobrescrevia o
   /// estado atual (e resetava a localização do motorista no mapa).
-  Future<void> _onLoadTravel(LoadTravel event, Emitter<TravelTrackingState> emit) async {
-    print('[DIAG] _onLoadTravel START hash=$hashCode travelId=${event.travelId} currentState=${state.runtimeType} isClosed=$isClosed');
-    if (state is TravelTrackingInitial) {
+  Future<void> _onLoadTravel(
+    LoadTravel event,
+    Emitter<TravelTrackingState> emit,
+  ) async {
+    if (state is TravelTrackingInitial || state is TravelTrackingFailure) {
       emit(const TravelTrackingLoading());
     }
 
     try {
       final travel = await _repository.getTravel(event.travelId);
-      print('[DIAG] _onLoadTravel got travel status=${travel.status} hash=$hashCode isClosed=$isClosed');
       await _updateStateFromTravel(travel, emit);
-      print('[DIAG] _onLoadTravel after _updateStateFromTravel, state=${state.runtimeType} hash=$hashCode');
 
       // Start polling for non-terminal statuses
       if (travel.status != TravelStatus.completed &&
           travel.status != TravelStatus.cancelled) {
         _startPolling(event.travelId);
       }
-    } catch (e, st) {
-      print('[DIAG] _onLoadTravel EXCEPTION: $e\n$st');
+    } catch (e) {
       if (state is TravelTrackingInitial || state is TravelTrackingLoading) {
-        emit(TravelTrackingFailure(message: e.toString()));
+        emit(TravelTrackingFailure(message: _friendlyLoadError(e)));
       }
     }
   }
 
-  Future<void> _onOrderAccepted(TravelOrderAccepted event, Emitter<TravelTrackingState> emit) async {
+  String _friendlyLoadError(Object error) {
+    if (error is NetworkException || error is ServerException) {
+      return userErrorMessage(error);
+    }
+    if (error is DioException) {
+      return 'A conexão demorou mais que o esperado. Verifique sua internet e tente novamente. Sua viagem continua ativa.';
+    }
+    return 'Não foi possível carregar a viagem. Tente novamente.';
+  }
+
+  Future<void> _onOrderAccepted(
+    TravelOrderAccepted event,
+    Emitter<TravelTrackingState> emit,
+  ) async {
     final currentState = state;
 
     // "Pedido aceito" só é uma transição válida saindo de Pending (fluxo
@@ -241,33 +319,48 @@ class TravelTrackingBloc extends Bloc<TravelTrackingEvent, TravelTrackingState> 
         // GlobalAdmin, sempre 403 pra passageiro). Emite sem os detalhes
         // completos do motorista por enquanto; o próximo LoadTravel/poll
         // (GET /api/travels/{id}, já enriquecido) preenche isso.
-        emit(TravelTrackingAccepted(
+        emit(
+          TravelTrackingAccepted(
+            travelId: event.data['travelId'] as String,
+            driver: null,
+            destinationLatitude: destLat,
+            destinationLongitude: destLng,
+            routePolyline: routePolyline,
+            requestedAt: requestedAt,
+          ),
+        );
+      }
+    } catch (e) {
+      emit(
+        TravelTrackingAccepted(
           travelId: event.data['travelId'] as String,
           driver: null,
           destinationLatitude: destLat,
           destinationLongitude: destLng,
           routePolyline: routePolyline,
           requestedAt: requestedAt,
-        ));
-      }
-    } catch (e) {
-      emit(TravelTrackingAccepted(
-        travelId: event.data['travelId'] as String,
-        driver: null,
-        destinationLatitude: destLat,
-        destinationLongitude: destLng,
-        routePolyline: routePolyline,
-        requestedAt: requestedAt,
-      ));
+        ),
+      );
     }
   }
 
-  Future<void> _onTravelCancelled(TravelCancelled event, Emitter<TravelTrackingState> emit) async {
+  Future<void> _onTravelCancelled(
+    TravelCancelled event,
+    Emitter<TravelTrackingState> emit,
+  ) async {
     _stopPolling();
-    emit(TravelTrackingCancelled(travelId: event.data['travelId'] as String, reason: event.data['reason'] as String?));
+    emit(
+      TravelTrackingCancelled(
+        travelId: event.data['travelId'] as String,
+        reason: event.data['reason'] as String?,
+      ),
+    );
   }
 
-  Future<void> _onTravelCompleted(TravelCompleted event, Emitter<TravelTrackingState> emit) async {
+  Future<void> _onTravelCompleted(
+    TravelCompleted event,
+    Emitter<TravelTrackingState> emit,
+  ) async {
     _stopPolling();
     emit(TravelTrackingCompleted(travelId: event.data['travelId'] as String));
   }
@@ -282,28 +375,56 @@ class TravelTrackingBloc extends Bloc<TravelTrackingEvent, TravelTrackingState> 
     if (lat == null || lng == null) return;
 
     switch (currentState) {
-      case TravelTrackingAccepted(:final travelId, :final driver,
-            :final destinationLatitude, :final destinationLongitude,
-            :final distanceToDestinationMeters, :final remainingTimeMinutes,
-            :final routePolyline, :final requestedAt, :final pickupProximity):
-        emit(TravelTrackingAccepted(
-          travelId: travelId, driver: driver,
-          driverLatitude: lat, driverLongitude: lng,
-          destinationLatitude: destinationLatitude, destinationLongitude: destinationLongitude,
-          distanceToDestinationMeters: distanceToDestinationMeters, remainingTimeMinutes: remainingTimeMinutes,
-          routePolyline: routePolyline, requestedAt: requestedAt, pickupProximity: pickupProximity,
-        ));
-      case TravelTrackingInProgress(:final travelId, :final driver,
-            :final destinationLatitude, :final destinationLongitude,
-            :final distanceToDestinationMeters, :final remainingTimeMinutes,
-            :final routePolyline, :final requestedAt):
-        emit(TravelTrackingInProgress(
-          travelId: travelId, driver: driver,
-          driverLatitude: lat, driverLongitude: lng,
-          destinationLatitude: destinationLatitude, destinationLongitude: destinationLongitude,
-          distanceToDestinationMeters: distanceToDestinationMeters, remainingTimeMinutes: remainingTimeMinutes,
-          routePolyline: routePolyline, requestedAt: requestedAt,
-        ));
+      case TravelTrackingAccepted(
+        :final travelId,
+        :final driver,
+        :final destinationLatitude,
+        :final destinationLongitude,
+        :final distanceToDestinationMeters,
+        :final remainingTimeMinutes,
+        :final routePolyline,
+        :final requestedAt,
+        :final pickupProximity,
+      ):
+        emit(
+          TravelTrackingAccepted(
+            travelId: travelId,
+            driver: driver,
+            driverLatitude: lat,
+            driverLongitude: lng,
+            destinationLatitude: destinationLatitude,
+            destinationLongitude: destinationLongitude,
+            distanceToDestinationMeters: distanceToDestinationMeters,
+            remainingTimeMinutes: remainingTimeMinutes,
+            routePolyline: routePolyline,
+            requestedAt: requestedAt,
+            pickupProximity: pickupProximity,
+          ),
+        );
+      case TravelTrackingInProgress(
+        :final travelId,
+        :final driver,
+        :final destinationLatitude,
+        :final destinationLongitude,
+        :final distanceToDestinationMeters,
+        :final remainingTimeMinutes,
+        :final routePolyline,
+        :final requestedAt,
+      ):
+        emit(
+          TravelTrackingInProgress(
+            travelId: travelId,
+            driver: driver,
+            driverLatitude: lat,
+            driverLongitude: lng,
+            destinationLatitude: destinationLatitude,
+            destinationLongitude: destinationLongitude,
+            distanceToDestinationMeters: distanceToDestinationMeters,
+            remainingTimeMinutes: remainingTimeMinutes,
+            routePolyline: routePolyline,
+            requestedAt: requestedAt,
+          ),
+        );
       default:
         break;
     }
@@ -318,53 +439,100 @@ class TravelTrackingBloc extends Bloc<TravelTrackingEvent, TravelTrackingState> 
     final time = event.data['remainingTimeEstimate'] as int?;
 
     switch (currentState) {
-      case TravelTrackingAccepted(:final travelId, :final driver,
-            :final driverLatitude, :final driverLongitude,
-            :final destinationLatitude, :final destinationLongitude,
-            :final routePolyline, :final requestedAt, :final pickupProximity):
-        emit(TravelTrackingAccepted(
-          travelId: travelId, driver: driver,
-          driverLatitude: driverLatitude, driverLongitude: driverLongitude,
-          destinationLatitude: destinationLatitude, destinationLongitude: destinationLongitude,
-          distanceToDestinationMeters: dist, remainingTimeMinutes: time,
-          routePolyline: routePolyline, requestedAt: requestedAt, pickupProximity: pickupProximity,
-        ));
-      case TravelTrackingInProgress(:final travelId, :final driver,
-            :final driverLatitude, :final driverLongitude,
-            :final destinationLatitude, :final destinationLongitude,
-            :final routePolyline, :final requestedAt):
-        emit(TravelTrackingInProgress(
-          travelId: travelId, driver: driver,
-          driverLatitude: driverLatitude, driverLongitude: driverLongitude,
-          destinationLatitude: destinationLatitude, destinationLongitude: destinationLongitude,
-          distanceToDestinationMeters: dist, remainingTimeMinutes: time,
-          routePolyline: routePolyline, requestedAt: requestedAt,
-        ));
+      case TravelTrackingAccepted(
+        :final travelId,
+        :final driver,
+        :final driverLatitude,
+        :final driverLongitude,
+        :final destinationLatitude,
+        :final destinationLongitude,
+        :final routePolyline,
+        :final requestedAt,
+        :final pickupProximity,
+      ):
+        emit(
+          TravelTrackingAccepted(
+            travelId: travelId,
+            driver: driver,
+            driverLatitude: driverLatitude,
+            driverLongitude: driverLongitude,
+            destinationLatitude: destinationLatitude,
+            destinationLongitude: destinationLongitude,
+            distanceToDestinationMeters: dist,
+            remainingTimeMinutes: time,
+            routePolyline: routePolyline,
+            requestedAt: requestedAt,
+            pickupProximity: pickupProximity,
+          ),
+        );
+      case TravelTrackingInProgress(
+        :final travelId,
+        :final driver,
+        :final driverLatitude,
+        :final driverLongitude,
+        :final destinationLatitude,
+        :final destinationLongitude,
+        :final routePolyline,
+        :final requestedAt,
+      ):
+        emit(
+          TravelTrackingInProgress(
+            travelId: travelId,
+            driver: driver,
+            driverLatitude: driverLatitude,
+            driverLongitude: driverLongitude,
+            destinationLatitude: destinationLatitude,
+            destinationLongitude: destinationLongitude,
+            distanceToDestinationMeters: dist,
+            remainingTimeMinutes: time,
+            routePolyline: routePolyline,
+            requestedAt: requestedAt,
+          ),
+        );
       default:
         break;
     }
   }
 
-  Future<void> _onTravelStarted(TravelStarted event, Emitter<TravelTrackingState> emit) async {
+  Future<void> _onTravelStarted(
+    TravelStarted event,
+    Emitter<TravelTrackingState> emit,
+  ) async {
     final currentState = state;
-    final destLat = currentState is TravelTrackingAccepted ? currentState.destinationLatitude : null;
-    final destLng = currentState is TravelTrackingAccepted ? currentState.destinationLongitude : null;
-    final driverLat = currentState is TravelTrackingAccepted ? currentState.driverLatitude : null;
-    final driverLng = currentState is TravelTrackingAccepted ? currentState.driverLongitude : null;
-    final driver = currentState is TravelTrackingAccepted ? currentState.driver : null;
-    final routePolyline = currentState is TravelTrackingAccepted ? currentState.routePolyline : null;
-    final requestedAt = currentState is TravelTrackingAccepted ? currentState.requestedAt : null;
+    final destLat = currentState is TravelTrackingAccepted
+        ? currentState.destinationLatitude
+        : null;
+    final destLng = currentState is TravelTrackingAccepted
+        ? currentState.destinationLongitude
+        : null;
+    final driverLat = currentState is TravelTrackingAccepted
+        ? currentState.driverLatitude
+        : null;
+    final driverLng = currentState is TravelTrackingAccepted
+        ? currentState.driverLongitude
+        : null;
+    final driver = currentState is TravelTrackingAccepted
+        ? currentState.driver
+        : null;
+    final routePolyline = currentState is TravelTrackingAccepted
+        ? currentState.routePolyline
+        : null;
+    final requestedAt = currentState is TravelTrackingAccepted
+        ? currentState.requestedAt
+        : null;
 
-    emit(TravelTrackingInProgress(
-      travelId: event.data['travelId'] as String,
-      driver: driver,
-      driverLatitude: driverLat,
-      driverLongitude: driverLng,
-      destinationLatitude: destLat,
-      destinationLongitude: destLng,
-      routePolyline: routePolyline,
-      requestedAt: requestedAt,
-    ));
+    emit(
+      TravelTrackingInProgress(
+        travelId: event.data['travelId'] as String,
+        driver: driver,
+        driverLatitude: driverLat,
+        driverLongitude: driverLng,
+        destinationLatitude: destLat,
+        destinationLongitude: destLng,
+        routePolyline: routePolyline,
+        requestedAt: requestedAt,
+      ),
+    );
   }
 
   /// Alerta de proximidade do backend. Só vale em Accepted, para a viagem desta

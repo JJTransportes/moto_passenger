@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_modular/flutter_modular.dart' hide ModularWatchExtension;
+import 'package:flutter_modular/flutter_modular.dart'
+    hide ModularWatchExtension;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:moto_passenger/core/utils/validators.dart' as validators;
 import 'package:moto_passenger/design_system/design_system.dart';
@@ -154,7 +155,9 @@ class _PasswordRecoveryPageState extends State<PasswordRecoveryPage> {
                   AppButton(
                     label: 'Enviar',
                     loading: isLoading,
-                    onPressed: _isFormFilled && _emailServerError == null ? _submit : null,
+                    onPressed: _isFormFilled && _emailServerError == null
+                        ? _submit
+                        : null,
                   ),
                 ],
               ),

@@ -56,7 +56,8 @@ String? validateRg(String rg) {
 
 String? validateFullName(String value) {
   if (value.trim().isEmpty) return 'Nome completo é obrigatório.';
-  if (value.length > 100) return 'Nome completo deve ter no máximo 100 caracteres.';
+  if (value.length > 100)
+    return 'Nome completo deve ter no máximo 100 caracteres.';
   return null;
 }
 
@@ -75,6 +76,14 @@ String? validateEmail(String email) {
   return null;
 }
 
+String? validatePhone(String phone) {
+  final digits = phone.replaceAll(RegExp(r'\D'), '');
+  if (digits.length < 10 || digits.length > 11) {
+    return 'Telefone inválido.';
+  }
+  return null;
+}
+
 /// Matches the backend's InitialPasswordPolicy (min 8, max 72).
 String? validatePassword(String password) {
   if (password.isEmpty) return 'Senha é obrigatória.';
@@ -89,7 +98,8 @@ String? validateRequired(String value, String fieldName) {
 }
 
 String? validateMaxLength(String value, int max, String fieldName) {
-  if (value.length > max) return '$fieldName deve ter no máximo $max caracteres.';
+  if (value.length > max)
+    return '$fieldName deve ter no máximo $max caracteres.';
   return null;
 }
 

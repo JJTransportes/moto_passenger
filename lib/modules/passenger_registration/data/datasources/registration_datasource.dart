@@ -36,7 +36,8 @@ class RegistrationDatasource implements IRegistrationDatasource {
     switch (e.response?.statusCode) {
       case 400:
         return ValidationException(
-          _extractErrorMessage(e) ?? 'Dados inválidos. Verifique as informações.',
+          _extractErrorMessage(e) ??
+              'Dados inválidos. Verifique as informações.',
         );
       case 409:
         return ConflictException(

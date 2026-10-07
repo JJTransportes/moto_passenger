@@ -19,8 +19,11 @@ bool onHomeEntered(PendingNotificationRouter Function() resolveRouter) {
   try {
     return resolveRouter().dispatchPending();
   } catch (e) {
-    log('[PUSH] Pending notification on home entry failed (${e.runtimeType}).',
-        name: 'push', level: 900);
+    log(
+      '[PUSH] Pending notification on home entry failed (${e.runtimeType}).',
+      name: 'push',
+      level: 900,
+    );
     return false;
   }
 }

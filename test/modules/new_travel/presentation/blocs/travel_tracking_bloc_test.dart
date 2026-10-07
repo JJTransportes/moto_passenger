@@ -5,30 +5,34 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:moto_passenger/core/errors/exceptions.dart';
 import 'package:moto_passenger/modules/new_travel/data/repositories/travel_tracking_repository.dart';
 import 'package:moto_passenger/modules/new_travel/domain/entities/travel_tracking_entity.dart';
 import 'package:moto_passenger/modules/new_travel/presentation/blocs/travel_tracking_bloc.dart';
 import 'package:moto_passenger/modules/new_travel/presentation/blocs/travel_tracking_event.dart';
 import 'package:moto_passenger/modules/new_travel/presentation/blocs/travel_tracking_state.dart';
 
-class MockTravelTrackingRepository extends Mock implements ITravelTrackingRepository {}
+class MockTravelTrackingRepository extends Mock
+    implements ITravelTrackingRepository {}
 
-const _driver = DriverInfoEntity(driverId: 'driver-1', fullName: 'João Motorista');
+const _driver = DriverInfoEntity(
+  driverId: 'driver-1',
+  fullName: 'João Motorista',
+);
 
 TravelTrackingEntity _travel({
   required TravelStatus status,
   String travelId = 'travel-1',
   String? driverId,
   DriverInfoEntity? driver,
-}) =>
-    TravelTrackingEntity(
-      travelId: travelId,
-      orderId: 'order-1',
-      status: status,
-      createdAt: DateTime(2026, 1, 1),
-      driverId: driverId,
-      driver: driver,
-    );
+}) => TravelTrackingEntity(
+  travelId: travelId,
+  orderId: 'order-1',
+  status: status,
+  createdAt: DateTime(2026, 1, 1),
+  driverId: driverId,
+  driver: driver,
+);
 
 void main() {
   late MockTravelTrackingRepository repository;
@@ -43,14 +47,19 @@ void main() {
     blocTest<TravelTrackingBloc, TravelTrackingState>(
       'status Pending emite TravelTrackingPending',
       build: () {
-        when(() => repository.getTravel('travel-1'))
-            .thenAnswer((_) async => _travel(status: TravelStatus.pending));
+        when(
+          () => repository.getTravel('travel-1'),
+        ).thenAnswer((_) async => _travel(status: TravelStatus.pending));
         return buildBloc();
       },
       act: (bloc) => bloc.add(const LoadTravel('travel-1')),
       expect: () => [
         const TravelTrackingLoading(),
-        isA<TravelTrackingPending>().having((s) => s.travelId, 'travelId', 'travel-1'),
+        isA<TravelTrackingPending>().having(
+          (s) => s.travelId,
+          'travelId',
+          'travel-1',
+        ),
       ],
     );
 
@@ -60,36 +69,59 @@ void main() {
         // GET /api/travels/{id} já vem com o motorista embutido — não busca
         // mais via getDriverProfile (endpoint hoje restrito a GlobalAdmin).
         when(() => repository.getTravel('travel-1')).thenAnswer(
-          (_) async => _travel(status: TravelStatus.accepted, driverId: 'driver-1', driver: _driver),
+          (_) async => _travel(
+            status: TravelStatus.accepted,
+            driverId: 'driver-1',
+            driver: _driver,
+          ),
         );
         return buildBloc();
       },
       act: (bloc) => bloc.add(const LoadTravel('travel-1')),
       expect: () => [
         const TravelTrackingLoading(),
-        isA<TravelTrackingAccepted>()
-            .having((s) => s.driver?.fullName, 'driver.fullName', 'João Motorista'),
+        isA<TravelTrackingAccepted>().having(
+          (s) => s.driver?.fullName,
+          'driver.fullName',
+          'João Motorista',
+        ),
       ],
     );
 
     blocTest<TravelTrackingBloc, TravelTrackingState>(
-      'erro ao carregar emite TravelTrackingFailure',
+      'timeout ao carregar emite mensagem amigável sem expor DioException',
       build: () {
-        when(() => repository.getTravel('travel-1')).thenThrow(Exception('network error'));
+        when(() => repository.getTravel('travel-1')).thenThrow(
+          const NetworkException(
+            'A conexão demorou mais que o esperado. Verifique sua internet e tente novamente. Sua viagem continua ativa.',
+          ),
+        );
         return buildBloc();
       },
       act: (bloc) => bloc.add(const LoadTravel('travel-1')),
       expect: () => [
         const TravelTrackingLoading(),
-        isA<TravelTrackingFailure>(),
+        isA<TravelTrackingFailure>()
+            .having(
+              (state) => state.message,
+              'message',
+              contains('Sua viagem continua ativa'),
+            )
+            .having(
+              (state) => state.message,
+              'message',
+              isNot(contains('DioException')),
+            ),
       ],
     );
 
     blocTest<TravelTrackingBloc, TravelTrackingState>(
       'travel sem detalhes do motorista embutidos não impede o estado Accepted (driver fica nulo)',
       build: () {
-        when(() => repository.getTravel('travel-1'))
-            .thenAnswer((_) async => _travel(status: TravelStatus.accepted, driverId: 'driver-1'));
+        when(() => repository.getTravel('travel-1')).thenAnswer(
+          (_) async =>
+              _travel(status: TravelStatus.accepted, driverId: 'driver-1'),
+        );
         return buildBloc();
       },
       act: (bloc) => bloc.add(const LoadTravel('travel-1')),
@@ -104,8 +136,10 @@ void main() {
     blocTest<TravelTrackingBloc, TravelTrackingState>(
       'já em InProgress, um poll que traz Accepted (resposta atrasada) é ignorado',
       build: () {
-        when(() => repository.getTravel('travel-1'))
-            .thenAnswer((_) async => _travel(status: TravelStatus.accepted, driverId: 'driver-1'));
+        when(() => repository.getTravel('travel-1')).thenAnswer(
+          (_) async =>
+              _travel(status: TravelStatus.accepted, driverId: 'driver-1'),
+        );
         return buildBloc();
       },
       seed: () => const TravelTrackingInProgress(travelId: 'travel-1'),
@@ -116,8 +150,9 @@ void main() {
     blocTest<TravelTrackingBloc, TravelTrackingState>(
       'já em InProgress, um poll que traz Pending (resposta atrasada) é ignorado',
       build: () {
-        when(() => repository.getTravel('travel-1'))
-            .thenAnswer((_) async => _travel(status: TravelStatus.pending));
+        when(
+          () => repository.getTravel('travel-1'),
+        ).thenAnswer((_) async => _travel(status: TravelStatus.pending));
         return buildBloc();
       },
       seed: () => const TravelTrackingInProgress(travelId: 'travel-1'),
@@ -128,8 +163,10 @@ void main() {
     blocTest<TravelTrackingBloc, TravelTrackingState>(
       'já em Completed (estado terminal), qualquer poll subsequente é ignorado',
       build: () {
-        when(() => repository.getTravel('travel-1'))
-            .thenAnswer((_) async => _travel(status: TravelStatus.inProgress, driverId: 'driver-1'));
+        when(() => repository.getTravel('travel-1')).thenAnswer(
+          (_) async =>
+              _travel(status: TravelStatus.inProgress, driverId: 'driver-1'),
+        );
         return buildBloc();
       },
       seed: () => const TravelTrackingCompleted(travelId: 'travel-1'),
@@ -140,8 +177,9 @@ void main() {
     blocTest<TravelTrackingBloc, TravelTrackingState>(
       'poll bem-sucedido com status terminal para o polling (Completed)',
       build: () {
-        when(() => repository.getTravel('travel-1'))
-            .thenAnswer((_) async => _travel(status: TravelStatus.completed));
+        when(
+          () => repository.getTravel('travel-1'),
+        ).thenAnswer((_) async => _travel(status: TravelStatus.completed));
         return buildBloc();
       },
       seed: () => const TravelTrackingInProgress(travelId: 'travel-1'),
@@ -154,8 +192,14 @@ void main() {
     blocTest<TravelTrackingBloc, TravelTrackingState>(
       'TravelOrderAccepted fora do estado Pending é ignorado (evento duplicado/atrasado)',
       build: () => buildBloc(),
-      seed: () => const TravelTrackingAccepted(travelId: 'travel-1', driver: _driver),
-      act: (bloc) => bloc.add(const TravelOrderAccepted({'travelId': 'travel-1', 'driverId': 'driver-2'})),
+      seed: () =>
+          const TravelTrackingAccepted(travelId: 'travel-1', driver: _driver),
+      act: (bloc) => bloc.add(
+        const TravelOrderAccepted({
+          'travelId': 'travel-1',
+          'driverId': 'driver-2',
+        }),
+      ),
       expect: () => <TravelTrackingState>[],
     );
 
@@ -167,8 +211,14 @@ void main() {
       // a GlobalAdmin, sempre 403 pra passageiro). Emite sem os detalhes
       // completos; o próximo LoadTravel (GET /api/travels/{id}, já
       // enriquecido) preenche o motorista.
-      seed: () => const TravelTrackingPending(travelId: 'travel-1', orderId: 'order-1'),
-      act: (bloc) => bloc.add(const TravelOrderAccepted({'travelId': 'travel-1', 'driverId': 'driver-1'})),
+      seed: () =>
+          const TravelTrackingPending(travelId: 'travel-1', orderId: 'order-1'),
+      act: (bloc) => bloc.add(
+        const TravelOrderAccepted({
+          'travelId': 'travel-1',
+          'driverId': 'driver-1',
+        }),
+      ),
       expect: () => [
         isA<TravelTrackingAccepted>().having((s) => s.driver, 'driver', isNull),
       ],
@@ -197,8 +247,11 @@ void main() {
     blocTest<TravelTrackingBloc, TravelTrackingState>(
       'DriverLocationUpdated atualiza lat/lng preservando o resto do estado Accepted',
       build: () => buildBloc(),
-      seed: () => const TravelTrackingAccepted(travelId: 'travel-1', driver: _driver),
-      act: (bloc) => bloc.add(const DriverLocationUpdated({'latitude': -23.5, 'longitude': -46.6})),
+      seed: () =>
+          const TravelTrackingAccepted(travelId: 'travel-1', driver: _driver),
+      act: (bloc) => bloc.add(
+        const DriverLocationUpdated({'latitude': -23.5, 'longitude': -46.6}),
+      ),
       expect: () => [
         isA<TravelTrackingAccepted>()
             .having((s) => s.driverLatitude, 'driverLatitude', -23.5)
@@ -210,18 +263,31 @@ void main() {
     blocTest<TravelTrackingBloc, TravelTrackingState>(
       'DriverLocationUpdated fora de Accepted/InProgress é ignorado',
       build: () => buildBloc(),
-      seed: () => const TravelTrackingPending(travelId: 'travel-1', orderId: 'order-1'),
-      act: (bloc) => bloc.add(const DriverLocationUpdated({'latitude': -23.5, 'longitude': -46.6})),
+      seed: () =>
+          const TravelTrackingPending(travelId: 'travel-1', orderId: 'order-1'),
+      act: (bloc) => bloc.add(
+        const DriverLocationUpdated({'latitude': -23.5, 'longitude': -46.6}),
+      ),
       expect: () => <TravelTrackingState>[],
     );
 
     blocTest<TravelTrackingBloc, TravelTrackingState>(
       'TravelCancelled emite TravelTrackingCancelled com o motivo',
       build: () => buildBloc(),
-      seed: () => const TravelTrackingAccepted(travelId: 'travel-1', driver: _driver),
-      act: (bloc) => bloc.add(const TravelCancelled({'travelId': 'travel-1', 'reason': 'Motorista indisponível'})),
+      seed: () =>
+          const TravelTrackingAccepted(travelId: 'travel-1', driver: _driver),
+      act: (bloc) => bloc.add(
+        const TravelCancelled({
+          'travelId': 'travel-1',
+          'reason': 'Motorista indisponível',
+        }),
+      ),
       expect: () => [
-        isA<TravelTrackingCancelled>().having((s) => s.reason, 'reason', 'Motorista indisponível'),
+        isA<TravelTrackingCancelled>().having(
+          (s) => s.reason,
+          'reason',
+          'Motorista indisponível',
+        ),
       ],
     );
   });
@@ -235,7 +301,11 @@ void main() {
       },
       act: (bloc) => bloc.add(const CancelTravel('travel-1')),
       expect: () => [
-        isA<TravelTrackingCancelled>().having((s) => s.reason, 'reason', 'Cancelada pelo passageiro'),
+        isA<TravelTrackingCancelled>().having(
+          (s) => s.reason,
+          'reason',
+          'Cancelada pelo passageiro',
+        ),
       ],
     );
 

@@ -23,7 +23,11 @@ class PendingNotificationRouter {
       _navigate(pending);
     } catch (e) {
       // Já foi descartado; falha de navegação não pode derrubar a abertura do app.
-      log('[PUSH] Failed to open pending notification: $e', name: 'push', level: 900);
+      log(
+        '[PUSH] Failed to open pending notification: $e',
+        name: 'push',
+        level: 900,
+      );
     }
     return true;
   }

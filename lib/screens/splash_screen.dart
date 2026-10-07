@@ -11,10 +11,12 @@ import 'package:moto_passenger/core/errors/exceptions.dart';
 import 'package:moto_passenger/core/local_db/repositories/auth_local_repository.dart';
 import 'package:moto_passenger/core/local_db/repositories/travel_local_repository.dart';
 import 'package:moto_passenger/core/notifications/i_push_notification_service.dart';
+import 'package:moto_passenger/core/notifications/deep_link_holder.dart';
 import 'package:moto_passenger/core/notifications/notification_channel_service.dart';
-import 'package:moto_passenger/core/notifications/pending_notification_router.dart';
 import 'package:moto_passenger/core/notifications/session_readiness.dart';
 import 'package:moto_passenger/modules/auth/data/datasources/i_auth_datasource.dart';
+
+enum _StartupRefreshOutcome { success, invalidSession, transientFailure }
 
 class SplashScreen extends StatefulWidget {
   final Duration delay;
@@ -47,9 +49,14 @@ class _SplashScreenState extends State<SplashScreen> {
       // O canal do Android com o som do Moto precisa existir antes de o OneSignal inicializar e
       // de chegar a primeira notificação (spec push-notification-sounds). Falha só é registrada.
       try {
-        await Modular.get<INotificationChannelService>().ensureRideAlertsChannel();
+        await Modular.get<INotificationChannelService>()
+            .ensureRideAlertsChannel();
       } catch (e) {
-        log('[PUSH] Notification channel failed (${e.runtimeType}).', name: 'push', level: 900);
+        log(
+          '[PUSH] Notification channel failed (${e.runtimeType}).',
+          name: 'push',
+          level: 900,
+        );
       }
 
       try {
@@ -57,7 +64,11 @@ class _SplashScreenState extends State<SplashScreen> {
         await push.initialize(AppConfig.getOneSignalAppId());
         await push.requestPermission();
       } catch (e) {
-        log('[PUSH] Startup failed (${e.runtimeType}).', name: 'push', level: 900);
+        log(
+          '[PUSH] Startup failed (${e.runtimeType}).',
+          name: 'push',
+          level: 900,
+        );
       }
     }());
   }
@@ -72,14 +83,22 @@ class _SplashScreenState extends State<SplashScreen> {
 
     // If we have a refresh token, try to renew the session
     if (localAuth != null && localAuth.refreshToken.isNotEmpty) {
-      final refreshed = await _tryRefreshToken(localAuth.refreshToken);
+      final refreshOutcome = await _tryRefreshToken(localAuth.refreshToken);
       if (!mounted) return;
-      if (refreshed) {
+      if (refreshOutcome == _StartupRefreshOutcome.success) {
         await _afterAuthSuccess(_restoredUserId);
         return;
       }
-      // Refresh failed (token expired) — sign out and go to login
-      await Modular.get<SignOutService>().signOut();
+      if (refreshOutcome == _StartupRefreshOutcome.transientFailure) {
+        // Reabertura sem internet: mantém a sessão e restaura a viagem pelo
+        // cache. O interceptor renovará o token quando a conexão voltar.
+        await _afterAuthSuccess(localAuth.userId);
+        return;
+      }
+      // O servidor confirmou token expirado/inválido.
+      await Modular.get<SignOutService>().signOut(
+        message: 'Sua sessão expirou, faça login novamente.',
+      );
       return;
     }
 
@@ -111,9 +130,12 @@ class _SplashScreenState extends State<SplashScreen> {
       return;
     }
     // Viagem ativa restaurada: a sessão está pronta. Abre o toque guardado, se houver
-    // (o handler não navega de novo se a viagem já está na tela). Sem viagem ativa o
-    // toque espera a tela inicial.
-    _dispatchPendingNotification();
+    // sem criar uma segunda rota de tracking. Durante o mesmo cold start o
+    // clique do OneSignal e a restauração local podem chegar no mesmo frame;
+    // consultar a rota atual ainda é cedo demais nesse ponto. A viagem já foi
+    // aberta pela fonte canônica acima, então o deep link fica satisfeito.
+    SessionReadiness.markReady();
+    DeepLinkHolder.consume();
   }
 
   /// Identifica o aparelho no push com o usuário da sessão restaurada (req 2.2).
@@ -124,23 +146,18 @@ class _SplashScreenState extends State<SplashScreen> {
       try {
         await Modular.get<IPushNotificationService>().identify(userId);
       } catch (e) {
-        log('[PUSH] Identify on session restore failed (${e.runtimeType}).', name: 'push', level: 900);
+        log(
+          '[PUSH] Identify on session restore failed (${e.runtimeType}).',
+          name: 'push',
+          level: 900,
+        );
       }
     }());
   }
 
-  void _dispatchPendingNotification() {
-    try {
-      SessionReadiness.markReady();
-      Modular.get<PendingNotificationRouter>().dispatchPending();
-    } catch (e) {
-      log('[PUSH] Pending notification dispatch failed (${e.runtimeType}).', name: 'push', level: 900);
-    }
-  }
-
   /// Tries to refresh the access token using the [refreshToken].
-  /// Returns true on success, false on failure.
-  Future<bool> _tryRefreshToken(String refreshToken) async {
+  /// Distingue sessão inválida de uma indisponibilidade temporária.
+  Future<_StartupRefreshOutcome> _tryRefreshToken(String refreshToken) async {
     try {
       final authDatasource = Modular.get<IAuthDatasource>();
       final result = await authDatasource.refreshToken(refreshToken);
@@ -158,16 +175,17 @@ class _SplashScreenState extends State<SplashScreen> {
         result.accessToken,
         result.refreshToken!,
       );
-      return true;
+      return _StartupRefreshOutcome.success;
     } on UnauthorizedException {
       // Refresh token expirado ou revogado — não recuperável
-      return false;
+      return _StartupRefreshOutcome.invalidSession;
+    } on ValidationException {
+      return _StartupRefreshOutcome.invalidSession;
     } on DeviceMismatchException {
       // Token vinculado a outro tipo de dispositivo — não recuperável neste aparelho
-      return false;
+      return _StartupRefreshOutcome.invalidSession;
     } catch (_) {
-      // Network or other error — fall through to access token fallback
-      return false;
+      return _StartupRefreshOutcome.transientFailure;
     }
   }
 
@@ -177,7 +195,9 @@ class _SplashScreenState extends State<SplashScreen> {
     final travelRepo = Modular.get<TravelLocalRepository>();
     final active = await travelRepo.getActiveTravel();
 
-    if (active == null || active.status == 'Completed' || active.status == 'Cancelled') {
+    if (active == null ||
+        active.status == 'Completed' ||
+        active.status == 'Cancelled') {
       return false;
     }
 
@@ -186,12 +206,26 @@ class _SplashScreenState extends State<SplashScreen> {
       final dio = Modular.get<Dio>();
       await dio.get('${AppConfig.getBaseUrl()}/api/travels/${active.travelId}');
       if (active.status == 'Accepted' || active.status == 'InProgress') {
-        Modular.to.pushNamed('/new-travel/tracking', arguments: {'travelId': active.travelId});
+        Modular.to.pushNamed(
+          '/new-travel/tracking',
+          arguments: {'travelId': active.travelId},
+        );
         return true;
       }
-    } catch (_) {
-      // Travel no longer exists
-      await travelRepo.clearTravels();
+    } on DioException catch (error) {
+      if (error.response?.statusCode == 404) {
+        // Somente a confirmação do backend de que a viagem não existe permite
+        // apagar o cache. Falha de rede/401 temporário mantém a viagem.
+        await travelRepo.clearTravels();
+        return false;
+      }
+      if (active.status == 'Accepted' || active.status == 'InProgress') {
+        Modular.to.pushNamed(
+          '/new-travel/tracking',
+          arguments: {'travelId': active.travelId},
+        );
+        return true;
+      }
     }
     return false;
   }
