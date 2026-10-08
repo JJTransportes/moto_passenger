@@ -48,13 +48,16 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     Emitter<ProfileState> emit,
   ) async {
     final currentState = state;
-    if (currentState is! ProfileLoaded && currentState is! ProfileSaveError) {
+    if (currentState is! ProfileLoaded &&
+        currentState is! ProfileSaveSuccess &&
+        currentState is! ProfileSaveError &&
+        currentState is! ProfilePhotoUpdated &&
+        currentState is! ProfilePhotoRemoved &&
+        currentState is! ProfilePhotoError) {
       return;
     }
 
-    final profile = (currentState is ProfileLoaded)
-        ? currentState.profile
-        : (currentState as ProfileSaveError).profile;
+    final profile = _extractProfile(currentState);
 
     emit(ProfileSaving(profile));
 

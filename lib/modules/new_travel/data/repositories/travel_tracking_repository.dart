@@ -88,6 +88,8 @@ class TravelTrackingRepository implements ITravelTrackingRepository {
       finishedAt: DateTime.tryParse(data['finishedAt']?.toString() ?? ''),
       cancelledAt: DateTime.tryParse(data['cancelledAt']?.toString() ?? ''),
       cancellationReason: data['cancellationReason'] as String?,
+      cancelledByRole: data['cancelledByRole'] as String?,
+      cancelledByName: data['cancelledByName'] as String?,
       driverId: driverId,
       driver: driver,
       destinationLatitude: destLat,

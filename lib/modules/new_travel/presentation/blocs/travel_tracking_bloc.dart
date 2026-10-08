@@ -195,6 +195,8 @@ class TravelTrackingBloc
           TravelTrackingCancelled(
             travelId: travel.travelId,
             reason: travel.cancellationReason,
+            cancelledByRole: travel.cancelledByRole,
+            cancelledByName: travel.cancelledByName,
           ),
         );
     }
@@ -225,12 +227,13 @@ class TravelTrackingBloc
     Emitter<TravelTrackingState> emit,
   ) async {
     try {
-      await _repository.cancelTravel(event.travelId);
+      await _repository.cancelTravel(event.travelId, reason: event.reason);
       _stopPolling();
       emit(
         TravelTrackingCancelled(
           travelId: event.travelId,
-          reason: 'Cancelada pelo passageiro',
+          reason: event.reason,
+          cancelledByRole: 'Passenger',
         ),
       );
     } catch (e) {
@@ -353,6 +356,8 @@ class TravelTrackingBloc
       TravelTrackingCancelled(
         travelId: event.data['travelId'] as String,
         reason: event.data['reason'] as String?,
+        cancelledByRole: event.data['cancelledByRole'] as String?,
+        cancelledByName: event.data['cancelledByName'] as String?,
       ),
     );
   }

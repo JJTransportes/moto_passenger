@@ -9,7 +9,8 @@ class LoadTravel extends TravelTrackingEvent {
 
 class CancelTravel extends TravelTrackingEvent {
   final String travelId;
-  const CancelTravel(this.travelId);
+  final String reason;
+  const CancelTravel(this.travelId, this.reason);
 }
 
 class TravelOrderAccepted extends TravelTrackingEvent {

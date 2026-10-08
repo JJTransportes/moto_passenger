@@ -19,7 +19,9 @@ import 'package:moto_passenger/modules/profile_configuration/presentation/widget
 import 'package:moto_passenger/widgets/app_text_field.dart';
 
 class ProfilePage extends StatefulWidget {
-  const ProfilePage({super.key});
+  const ProfilePage({super.key, this.requirePhone = false});
+
+  final bool requirePhone;
 
   @override
   State<ProfilePage> createState() => _ProfilePageState();
@@ -51,6 +53,7 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   void initState() {
     super.initState();
+    _isEditing = widget.requirePhone;
     _loadProfile();
     _checkActiveTravel();
     _confirmEmailController.addListener(_onFieldChanged);
@@ -81,7 +84,7 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   bool get _isBlockedByActiveTravel =>
-      _checkingActiveTravel || _hasActiveTravel;
+      !widget.requirePhone && (_checkingActiveTravel || _hasActiveTravel);
 
   Future<void> _handleDeleteAccount() async {
     await Modular.to.pushNamed('/delete-account');
@@ -98,11 +101,21 @@ class _ProfilePageState extends State<ProfilePage> {
 
   void _onFieldChanged() {
     final state = context.read<ProfileBloc>().state;
-    if (state is ProfileLoaded) {
+    final profile = switch (state) {
+      ProfileLoaded(:final profile) => profile,
+      ProfileSaveSuccess(:final profile) => profile,
+      ProfileSaveError(:final profile) => profile,
+      ProfilePhotoUpdated(:final profile) => profile,
+      ProfilePhotoRemoved(:final profile) => profile,
+      ProfilePhotoError(:final profile) => profile,
+      _ => null,
+    };
+    if (profile != null) {
       final hasChanges =
-          _fullNameController.text != state.profile.fullName ||
-          _emailController.text != state.profile.email ||
-          _phoneController.text != (state.profile.phone ?? '');
+          _fullNameController.text != profile.fullName ||
+          _emailController.text != profile.email ||
+          unmaskDigits(_phoneController.text) !=
+              unmaskDigits(profile.phone ?? '');
       if (hasChanges != _hasUnsavedChanges) {
         setState(() {
           _hasUnsavedChanges = hasChanges;
@@ -116,7 +129,10 @@ class _ProfilePageState extends State<ProfilePage> {
   void _populateControllers(ProfileEntity profile) {
     _fullNameController.text = profile.fullName;
     _emailController.text = profile.email;
-    _phoneController.text = profile.phone ?? '';
+    _confirmEmailController.text = profile.email;
+    _phoneController.text = formatPhoneDigits(
+      unmaskDigits(profile.phone ?? ''),
+    );
     _originalFullName = profile.fullName;
     _originalEmail = profile.email;
     _originalPhone = profile.phone ?? '';
@@ -141,8 +157,7 @@ class _ProfilePageState extends State<ProfilePage> {
           null &&
       validators.validateEmail(_emailController.text) == null &&
       _isEmailConfirmed &&
-      (_phoneController.text.trim().isEmpty ||
-          _phoneController.text.replaceAll(RegExp(r'\D'), '').length >= 10);
+      validators.validatePhone(_phoneController.text) == null;
 
   bool _validate() {
     bool valid = true;
@@ -168,13 +183,10 @@ class _ProfilePageState extends State<ProfilePage> {
         valid = false;
       }
 
-      if (_phoneController.text.trim().isNotEmpty) {
-        final digits = _phoneController.text.replaceAll(RegExp(r'[^\d]'), '');
-        if (digits.length < 10 || digits.length > 11) {
-          _phoneError = 'Telefone inválido. Use DDD + número.';
-          valid = false;
-        }
-      }
+      _phoneError = _phoneController.text.trim().isEmpty
+          ? 'Telefone é obrigatório.'
+          : validators.validatePhone(_phoneController.text);
+      if (_phoneError != null) valid = false;
     });
     return valid;
   }
@@ -206,7 +218,11 @@ class _ProfilePageState extends State<ProfilePage> {
   void _enterEditMode() {
     setState(() {
       _isEditing = true;
-      _confirmEmailController.clear();
+      _emailController.text = _originalEmail ?? _emailController.text;
+      _confirmEmailController.text = _emailController.text;
+      _phoneController.text = formatPhoneDigits(
+        unmaskDigits(_originalPhone ?? _phoneController.text),
+      );
     });
   }
 
@@ -417,6 +433,12 @@ class _ProfilePageState extends State<ProfilePage> {
                     duration: Duration(seconds: 2),
                   ),
                 );
+                if (widget.requirePhone &&
+                    (state.profile.phone?.trim().isNotEmpty ?? false)) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) Modular.to.pop();
+                  });
+                }
               case ProfileSaveError(:final message):
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
@@ -740,7 +762,7 @@ class _ProfilePageState extends State<ProfilePage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Telefone',
+          'Telefone *',
           style: TextStyle(
             fontFamily: MotoFont.ui,
             fontSize: 13,
@@ -755,13 +777,21 @@ class _ProfilePageState extends State<ProfilePage> {
           keyboardType: TextInputType.phone,
           onChanged: onChanged,
           inputFormatters: [PhoneInputFormatter()],
+          maxLength: 15,
+          buildCounter:
+              (
+                context, {
+                required currentLength,
+                required isFocused,
+                maxLength,
+              }) => null,
           style: TextStyle(
             fontFamily: MotoFont.ui,
             fontSize: 16,
             color: c.textPrimary,
           ),
           decoration: InputDecoration(
-            hintText: '(11) 91234-5678 (opcional)',
+            hintText: '(11) 91234-5678',
             hintStyle: TextStyle(
               fontFamily: MotoFont.ui,
               fontSize: 16,
@@ -854,7 +884,10 @@ class _ProfilePageState extends State<ProfilePage> {
       if (_originalFullName != null) {
         _fullNameController.text = _originalFullName!;
         _emailController.text = _originalEmail!;
-        _phoneController.text = _originalPhone ?? '';
+        _confirmEmailController.text = _originalEmail!;
+        _phoneController.text = formatPhoneDigits(
+          unmaskDigits(_originalPhone ?? ''),
+        );
       }
       _hasUnsavedChanges = false;
     }
@@ -881,7 +914,9 @@ class _ProfilePageState extends State<ProfilePage> {
           child: MotoButton(
             label: 'Salvar',
             loading: isSaving,
-            onPressed: (canAct && _isFormFilled) ? _onActionButtonTapped : null,
+            onPressed: (canAct && _hasUnsavedChanges && _isFormFilled)
+                ? _onActionButtonTapped
+                : null,
           ),
         ),
       ],

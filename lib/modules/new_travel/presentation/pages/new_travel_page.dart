@@ -3,6 +3,7 @@
 import 'dart:async';
 import 'dart:developer';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -11,7 +12,9 @@ import 'package:flutter_modular/flutter_modular.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:moto_passenger/core/auth/auth_storage.dart';
 import 'package:moto_passenger/core/location/location_service.dart';
+import 'package:moto_passenger/core/maps/i_places_autocomplete_service.dart';
 import 'package:moto_passenger/core/maps/places_autocomplete_service.dart';
+import 'package:moto_passenger/core/maps/polyline_decoder.dart';
 import 'package:moto_passenger/design_system/design_system.dart';
 import 'package:moto_passenger/modules/new_travel/domain/entities/travel_route_entity.dart';
 import 'package:moto_passenger/modules/new_travel/presentation/blocs/new_travel_bloc.dart';
@@ -34,9 +37,18 @@ class _NewTravelPageState extends State<NewTravelPage> {
   GoogleMapController? _mapController;
   final ValueNotifier<bool> _hasPriorityAccess = ValueNotifier(false);
 
-  OrderType _orderType = OrderType.normal;
+  final OrderType _orderType = OrderType.normal;
 
   LatLng? _currentLocation;
+  LatLng? _previewedPickup;
+  String? _previewedPickupAddress;
+  bool _showPickupConfirmation = false;
+  int _pickupPreviewRequestId = 0;
+  LatLng? _previewedDestination;
+  String? _previewedDestinationAddress;
+  bool _showDestinationConfirmation = false;
+  BitmapDescriptor? _destinationFlagIcon;
+  int _destinationPreviewRequestId = 0;
   Set<Marker> _markers = {};
   final Set<Polyline> _polylines = {};
 
@@ -172,6 +184,7 @@ class _NewTravelPageState extends State<NewTravelPage> {
     bloc.add(const GetCurrentLocation());
     bloc.add(const CheckPendingOrder());
     _startMapTimeoutTimer();
+    unawaited(_loadDestinationFlagIcon());
 
     Future.microtask(() async {
       await _verifyPriorityAccess();
@@ -265,15 +278,19 @@ class _NewTravelPageState extends State<NewTravelPage> {
             ),
             markers: _markers,
             polylines: _polylines,
-            onMapCreated: (controller) => _mapController = controller,
-            onTap: _isSelectingDestination ? null : _handleMapTap,
+            onMapCreated: _onMapCreated,
+            onTap: (_isSelectingDestination || _showPickupConfirmation)
+                ? null
+                : _handleMapTap,
             myLocationEnabled: true,
             myLocationButtonEnabled: false,
             zoomControlsEnabled: false,
           ),
           Positioned(
             right: 16,
-            bottom: 16,
+            bottom: (_showDestinationConfirmation || _showPickupConfirmation)
+                ? 164
+                : 16,
             child: FloatingActionButton(
               heroTag: 'recenter-location',
               mini: true,
@@ -283,6 +300,20 @@ class _NewTravelPageState extends State<NewTravelPage> {
               child: const Icon(Icons.my_location),
             ),
           ),
+          if (_showDestinationConfirmation)
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: 16,
+              child: _buildDestinationConfirmationCard(),
+            ),
+          if (_showPickupConfirmation)
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: 16,
+              child: _buildPickupConfirmationCard(),
+            ),
         ],
       );
     }
@@ -351,6 +382,9 @@ class _NewTravelPageState extends State<NewTravelPage> {
                 ),
               ),
               onChanged: (query) {
+                if (_showDestinationConfirmation) {
+                  _clearDestinationPreview(recenter: false, clearText: false);
+                }
                 _searchDebounceTimer?.cancel();
                 final normalizedQuery = query.trim();
                 if (normalizedQuery.length < 3) {
@@ -368,7 +402,10 @@ class _NewTravelPageState extends State<NewTravelPage> {
               },
             ),
           ),
-          if (state is NewTravelPlacesLoaded && state.suggestions.isNotEmpty)
+          if (!_showDestinationConfirmation &&
+              !_showPickupConfirmation &&
+              state is NewTravelPlacesLoaded &&
+              state.suggestions.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: MotoSpace.s2),
               child: ConstrainedBox(
@@ -382,23 +419,24 @@ class _NewTravelPageState extends State<NewTravelPage> {
                     itemCount: state.suggestions.length,
                     itemBuilder: (_, i) => ListTile(
                       leading: Icon(
-                        Icons.location_on,
+                        _searchingOrigin
+                            ? Icons.location_on
+                            : Icons.flag_outlined,
                         color: context.moto.accent,
                       ),
                       title: Text(
-                        state.suggestions[i].address,
+                        _suggestionTitle(state.suggestions[i]),
                         overflow: TextOverflow.ellipsis,
                       ),
+                      subtitle: _suggestionSubtitle(state.suggestions[i]),
                       onTap: () {
                         final suggestion = state.suggestions[i];
                         if (_searchingOrigin) {
-                          unawaited(_confirmOriginSuggestion(suggestion));
+                          _previewOriginSuggestion(suggestion);
+                          _originController.text = suggestion.address;
                         } else {
-                          setState(() => _isSelectingDestination = true);
+                          _previewDestinationSuggestion(suggestion);
                           _destinationController.text = suggestion.address;
-                          BlocProvider.of<NewTravelBloc>(context).add(
-                            SelectPlace(suggestion: suggestion),
-                          );
                         }
                       },
                     ),
@@ -433,12 +471,549 @@ class _NewTravelPageState extends State<NewTravelPage> {
     );
   }
 
+  String _suggestionTitle(PlaceSuggestion suggestion) {
+    final name = suggestion.name?.trim();
+    return name == null || name.isEmpty ? suggestion.address : name;
+  }
+
+  Widget? _suggestionSubtitle(PlaceSuggestion suggestion) {
+    final name = suggestion.name?.trim();
+    if (name == null || name.isEmpty || name == suggestion.address) {
+      return null;
+    }
+    return Text(
+      suggestion.address,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+    );
+  }
+
+  void _onMapCreated(GoogleMapController controller) {
+    _mapController = controller;
+    final previewedPosition = _previewedDestination ?? _previewedPickup;
+    if (previewedPosition != null) {
+      unawaited(
+        controller.animateCamera(
+          CameraUpdate.newLatLngZoom(previewedPosition, 16),
+        ),
+      );
+    }
+  }
+
+  Future<void> _loadDestinationFlagIcon() async {
+    const size = 96.0;
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    final polePaint = Paint()
+      ..color = const Color(0xFF172B4D)
+      ..strokeWidth = 7
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(const Offset(22, 12), const Offset(22, 84), polePaint);
+
+    final flag = Path()
+      ..moveTo(22, 14)
+      ..lineTo(78, 25)
+      ..lineTo(22, 48)
+      ..close();
+    canvas.drawPath(flag, Paint()..color = const Color(0xFFE53935));
+    canvas.drawPath(
+      flag,
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3,
+    );
+    canvas.drawCircle(
+      const Offset(22, 85),
+      6,
+      Paint()..color = const Color(0xFF172B4D),
+    );
+
+    final picture = recorder.endRecording();
+    final image = await picture.toImage(size.toInt(), size.toInt());
+    final data = await image.toByteData(format: ui.ImageByteFormat.png);
+    image.dispose();
+    if (!mounted || data == null) return;
+    setState(() {
+      _destinationFlagIcon = BitmapDescriptor.bytes(
+        data.buffer.asUint8List(),
+        width: 42,
+        height: 42,
+      );
+      final position = _previewedDestination;
+      if (position != null) {
+        _replaceDestinationMarker(position);
+      }
+    });
+  }
+
+  Marker _destinationMarker(LatLng position) {
+    return Marker(
+      markerId: const MarkerId('destination'),
+      position: position,
+      draggable: true,
+      onDragEnd: _onDestinationMarkerDragged,
+      icon:
+          _destinationFlagIcon ??
+          BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+      anchor: _destinationFlagIcon == null
+          ? const Offset(0.5, 1)
+          : const Offset(0.23, 0.92),
+      infoWindow: InfoWindow(
+        title: 'Destino',
+        snippet: _previewedDestinationAddress ?? 'Destino selecionado',
+      ),
+    );
+  }
+
+  void _replaceDestinationMarker(LatLng position) {
+    _markers = {
+      ..._markers.where(
+        (marker) => marker.markerId != const MarkerId('destination'),
+      ),
+      _destinationMarker(position),
+    };
+  }
+
+  void _previewDestinationSuggestion(PlaceSuggestion suggestion) {
+    final position = LatLng(suggestion.latitude, suggestion.longitude);
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _isSelectingDestination = true;
+      _previewedDestination = position;
+      _previewedDestinationAddress = suggestion.address;
+      _showDestinationConfirmation = true;
+      _polylines.clear();
+      _replaceDestinationMarker(position);
+    });
+    unawaited(
+      _mapController?.animateCamera(
+            CameraUpdate.newLatLngZoom(position, 18),
+          ) ??
+          Future<void>.value(),
+    );
+    unawaited(_loadDestinationPreview(position));
+  }
+
+  void _onDestinationMarkerDragged(LatLng position) {
+    setState(() {
+      _previewedDestination = position;
+      _previewedDestinationAddress = 'Buscando endereço...';
+      _destinationController.text = 'Buscando endereço...';
+      _polylines.clear();
+      _replaceDestinationMarker(position);
+    });
+    unawaited(
+      _mapController?.animateCamera(
+            CameraUpdate.newLatLngZoom(position, 18),
+          ) ??
+          Future<void>.value(),
+    );
+    unawaited(_loadDestinationPreview(position));
+  }
+
+  Future<void> _loadDestinationPreview(LatLng position) async {
+    final origin = _currentLocation;
+    if (origin == null) return;
+    final requestId = ++_destinationPreviewRequestId;
+    final service = Modular.get<IPlacesAutocompleteService>();
+
+    try {
+      final route = await service.getRouteDetails(
+        originLat: origin.latitude,
+        originLng: origin.longitude,
+        destLat: position.latitude,
+        destLng: position.longitude,
+      );
+      if (!mounted || requestId != _destinationPreviewRequestId) return;
+
+      final routePoints = route.encodedPolyline.isEmpty
+          ? <LatLng>[origin, position]
+          : decodePolyline(route.encodedPolyline);
+      // O último ponto devolvido pela rota é o ponto navegável que o Google
+      // encaixou na malha viária. Assim, mesmo que o usuário solte a bandeira
+      // sobre um prédio ou terreno, ela volta para a rua acessível mais
+      // próxima em vez de manter uma coordenada fora da via.
+      final snappedDestination = routePoints.isNotEmpty
+          ? routePoints.last
+          : LatLng(route.destLat, route.destLng);
+      setState(() {
+        _previewedDestination = snappedDestination;
+        _previewedDestinationAddress = route.destinationAddress;
+        _destinationController.text = route.destinationAddress;
+        _replaceDestinationMarker(snappedDestination);
+        _polylines
+          ..clear()
+          ..add(
+            Polyline(
+              polylineId: const PolylineId('destination_preview_route'),
+              points: routePoints,
+              color: const Color(0xFF1F4FE0),
+              width: 6,
+              startCap: Cap.roundCap,
+              endCap: Cap.roundCap,
+              jointType: JointType.round,
+            ),
+          );
+      });
+      unawaited(
+        _mapController?.animateCamera(
+              CameraUpdate.newLatLngZoom(snappedDestination, 18),
+            ) ??
+            Future<void>.value(),
+      );
+    } catch (_) {
+      try {
+        final address = await service.getAddressByCoordinates(
+          latitude: position.latitude,
+          longitude: position.longitude,
+        );
+        if (!mounted || requestId != _destinationPreviewRequestId) return;
+        setState(() {
+          _previewedDestinationAddress = address.address;
+          _destinationController.text = address.address;
+          _replaceDestinationMarker(position);
+          _polylines
+            ..clear()
+            ..add(
+              Polyline(
+                polylineId: const PolylineId('destination_preview_route'),
+                points: [origin, position],
+                color: const Color(0xFF1F4FE0),
+                width: 6,
+                startCap: Cap.roundCap,
+                endCap: Cap.roundCap,
+              ),
+            );
+        });
+      } catch (_) {
+        if (!mounted || requestId != _destinationPreviewRequestId) return;
+        final fallback =
+            'Ponto no mapa (${position.latitude.toStringAsFixed(5)}, '
+            '${position.longitude.toStringAsFixed(5)})';
+        setState(() {
+          _previewedDestinationAddress = fallback;
+          _destinationController.text = fallback;
+          _replaceDestinationMarker(position);
+        });
+      }
+    }
+  }
+
+  Widget _buildDestinationConfirmationCard() {
+    return MotoGlass(
+      painted: true,
+      padding: const EdgeInsets.all(MotoSpace.s4),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Confirme o local de destino',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: MotoSpace.s1),
+          Text(
+            'Segure e arraste a bandeira vermelha para ajustar o ponto exato.',
+            style: TextStyle(
+              color: context.moto.textSecondary,
+              fontSize: 13,
+            ),
+          ),
+          const SizedBox(height: MotoSpace.s3),
+          Row(
+            children: [
+              Expanded(
+                child: MotoButton(
+                  label: 'Cancelar',
+                  variant: MotoButtonVariant.glass,
+                  large: false,
+                  onPressed: _cancelDestinationPreview,
+                ),
+              ),
+              const SizedBox(width: MotoSpace.s3),
+              Expanded(
+                child: MotoButton(
+                  label: 'Confirmar local',
+                  large: false,
+                  onPressed: _confirmDestinationPreview,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDestinationPreview() {
+    final position = _previewedDestination;
+    if (position == null) return;
+    final suggestion = PlaceSuggestion(
+      address: _previewedDestinationAddress ?? _destinationController.text,
+      latitude: position.latitude,
+      longitude: position.longitude,
+    );
+    setState(() {
+      _showDestinationConfirmation = false;
+      _isSelectingDestination = true;
+    });
+    BlocProvider.of<NewTravelBloc>(context).add(
+      SelectPlace(suggestion: suggestion),
+    );
+  }
+
+  void _cancelDestinationPreview() {
+    _clearDestinationPreview(recenter: true, clearText: true);
+    BlocProvider.of<NewTravelBloc>(context).add(
+      const SearchPlaces(query: ''),
+    );
+  }
+
+  void _clearDestinationPreview({
+    required bool recenter,
+    required bool clearText,
+  }) {
+    _destinationPreviewRequestId++;
+    setState(() {
+      _showDestinationConfirmation = false;
+      _isSelectingDestination = false;
+      _previewedDestination = null;
+      _previewedDestinationAddress = null;
+      _polylines.clear();
+      _markers = _markers
+          .where(
+            (marker) => marker.markerId != const MarkerId('destination'),
+          )
+          .toSet();
+      if (clearText) _destinationController.clear();
+    });
+    if (recenter) _recenterToCurrentLocation();
+  }
+
+  void _previewOriginSuggestion(PlaceSuggestion suggestion) {
+    final position = LatLng(suggestion.latitude, suggestion.longitude);
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _searchingOrigin = false;
+      _previewedPickup = position;
+      _previewedPickupAddress = suggestion.address;
+      _showPickupConfirmation = true;
+      _polylines.clear();
+      _replacePickupPreviewMarker(position);
+    });
+    BlocProvider.of<NewTravelBloc>(context).add(
+      const SearchPlaces(query: ''),
+    );
+    unawaited(
+      _mapController?.animateCamera(
+            CameraUpdate.newLatLngZoom(position, 18),
+          ) ??
+          Future<void>.value(),
+    );
+    unawaited(_loadPickupPreview(position));
+  }
+
+  void _replacePickupPreviewMarker(LatLng position) {
+    _markers = {
+      ..._markers.where(
+        (marker) => marker.markerId != const MarkerId('pickup_preview'),
+      ),
+      Marker(
+        markerId: const MarkerId('pickup_preview'),
+        position: position,
+        draggable: true,
+        onDragEnd: _onPickupMarkerDragged,
+        icon: BitmapDescriptor.defaultMarkerWithHue(
+          BitmapDescriptor.hueGreen,
+        ),
+        infoWindow: InfoWindow(
+          title: 'Embarque',
+          snippet: _previewedPickupAddress ?? 'Local de embarque selecionado',
+        ),
+      ),
+    };
+  }
+
+  void _onPickupMarkerDragged(LatLng position) {
+    setState(() {
+      _previewedPickup = position;
+      _previewedPickupAddress = 'Buscando endereço...';
+      _originController.text = 'Buscando endereço...';
+      _replacePickupPreviewMarker(position);
+    });
+    unawaited(
+      _mapController?.animateCamera(
+            CameraUpdate.newLatLngZoom(position, 18),
+          ) ??
+          Future<void>.value(),
+    );
+    unawaited(_loadPickupPreview(position));
+  }
+
+  Future<void> _loadPickupPreview(LatLng position) async {
+    final referencePosition = _currentLocation;
+    if (referencePosition == null) return;
+    final requestId = ++_pickupPreviewRequestId;
+    final service = Modular.get<IPlacesAutocompleteService>();
+
+    try {
+      final route = await service.getRouteDetails(
+        originLat: referencePosition.latitude,
+        originLng: referencePosition.longitude,
+        destLat: position.latitude,
+        destLng: position.longitude,
+      );
+      if (!mounted || requestId != _pickupPreviewRequestId) return;
+
+      final routePoints = route.encodedPolyline.isEmpty
+          ? <LatLng>[]
+          : decodePolyline(route.encodedPolyline);
+      final snappedPickup = routePoints.isNotEmpty
+          ? routePoints.last
+          : LatLng(route.destLat, route.destLng);
+      setState(() {
+        _previewedPickup = snappedPickup;
+        _previewedPickupAddress = route.destinationAddress;
+        _originController.text = route.destinationAddress;
+        _replacePickupPreviewMarker(snappedPickup);
+      });
+      unawaited(
+        _mapController?.animateCamera(
+              CameraUpdate.newLatLngZoom(snappedPickup, 18),
+            ) ??
+            Future<void>.value(),
+      );
+    } catch (_) {
+      try {
+        final address = await service.getAddressByCoordinates(
+          latitude: position.latitude,
+          longitude: position.longitude,
+        );
+        if (!mounted || requestId != _pickupPreviewRequestId) return;
+        setState(() {
+          _previewedPickupAddress = address.address;
+          _originController.text = address.address;
+          _replacePickupPreviewMarker(position);
+        });
+      } catch (_) {
+        if (!mounted || requestId != _pickupPreviewRequestId) return;
+        final fallback =
+            'Ponto no mapa (${position.latitude.toStringAsFixed(5)}, '
+            '${position.longitude.toStringAsFixed(5)})';
+        setState(() {
+          _previewedPickupAddress = fallback;
+          _originController.text = fallback;
+          _replacePickupPreviewMarker(position);
+        });
+      }
+    }
+  }
+
+  Widget _buildPickupConfirmationCard() {
+    return MotoGlass(
+      painted: true,
+      padding: const EdgeInsets.all(MotoSpace.s4),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Confirme o local de embarque',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: MotoSpace.s1),
+          Text(
+            'Segure e arraste o marcador verde para ajustar o ponto exato.',
+            style: TextStyle(
+              color: context.moto.textSecondary,
+              fontSize: 13,
+            ),
+          ),
+          const SizedBox(height: MotoSpace.s3),
+          Row(
+            children: [
+              Expanded(
+                child: MotoButton(
+                  label: 'Cancelar',
+                  variant: MotoButtonVariant.glass,
+                  large: false,
+                  onPressed: _cancelPickupPreview,
+                ),
+              ),
+              const SizedBox(width: MotoSpace.s3),
+              Expanded(
+                child: MotoButton(
+                  label: 'Confirmar local',
+                  large: false,
+                  onPressed: _confirmPickupPreview,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmPickupPreview() {
+    final position = _previewedPickup;
+    if (position == null) return;
+    final suggestion = PlaceSuggestion(
+      address: _previewedPickupAddress ?? _originController.text,
+      latitude: position.latitude,
+      longitude: position.longitude,
+    );
+    _pickupPreviewRequestId++;
+    setState(() => _showPickupConfirmation = false);
+    BlocProvider.of<NewTravelBloc>(context).add(
+      SelectOriginPlace(suggestion: suggestion),
+    );
+  }
+
+  void _cancelPickupPreview() {
+    _clearPickupPreview(recenter: true, clearText: true, refocus: true);
+    BlocProvider.of<NewTravelBloc>(context).add(
+      const SearchPlaces(query: ''),
+    );
+  }
+
+  void _clearPickupPreview({
+    required bool recenter,
+    required bool clearText,
+    required bool refocus,
+  }) {
+    _pickupPreviewRequestId++;
+    setState(() {
+      _showPickupConfirmation = false;
+      _previewedPickup = null;
+      _previewedPickupAddress = null;
+      _searchingOrigin = true;
+      _markers = _markers
+          .where(
+            (marker) => marker.markerId != const MarkerId('pickup_preview'),
+          )
+          .toSet();
+      if (clearText) _originController.clear();
+    });
+    if (recenter) _recenterToCurrentLocation();
+    if (refocus) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _originFocusNode.requestFocus();
+      });
+    }
+  }
+
   void _onOriginSelected(LatLng position, String address) {
     if (!mounted) return;
+    _pickupPreviewRequestId++;
     setState(() {
       _currentLocation = position;
       _searchingOrigin = false;
       _pickupSelectionMode = _PickupSelectionMode.destination;
+      _previewedPickup = null;
+      _previewedPickupAddress = null;
+      _showPickupConfirmation = false;
       _originController.text = address;
       _markers = {
         Marker(
@@ -479,6 +1054,13 @@ class _NewTravelPageState extends State<NewTravelPage> {
           ),
         ),
         onChanged: (query) {
+          if (_showPickupConfirmation) {
+            _clearPickupPreview(
+              recenter: false,
+              clearText: false,
+              refocus: false,
+            );
+          }
           _searchingOrigin = true;
           _dispatchPlaceSearch(query);
         },
@@ -573,28 +1155,13 @@ class _NewTravelPageState extends State<NewTravelPage> {
       return;
     }
 
-    setState(() => _isSelectingDestination = true);
-    BlocProvider.of<NewTravelBloc>(context).add(
-      CalculateRoute(
+    const mapDestinationLabel = 'Buscando endereço...';
+    _previewDestinationSuggestion(
+      PlaceSuggestion(
+        address: mapDestinationLabel,
         latitude: latLng.latitude,
         longitude: latLng.longitude,
       ),
-    );
-  }
-
-  Future<void> _confirmOriginSuggestion(PlaceSuggestion suggestion) async {
-    if (_isConfirmingPickup) return;
-    setState(() => _isConfirmingPickup = true);
-    final confirmed = await _confirmPickup(
-      'Confirmar local de embarque?',
-      suggestion.address,
-    );
-    if (!mounted) return;
-    setState(() => _isConfirmingPickup = false);
-    if (!confirmed) return;
-    _originController.text = suggestion.address;
-    BlocProvider.of<NewTravelBloc>(context).add(
-      SelectOriginPlace(suggestion: suggestion),
     );
   }
 

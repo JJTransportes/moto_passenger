@@ -296,15 +296,17 @@ void main() {
     blocTest<TravelTrackingBloc, TravelTrackingState>(
       'sucesso emite TravelTrackingCancelled',
       build: () {
-        when(() => repository.cancelTravel(any())).thenAnswer((_) async {});
+        when(
+          () => repository.cancelTravel(any(), reason: any(named: 'reason')),
+        ).thenAnswer((_) async {});
         return buildBloc();
       },
-      act: (bloc) => bloc.add(const CancelTravel('travel-1')),
+      act: (bloc) => bloc.add(const CancelTravel('travel-1', 'Emergência')),
       expect: () => [
         isA<TravelTrackingCancelled>().having(
           (s) => s.reason,
           'reason',
-          'Cancelada pelo passageiro',
+          'Emergência',
         ),
       ],
     );
@@ -312,10 +314,12 @@ void main() {
     blocTest<TravelTrackingBloc, TravelTrackingState>(
       'falha ao cancelar emite TravelTrackingFailure',
       build: () {
-        when(() => repository.cancelTravel(any())).thenThrow(Exception('boom'));
+        when(
+          () => repository.cancelTravel(any(), reason: any(named: 'reason')),
+        ).thenThrow(Exception('boom'));
         return buildBloc();
       },
-      act: (bloc) => bloc.add(const CancelTravel('travel-1')),
+      act: (bloc) => bloc.add(const CancelTravel('travel-1', 'Emergência')),
       expect: () => [isA<TravelTrackingFailure>()],
     );
   });

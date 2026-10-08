@@ -35,6 +35,8 @@ class SignalRService {
       StreamController<Map<String, dynamic>>.broadcast();
   final _chatMessageController =
       StreamController<Map<String, dynamic>>.broadcast();
+  final _chatTypingController =
+      StreamController<Map<String, dynamic>>.broadcast();
   final _chatClosedController =
       StreamController<Map<String, dynamic>>.broadcast();
   final _reconnectingController = StreamController<void>.broadcast();
@@ -64,6 +66,15 @@ class SignalRService {
       _driverArrivedController.stream;
   Stream<Map<String, dynamic>> get onChatMessageReceived =>
       _chatMessageController.stream;
+  Stream<Map<String, dynamic>> get onChatTyping => _chatTypingController.stream;
+
+  Future<void> sendChatTyping(String travelId, bool isTyping) async {
+    await _connections['travel-management']?.invoke(
+      'SendChatTyping',
+      args: [travelId, isTyping],
+    );
+  }
+
   Stream<Map<String, dynamic>> get onChatClosed => _chatClosedController.stream;
   Stream<void> get onReconnecting => _reconnectingController.stream;
   Stream<void> get onReconnected => _reconnectedController.stream;
@@ -209,6 +220,11 @@ class SignalRService {
             _chatMessageController.add(args.first as Map<String, dynamic>);
           }
         });
+        connection.on('ChatTyping', (args) {
+          if (args != null && args.isNotEmpty) {
+            _chatTypingController.add(args.first as Map<String, dynamic>);
+          }
+        });
         connection.on('ChatClosed', (args) {
           if (args != null && args.isNotEmpty) {
             _chatClosedController.add(args.first as Map<String, dynamic>);
@@ -246,6 +262,7 @@ class SignalRService {
     _driverNearbyController.close();
     _driverArrivedController.close();
     _chatMessageController.close();
+    _chatTypingController.close();
     _chatClosedController.close();
     _reconnectingController.close();
     _reconnectedController.close();

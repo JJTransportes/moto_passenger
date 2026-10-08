@@ -303,6 +303,8 @@ class _RegisterPageState extends State<RegisterPage> {
               _blockedField = 'rg';
             } else if (message.contains('Matrícula')) {
               _blockedField = 'registration';
+            } else if (message.toLowerCase().contains('telefone')) {
+              _blockedField = 'phone';
             } else {
               _blockedField = '_generic';
             }
@@ -464,7 +466,9 @@ class _RegisterPageState extends State<RegisterPage> {
           hint: '(12) 91234-5678',
           controller: _phoneController,
           keyboardType: TextInputType.phone,
-          errorText: _phoneError,
+          errorText:
+              _phoneError ??
+              (_blockedField == 'phone' ? _serverFieldMessage : null),
           inputFormatters: [PhoneInputFormatter()],
           maxLength: 15,
         ),

@@ -17,6 +17,7 @@ import 'package:moto_passenger/modules/chat/presentation/blocs/chat_event.dart';
 import 'package:moto_passenger/modules/chat/presentation/pages/chat_page.dart';
 import 'package:moto_passenger/modules/chat/presentation/session/chat_session.dart';
 import 'package:moto_passenger/modules/common_module.dart';
+import 'package:moto_passenger/core/network/signalr_service.dart';
 
 /// Chat temporário da viagem (spec pickup-chat-call). Os binds ficam disponíveis
 /// para quem importa este módulo (o acompanhamento da viagem usa o [ChatSession]).
@@ -52,6 +53,7 @@ class ChatModule extends Module {
             travelId: travelId,
             title: title,
             session: Modular.get<ChatSession>(),
+            signalR: Modular.get<SignalRService>(),
           ),
         );
       },

@@ -126,11 +126,13 @@ class PlacesAutocompleteService implements IPlacesAutocompleteService {
 }
 
 class PlaceSuggestion {
+  final String? name;
   final String address;
   final double latitude;
   final double longitude;
 
   const PlaceSuggestion({
+    this.name,
     required this.address,
     required this.latitude,
     required this.longitude,
@@ -138,6 +140,7 @@ class PlaceSuggestion {
 
   factory PlaceSuggestion.fromMap(Map<String, dynamic> map) {
     return PlaceSuggestion(
+      name: map['name'] as String?,
       address: map['address'] as String,
       latitude: (map['latitude'] as num).toDouble(),
       longitude: (map['longitude'] as num).toDouble(),

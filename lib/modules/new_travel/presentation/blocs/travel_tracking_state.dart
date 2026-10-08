@@ -100,10 +100,14 @@ class TravelTrackingCompleted extends TravelTrackingState {
 class TravelTrackingCancelled extends TravelTrackingState {
   final String travelId;
   final String? reason;
+  final String? cancelledByRole;
+  final String? cancelledByName;
 
   const TravelTrackingCancelled({
     required this.travelId,
     this.reason,
+    this.cancelledByRole,
+    this.cancelledByName,
   });
 }
 

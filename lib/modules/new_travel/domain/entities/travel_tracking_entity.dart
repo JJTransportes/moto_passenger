@@ -23,6 +23,8 @@ class TravelTrackingEntity {
   final DateTime? finishedAt;
   final DateTime? cancelledAt;
   final String? cancellationReason;
+  final String? cancelledByRole;
+  final String? cancelledByName;
   final String? driverId;
   final DriverInfoEntity? driver;
   final double? destinationLatitude;
@@ -39,6 +41,8 @@ class TravelTrackingEntity {
     this.finishedAt,
     this.cancelledAt,
     this.cancellationReason,
+    this.cancelledByRole,
+    this.cancelledByName,
     this.driverId,
     this.driver,
     this.destinationLatitude,

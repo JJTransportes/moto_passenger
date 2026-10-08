@@ -56,8 +56,9 @@ String? validateRg(String rg) {
 
 String? validateFullName(String value) {
   if (value.trim().isEmpty) return 'Nome completo é obrigatório.';
-  if (value.length > 100)
+  if (value.length > 100) {
     return 'Nome completo deve ter no máximo 100 caracteres.';
+  }
   return null;
 }
 
@@ -81,6 +82,87 @@ String? validatePhone(String phone) {
   if (digits.length < 10 || digits.length > 11) {
     return 'Telefone inválido.';
   }
+  const validAreaCodes = {
+    '11',
+    '12',
+    '13',
+    '14',
+    '15',
+    '16',
+    '17',
+    '18',
+    '19',
+    '21',
+    '22',
+    '24',
+    '27',
+    '28',
+    '31',
+    '32',
+    '33',
+    '34',
+    '35',
+    '37',
+    '38',
+    '41',
+    '42',
+    '43',
+    '44',
+    '45',
+    '46',
+    '47',
+    '48',
+    '49',
+    '51',
+    '53',
+    '54',
+    '55',
+    '61',
+    '62',
+    '63',
+    '64',
+    '65',
+    '66',
+    '67',
+    '68',
+    '69',
+    '71',
+    '73',
+    '74',
+    '75',
+    '77',
+    '79',
+    '81',
+    '82',
+    '83',
+    '84',
+    '85',
+    '86',
+    '87',
+    '88',
+    '89',
+    '91',
+    '92',
+    '93',
+    '94',
+    '95',
+    '96',
+    '97',
+    '98',
+    '99',
+  };
+  if (!validAreaCodes.contains(digits.substring(0, 2))) {
+    return 'DDD inválido.';
+  }
+  final subscriber = digits.substring(2);
+  if (subscriber.split('').toSet().length == 1) return 'Telefone inválido.';
+  if (digits.length == 11) {
+    final second = int.parse(subscriber[1]);
+    if (!subscriber.startsWith('9') || second < 2) return 'Celular inválido.';
+  } else {
+    final first = int.parse(subscriber[0]);
+    if (first < 2 || first > 5) return 'Telefone fixo inválido.';
+  }
   return null;
 }
 
@@ -98,8 +180,9 @@ String? validateRequired(String value, String fieldName) {
 }
 
 String? validateMaxLength(String value, int max, String fieldName) {
-  if (value.length > max)
+  if (value.length > max) {
     return '$fieldName deve ter no máximo $max caracteres.';
+  }
   return null;
 }
 
