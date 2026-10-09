@@ -1,10 +1,10 @@
-
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:moto_passenger/core/auth/auth_storage.dart';
 import 'package:moto_passenger/core/location/location_service.dart';
 import 'package:moto_passenger/core/maps/i_places_autocomplete_service.dart';
 import 'package:moto_passenger/core/network/signalr_service.dart';
+import 'package:moto_passenger/modules/chat/chat_module.dart';
 import 'package:moto_passenger/modules/common_module.dart';
 import 'package:moto_passenger/modules/new_travel/data/datasources/new_travel_datasource.dart';
 import 'package:moto_passenger/modules/new_travel/data/datasources/travel_tracking_datasource.dart';
@@ -19,8 +19,9 @@ import 'package:moto_passenger/modules/new_travel/presentation/pages/waiting_pag
 class NewTravelModule extends Module {
   @override
   List<Module> get imports => [
-        CommonModule(),
-      ];
+    CommonModule(),
+    ChatModule(),
+  ];
 
   @override
   void binds(i) {
@@ -62,12 +63,10 @@ class NewTravelModule extends Module {
     r.child(
       '/tracking',
       child: (_) {
-        print('[DIAG] /tracking route builder running, Modular.args.data=${Modular.args.data}');
         final args = Modular.args.data as Map<String, dynamic>;
         return BlocProvider<TravelTrackingBloc>(
           create: (_) {
             final b = Modular.get<TravelTrackingBloc>();
-            print('[DIAG] BlocProvider.create built bloc hash=${b.hashCode} for travelId=${args['travelId']}');
             return b;
           },
           child: TravelTrackingPage(

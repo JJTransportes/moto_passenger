@@ -29,7 +29,9 @@ class DeleteAccountDatasource implements IDeleteAccountDatasource {
   Exception _mapException(DioException e) {
     switch (e.response?.statusCode) {
       case 400:
-        return const ValidationException('Dados inválidos. Verifique os campos.');
+        return const ValidationException(
+          'Dados inválidos. Verifique os campos.',
+        );
       case 401:
         return const UnauthorizedException('Senha incorreta.');
       case 409:

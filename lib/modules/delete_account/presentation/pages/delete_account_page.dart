@@ -70,10 +70,12 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
             }
             if (state is DeleteAccountError) {
               final exception = switch (state.type) {
-                DeleteAccountErrorType.invalidPassword =>
-                  UnauthorizedException(state.message),
-                DeleteAccountErrorType.activeTravels =>
-                  ValidationException(state.message),
+                DeleteAccountErrorType.invalidPassword => UnauthorizedException(
+                  state.message,
+                ),
+                DeleteAccountErrorType.activeTravels => ValidationException(
+                  state.message,
+                ),
                 DeleteAccountErrorType.other => Exception(state.message),
               };
               _showError(exception);
@@ -97,7 +99,11 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
       children: [
         Row(
           children: [
-            Icon(Icons.warning_amber_rounded, color: context.moto.danger, size: 32),
+            Icon(
+              Icons.warning_amber_rounded,
+              color: context.moto.danger,
+              size: 32,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Text(

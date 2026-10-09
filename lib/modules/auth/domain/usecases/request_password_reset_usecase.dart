@@ -8,5 +8,6 @@ class RequestPasswordResetUsecase implements IRequestPasswordResetUsecase {
   RequestPasswordResetUsecase(this._repository);
 
   @override
-  AsyncResult<Unit> call(String email) => _repository.requestPasswordReset(email);
+  AsyncResult<Unit> call(String email) =>
+      _repository.requestPasswordReset(email);
 }

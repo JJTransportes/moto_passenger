@@ -9,7 +9,8 @@ class LoadTravel extends TravelTrackingEvent {
 
 class CancelTravel extends TravelTrackingEvent {
   final String travelId;
-  const CancelTravel(this.travelId);
+  final String reason;
+  const CancelTravel(this.travelId, this.reason);
 }
 
 class TravelOrderAccepted extends TravelTrackingEvent {
@@ -53,4 +54,11 @@ class DistanceUpdated extends TravelTrackingEvent {
 /// polling e força um refresh do estado mais atual.
 class PollingPaused extends TravelTrackingEvent {
   const PollingPaused();
+}
+
+/// `DriverNearby` / `DriverArrived` do hub `travel-management` (spec
+/// pickup-arrival-alerts). `data` = `{travelId, kind: "Nearby"|"Arrived", occurredAt}`.
+class DriverProximityAlerted extends TravelTrackingEvent {
+  final Map<String, dynamic> data;
+  const DriverProximityAlerted(this.data);
 }

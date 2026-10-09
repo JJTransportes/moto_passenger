@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:moto_passenger/core/auth/auth_storage.dart';
 import 'package:moto_passenger/core/config/app_config.dart';
+import 'package:moto_passenger/core/errors/user_error_message.dart';
 import 'package:moto_passenger/core/location/location_service.dart';
 import 'package:moto_passenger/core/maps/i_places_autocomplete_service.dart';
 import 'package:moto_passenger/core/network/signalr_service.dart';
@@ -45,6 +46,8 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
     on<GetCurrentLocation>(_onGetCurrentLocation);
     on<SearchPlaces>(_onSearchPlaces);
     on<SelectPlace>(_onSelectPlace);
+    on<SelectOriginPlace>(_onSelectOriginPlace);
+    on<SetOriginOnMap>(_onSetOriginOnMap);
     on<CalculateRoute>(_onCalculateRoute);
     on<ConfirmTravel>(_onConfirm);
   }
@@ -100,7 +103,7 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
         ),
       );
     } catch (e) {
-      emit(NewTravelFailure(message: e.toString()));
+      emit(NewTravelFailure(message: userErrorMessage(e)));
     }
   }
 
@@ -185,12 +188,16 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
       };
 
       final result = event.orderType == OrderType.normal
-          ? await _repository.createOrder(request).timeout(
-              const Duration(seconds: 12),
-            )
-          : await _repository.createPriorityOrder(request).timeout(
-              const Duration(seconds: 12),
-            );
+          ? await _repository
+                .createOrder(request)
+                .timeout(
+                  const Duration(seconds: 12),
+                )
+          : await _repository
+                .createPriorityOrder(request)
+                .timeout(
+                  const Duration(seconds: 12),
+                );
 
       emit(
         NewTravelCreated(
@@ -205,7 +212,7 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
         ),
       );
     } catch (e) {
-      emit(NewTravelFailure(message: e.toString()));
+      emit(NewTravelFailure(message: userErrorMessage(e)));
     } finally {
       _confirmInFlight = false;
     }
@@ -261,7 +268,10 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
     } catch (e) {
       emit(
         NewTravelLocationError(
-          message: e.toString(),
+          message: userErrorMessage(
+            e,
+            fallback: 'Não foi possível obter sua localização.',
+          ),
           status: LocationStatus.denied,
         ),
       );
@@ -286,7 +296,7 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
       emit(NewTravelPlacesLoaded(suggestions: results, query: event.query));
     } catch (e) {
       if (requestId != _searchRequestId) return;
-      emit(NewTravelFailure(message: e.toString()));
+      emit(NewTravelFailure(message: userErrorMessage(e)));
     }
   }
 
@@ -326,7 +336,49 @@ class NewTravelBloc extends Bloc<NewTravelEvent, NewTravelState> {
         ),
       );
     } catch (e) {
-      emit(NewTravelFailure(message: e.toString()));
+      emit(NewTravelFailure(message: userErrorMessage(e)));
     }
+  }
+
+  Future<void> _onSetOriginOnMap(
+    SetOriginOnMap event,
+    Emitter<NewTravelState> emit,
+  ) async {
+    _currentPosition = LatLng(event.latitude, event.longitude);
+    var address =
+        'Ponto no mapa (${event.latitude.toStringAsFixed(5)}, '
+        '${event.longitude.toStringAsFixed(5)})';
+    try {
+      final result = await _placesService.getAddressByCoordinates(
+        latitude: event.latitude,
+        longitude: event.longitude,
+      );
+      address = result.address;
+    } catch (_) {
+      // As coordenadas continuam válidas mesmo se a geocodificação reversa
+      // estiver indisponível; o usuário ainda vê o ponto escolhido no input.
+    }
+    emit(
+      NewTravelOriginSelected(
+        position: _currentPosition!,
+        address: address,
+      ),
+    );
+  }
+
+  void _onSelectOriginPlace(
+    SelectOriginPlace event,
+    Emitter<NewTravelState> emit,
+  ) {
+    _currentPosition = LatLng(
+      event.suggestion.latitude,
+      event.suggestion.longitude,
+    );
+    emit(
+      NewTravelOriginSelected(
+        position: _currentPosition!,
+        address: event.suggestion.address,
+      ),
+    );
   }
 }

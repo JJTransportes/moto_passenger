@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart' hide ReadContext;
@@ -8,13 +10,17 @@ import 'package:moto_passenger/core/auth/auth_storage.dart';
 import 'package:moto_passenger/core/config/app_config.dart';
 import 'package:moto_passenger/core/local_db/repositories/travel_local_repository.dart';
 import 'package:moto_passenger/core/location/location_service.dart';
+import 'package:moto_passenger/core/location/background_location_service.dart';
 import 'package:moto_passenger/core/maps/polyline_decoder.dart';
 import 'package:moto_passenger/core/network/signalr_service.dart';
+import 'package:moto_passenger/modules/chat/presentation/session/chat_session.dart';
+import 'package:moto_passenger/modules/chat/presentation/widgets/chat_action_button.dart';
 import 'package:moto_passenger/design_system/design_system.dart';
 import 'package:moto_passenger/modules/new_travel/domain/entities/travel_tracking_entity.dart';
 import 'package:moto_passenger/modules/new_travel/presentation/blocs/travel_tracking_bloc.dart';
 import 'package:moto_passenger/modules/new_travel/presentation/blocs/travel_tracking_event.dart';
 import 'package:moto_passenger/modules/new_travel/presentation/blocs/travel_tracking_state.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 class TravelTrackingPage extends StatefulWidget {
   final String travelId;
@@ -39,13 +45,18 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
   StreamSubscription? _orderCancelledSub;
   StreamSubscription? _driverLocationSub;
   StreamSubscription? _distanceUpdateSub;
+  StreamSubscription? _driverNearbySub;
+  StreamSubscription? _driverArrivedSub;
 
   GoogleMapController? _mapController;
-  bool _isUserInteracting = false;
+  bool _driverCameraEnabled = false;
+  bool _travelPanelExpanded = true;
   double? _lastDriverLat;
   double? _lastDriverLng;
+  double _lastDriverBearing = 0;
   String? _authToken;
   LatLng? _myLocation;
+  BitmapDescriptor? _driverMarkerIcon;
 
   @override
   Widget build(BuildContext context) {
@@ -61,9 +72,11 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
         if (!didPop) _returnToHome();
       },
       child: Scaffold(
+        resizeToAvoidBottomInset: false,
         appBar: AppBar(
           title: Text(
             'Minha Viagem',
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(color: context.moto.textPrimary),
           ),
           elevation: 0,
@@ -71,12 +84,60 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
             icon: Icon(Icons.arrow_back, color: context.moto.textPrimary),
             onPressed: _returnToHome,
           ),
+          actions: [
+            BlocBuilder<TravelTrackingBloc, TravelTrackingState>(
+              buildWhen: (previous, current) =>
+                  (previous is TravelTrackingAccepted) !=
+                  (current is TravelTrackingAccepted),
+              builder: (context, state) {
+                if (state is! TravelTrackingAccepted) {
+                  return const SizedBox.shrink();
+                }
+                return ValueListenableBuilder<int>(
+                  valueListenable: Modular.get<ChatSession>().unread,
+                  builder: (context, unread, _) {
+                    if (unread <= 0) return const SizedBox.shrink();
+                    return IconButton(
+                      key: const Key('header-chat-button'),
+                      tooltip:
+                          '$unread mensagem${unread == 1 ? '' : 's'} nova${unread == 1 ? '' : 's'}',
+                      onPressed: _openChat,
+                      icon: Badge(
+                        key: const Key('header-chat-unread-badge'),
+                        backgroundColor: context.moto.danger,
+                        label: Text(unread > 99 ? '99+' : '$unread'),
+                        child: Icon(
+                          Icons.notifications_rounded,
+                          color: context.moto.danger,
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+            const SizedBox(width: 8),
+          ],
         ),
         body: BlocListener<TravelTrackingBloc, TravelTrackingState>(
-          listenWhen: (previous, current) =>
-              current is TravelTrackingAccepted ||
-              current is TravelTrackingInProgress,
+          // Todos os estados: além do mapa, o chat (spec pickup-chat-call) só
+          // existe em Accepted e precisa parar nos demais.
+          listenWhen: (previous, current) => true,
           listener: (context, state) {
+            final chatSession = Modular.get<ChatSession>();
+            if (state is TravelTrackingAccepted) {
+              chatSession.start(state.travelId);
+            } else {
+              chatSession.stop();
+            }
+            if (state is TravelTrackingCompleted ||
+                state is TravelTrackingCancelled) {
+              unawaited(WakelockPlus.disable());
+              unawaited(
+                Modular.get<PassengerBackgroundLocationService>().stop(),
+              );
+            }
+
             final lat = switch (state) {
               TravelTrackingAccepted(:final driverLatitude) => driverLatitude,
               TravelTrackingInProgress(:final driverLatitude) => driverLatitude,
@@ -89,23 +150,12 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
               _ => null,
             };
 
-            if (lat != null &&
-                lng != null &&
-                !_isUserInteracting &&
-                _mapController != null &&
-                (lat != _lastDriverLat || lng != _lastDriverLng)) {
-              _lastDriverLat = lat;
-              _lastDriverLng = lng;
-              _mapController!.animateCamera(
-                CameraUpdate.newLatLngZoom(LatLng(lat, lng), 14),
-              );
+            if (lat != null && lng != null) {
+              _followDriverOnMap(LatLng(lat, lng));
             }
           },
           child: BlocBuilder<TravelTrackingBloc, TravelTrackingState>(
             builder: (context, state) {
-              print(
-                '[DIAG] BlocBuilder rebuild, state=${state.runtimeType}, bloc hash=${BlocProvider.of<TravelTrackingBloc>(context).hashCode}',
-              );
               return switch (state) {
                 TravelTrackingInitial() => const Center(
                   child: CircularProgressIndicator(),
@@ -124,6 +174,7 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
                   remainingTimeMinutes: final time,
                   routePolyline: final polyline,
                   requestedAt: final requestedAt,
+                  pickupProximity: final pickupProximity,
                 ) =>
                   _buildAcceptedState(
                     driver,
@@ -135,6 +186,7 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
                     remainingTimeMinutes: time,
                     routePolyline: polyline,
                     requestedAt: requestedAt,
+                    pickupProximity: pickupProximity,
                   ),
                 TravelTrackingInProgress(
                   driver: final driver,
@@ -159,10 +211,48 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
                     requestedAt: requestedAt,
                   ),
                 TravelTrackingCompleted() => _buildCompletedState(),
-                TravelTrackingCancelled(reason: final reason) =>
-                  _buildCancelledState(reason),
+                TravelTrackingCancelled(
+                  reason: final reason,
+                  cancelledByRole: final cancelledByRole,
+                ) =>
+                  _buildCancelledState(reason, cancelledByRole),
                 TravelTrackingFailure(message: final msg) => Center(
-                  child: Text('Erro: $msg'),
+                  child: Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.wifi_off_rounded,
+                          size: 48,
+                          color: context.moto.danger,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Não foi possível atualizar a viagem',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: context.moto.textPrimary,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          msg,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: context.moto.textSecondary),
+                        ),
+                        const SizedBox(height: 20),
+                        ElevatedButton(
+                          onPressed: () => context
+                              .read<TravelTrackingBloc>()
+                              .add(LoadTravel(widget.travelId)),
+                          child: const Text('Tentar novamente'),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               };
             },
@@ -174,6 +264,12 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
 
   @override
   void dispose() {
+    WakelockPlus.disable();
+    try {
+      Modular.get<ChatSession>().stop();
+    } catch (_) {
+      // Módulo já descartado: nada a parar.
+    }
     WidgetsBinding.instance.removeObserver(this);
     _orderAcceptedSub?.cancel();
     _travelStartedSub?.cancel();
@@ -182,29 +278,96 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
     _orderCancelledSub?.cancel();
     _driverLocationSub?.cancel();
     _distanceUpdateSub?.cancel();
+    _driverNearbySub?.cancel();
+    _driverArrivedSub?.cancel();
     _mapController?.dispose();
     Modular.get<SignalRService>().disconnectAll();
-    print(
-      '[DIAG] TravelTrackingPage.dispose pageHash=$hashCode travelId=${widget.travelId}',
-    );
     super.dispose();
   }
 
   @override
   void initState() {
     super.initState();
-    print(
-      '[DIAG] TravelTrackingPage.initState travelId=${widget.travelId} orderId=${widget.orderId} pageHash=$hashCode',
-    );
+    WakelockPlus.enable();
     WidgetsBinding.instance.addObserver(this);
     // Delay to ensure BlocProvider ancestor is established
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      print(
-        '[DIAG] postFrameCallback firing _connectAndLoad, pageHash=$hashCode, mounted=$mounted',
-      );
       _connectAndLoad();
+      if (mounted) {
+        Modular.get<PassengerBackgroundLocationService>()
+            .requestPermissionAndStart(context);
+      }
     });
     _loadMyLocation();
+    _loadDriverMarkerIcon();
+  }
+
+  Future<void> _loadDriverMarkerIcon() async {
+    const size = 112.0;
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    final center = const Offset(size / 2, size / 2);
+
+    canvas.drawCircle(
+      center,
+      50,
+      Paint()..color = const Color(0xFF1F4FE0),
+    );
+    canvas.drawCircle(
+      center,
+      47,
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 5,
+    );
+
+    final carPaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
+    final car = Path()
+      ..moveTo(27, 61)
+      ..lineTo(34, 43)
+      ..quadraticBezierTo(37, 36, 45, 36)
+      ..lineTo(67, 36)
+      ..quadraticBezierTo(75, 36, 78, 43)
+      ..lineTo(85, 61)
+      ..quadraticBezierTo(90, 64, 90, 70)
+      ..lineTo(90, 77)
+      ..quadraticBezierTo(90, 82, 85, 82)
+      ..lineTo(79, 82)
+      ..quadraticBezierTo(75, 82, 75, 77)
+      ..lineTo(37, 77)
+      ..quadraticBezierTo(37, 82, 33, 82)
+      ..lineTo(27, 82)
+      ..quadraticBezierTo(22, 82, 22, 77)
+      ..lineTo(22, 70)
+      ..quadraticBezierTo(22, 64, 27, 61)
+      ..close();
+    canvas.drawPath(car, carPaint);
+    canvas.drawCircle(
+      const Offset(36, 68),
+      5,
+      Paint()..color = const Color(0xFF1F4FE0),
+    );
+    canvas.drawCircle(
+      const Offset(76, 68),
+      5,
+      Paint()..color = const Color(0xFF1F4FE0),
+    );
+
+    final picture = recorder.endRecording();
+    final image = await picture.toImage(size.toInt(), size.toInt());
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    image.dispose();
+    if (!mounted || bytes == null) return;
+    setState(() {
+      _driverMarkerIcon = BitmapDescriptor.bytes(
+        bytes.buffer.asUint8List(),
+        width: 44,
+        height: 44,
+      );
+    });
   }
 
   // PSG-08: com o app em background, o SignalR desconecta e o polling do
@@ -219,6 +382,8 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
       BlocProvider.of<TravelTrackingBloc>(context).add(const PollingPaused());
       Modular.get<SignalRService>().disconnectAll();
     } else if (state == AppLifecycleState.resumed) {
+      Modular.get<PassengerBackgroundLocationService>()
+          .requestPermissionAndStart(context);
       _connectAndLoad();
     }
   }
@@ -232,13 +397,90 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
           result.position!.longitude,
         );
       });
+      if (_lastDriverLat == null && _lastDriverLng == null) {
+        unawaited(
+          _mapController?.animateCamera(
+            CameraUpdate.newLatLngZoom(_myLocation!, 15),
+          ),
+        );
+      }
     }
   }
 
   void _recenterToMyLocation() {
     final position = _myLocation;
     if (position == null || _mapController == null) return;
+    if (_driverCameraEnabled) {
+      setState(() => _driverCameraEnabled = false);
+    }
     _mapController!.animateCamera(CameraUpdate.newLatLngZoom(position, 15));
+  }
+
+  void _onMapCreated(GoogleMapController controller) {
+    _mapController = controller;
+    final lat = _lastDriverLat;
+    final lng = _lastDriverLng;
+    if (_driverCameraEnabled && lat != null && lng != null) {
+      _followDriverOnMap(LatLng(lat, lng), force: true);
+    } else if (lat == null && lng == null && _myLocation != null) {
+      unawaited(
+        controller.animateCamera(
+          CameraUpdate.newLatLngZoom(_myLocation!, 15),
+        ),
+      );
+    }
+  }
+
+  void _toggleDriverCamera() {
+    setState(() => _driverCameraEnabled = !_driverCameraEnabled);
+    if (_driverCameraEnabled) {
+      final lat = _lastDriverLat;
+      final lng = _lastDriverLng;
+      if (lat != null && lng != null) {
+        _followDriverOnMap(LatLng(lat, lng), force: true);
+      }
+    }
+  }
+
+  void _followDriverOnMap(LatLng position, {bool force = false}) {
+    final previous = _lastDriverLat != null && _lastDriverLng != null
+        ? LatLng(_lastDriverLat!, _lastDriverLng!)
+        : null;
+    final moved = previous == null || previous != position;
+
+    if (previous != null && moved) {
+      _lastDriverBearing = _bearingBetween(previous, position);
+    }
+    _lastDriverLat = position.latitude;
+    _lastDriverLng = position.longitude;
+
+    final controller = _mapController;
+    if (controller == null || !_driverCameraEnabled || (!moved && !force)) {
+      return;
+    }
+    unawaited(
+      controller.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: position,
+            zoom: 18,
+            tilt: 55,
+            bearing: _lastDriverBearing,
+          ),
+        ),
+      ),
+    );
+  }
+
+  double _bearingBetween(LatLng from, LatLng to) {
+    final fromLat = from.latitude * math.pi / 180;
+    final toLat = to.latitude * math.pi / 180;
+    final deltaLng = (to.longitude - from.longitude) * math.pi / 180;
+    final y = math.sin(deltaLng) * math.cos(toLat);
+    final x =
+        math.cos(fromLat) * math.sin(toLat) -
+        math.sin(fromLat) * math.cos(toLat) * math.cos(deltaLng);
+    return (math.atan2(y, x) * 180 / math.pi + 360) % 360;
   }
 
   Widget _buildWithMap({
@@ -249,8 +491,10 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
     double? destLng,
     String? routePolyline,
   }) {
-    final centerLat = driverLat ?? destLat ?? -23.5505;
-    final centerLng = driverLng ?? destLng ?? -46.6333;
+    final centerLat =
+        driverLat ?? _myLocation?.latitude ?? destLat ?? -15.793889;
+    final centerLng =
+        driverLng ?? _myLocation?.longitude ?? destLng ?? -47.882778;
 
     final markers = <Marker>{};
     if (driverLat != null && driverLng != null) {
@@ -258,7 +502,9 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
         Marker(
           markerId: const MarkerId('driver'),
           position: LatLng(driverLat, driverLng),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
+          icon:
+              _driverMarkerIcon ??
+              BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
           infoWindow: const InfoWindow(title: 'Motorista'),
         ),
       );
@@ -287,12 +533,10 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
     return Stack(
       children: [
         GoogleMap(
-          onMapCreated: (controller) => _mapController = controller,
-          onCameraMoveStarted: () => _isUserInteracting = true,
-          onCameraIdle: () => _isUserInteracting = false,
+          onMapCreated: _onMapCreated,
           initialCameraPosition: CameraPosition(
             target: LatLng(centerLat, centerLng),
-            zoom: 14,
+            zoom: 16,
           ),
           markers: markers,
           polylines: polylines,
@@ -303,13 +547,40 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
         Positioned(
           right: 16,
           top: 16,
-          child: FloatingActionButton(
-            heroTag: 'recenter-my-location',
-            mini: true,
-            backgroundColor: context.moto.bgBase,
-            foregroundColor: context.moto.accent,
-            onPressed: _recenterToMyLocation,
-            child: const Icon(Icons.my_location),
+          child: Column(
+            children: [
+              FloatingActionButton(
+                key: const Key('toggle-driver-navigation-camera'),
+                heroTag: 'toggle-driver-navigation-camera',
+                mini: true,
+                backgroundColor: _driverCameraEnabled
+                    ? context.moto.accent
+                    : context.moto.bgBase,
+                foregroundColor: _driverCameraEnabled
+                    ? Colors.white
+                    : context.moto.accent,
+                onPressed: _toggleDriverCamera,
+                tooltip: _driverCameraEnabled
+                    ? 'Desativar acompanhamento do motorista'
+                    : 'Acompanhar motorista',
+                child: Icon(
+                  _driverCameraEnabled
+                      ? Icons.navigation
+                      : Icons.navigation_outlined,
+                ),
+              ),
+              const SizedBox(height: 8),
+              FloatingActionButton(
+                key: const Key('recenter-my-location'),
+                heroTag: 'recenter-my-location',
+                mini: true,
+                backgroundColor: context.moto.bgBase,
+                foregroundColor: context.moto.accent,
+                onPressed: _recenterToMyLocation,
+                tooltip: 'Minha localização',
+                child: const Icon(Icons.my_location),
+              ),
+            ],
           ),
         ),
         Positioned(
@@ -336,140 +607,173 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
     int? distanceToDestinationMeters,
     int? remainingTimeMinutes,
     bool showCancelButton = false,
+    Widget? extraAction,
   }) {
-    return MotoGlass(
-      level: GlassLevel.sheet,
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: context.moto.borderDefault,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
+    return GestureDetector(
+      key: const Key('passenger-travel-info-panel'),
+      behavior: HitTestBehavior.opaque,
+      onVerticalDragEnd: (details) {
+        final velocity = details.primaryVelocity ?? 0;
+        if (velocity.abs() < 120) return;
+        final expanded = velocity < 0;
+        if (expanded != _travelPanelExpanded) {
+          setState(() => _travelPanelExpanded = expanded);
+        }
+      },
+      child: AnimatedSize(
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeOut,
+        child: MotoGlass(
+          level: GlassLevel.sheet,
+          padding: EdgeInsets.fromLTRB(
+            20,
+            12,
+            20,
+            _travelPanelExpanded ? 20 : 12,
           ),
-          Row(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              MotoTile(icon: titleIcon, accent: true, size: 40),
-              const SizedBox(width: MotoSpace.s3),
-              Expanded(
-                child: Text(
-                  title,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ),
-            ],
-          ),
-          if (subtitle != null) ...[
-            const SizedBox(height: 6),
-            Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
-          ],
-          if (driver != null) ...[
-            const Divider(height: 24),
-            Row(
-              children: [
-                MotoAvatar(
-                  initials: _initialsOf(driver.fullName),
-                  size: 48,
-                  image: driver.photoUrl != null && driver.photoUrl!.isNotEmpty
-                      ? NetworkImage(
-                          _resolveImageUrl(driver.photoUrl!),
-                          headers: _authHeaders,
-                        )
-                      : null,
-                ),
-                const SizedBox(width: MotoSpace.s3),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        driver.fullName,
-                        style: Theme.of(context).textTheme.titleSmall,
-                      ),
-                      if (driver.travelCount != null)
-                        Text(
-                          '${driver.travelCount} viagem${driver.travelCount == 1 ? '' : 's'} realizada${driver.travelCount == 1 ? '' : 's'}',
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                    ],
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: context.moto.borderDefault,
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-              ],
-            ),
-            if (driver.vehicleModel != null) ...[
-              const SizedBox(height: 10),
+              ),
               Row(
                 children: [
-                  Icon(
-                    Icons.directions_car,
-                    color: context.moto.accent,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
+                  MotoTile(icon: titleIcon, accent: true, size: 40),
+                  const SizedBox(width: MotoSpace.s3),
                   Expanded(
                     child: Text(
-                      [
-                            if (driver.vehicleBrand != null)
-                              driver.vehicleBrand,
-                            driver.vehicleModel,
-                          ].join(' ') +
-                          (driver.vehiclePlate != null
-                              ? ' · ${driver.vehiclePlate}'
-                              : ''),
-                      style: Theme.of(context).textTheme.bodyMedium,
+                      title,
+                      style: Theme.of(context).textTheme.titleMedium,
                     ),
                   ),
                 ],
               ),
-            ],
-          ],
-          if (requestedAt != null) ...[
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Icon(Icons.event_note, color: context.moto.accent, size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  'Solicitada às ${_formatTime(requestedAt)}',
-                  style: Theme.of(context).textTheme.bodyMedium,
+              if (_travelPanelExpanded && subtitle != null) ...[
+                const SizedBox(height: 6),
+                Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
+              ],
+              if (driver != null) ...[
+                const Divider(height: 24),
+                Row(
+                  children: [
+                    MotoAvatar(
+                      initials: _initialsOf(driver.fullName),
+                      size: 48,
+                      image:
+                          driver.photoUrl != null && driver.photoUrl!.isNotEmpty
+                          ? NetworkImage(
+                              _resolveImageUrl(driver.photoUrl!),
+                              headers: _authHeaders,
+                            )
+                          : null,
+                    ),
+                    const SizedBox(width: MotoSpace.s3),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            driver.fullName,
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                          if (_travelPanelExpanded &&
+                              driver.travelCount != null)
+                            Text(
+                              '${driver.travelCount} viagem${driver.travelCount == 1 ? '' : 's'} realizada${driver.travelCount == 1 ? '' : 's'}',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                if (_travelPanelExpanded && driver.vehicleModel != null) ...[
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.directions_car,
+                        color: context.moto.accent,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          [
+                                if (driver.vehicleBrand != null)
+                                  driver.vehicleBrand,
+                                driver.vehicleModel,
+                              ].join(' ') +
+                              (driver.vehiclePlate != null
+                                  ? ' · ${driver.vehiclePlate}'
+                                  : ''),
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+              if (_travelPanelExpanded && requestedAt != null) ...[
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.event_note,
+                      color: context.moto.accent,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Solicitada às ${_formatTime(requestedAt)}',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ],
                 ),
               ],
-            ),
-          ],
-          if (distanceToDestinationMeters != null ||
-              remainingTimeMinutes != null) ...[
-            const SizedBox(height: MotoSpace.s3),
-            MotoMetrics(
-              items: [
-                if (distanceToDestinationMeters != null)
-                  (
-                    (distanceToDestinationMeters / 1000).toStringAsFixed(1),
-                    'km',
-                    'Distância',
-                  ),
-                if (remainingTimeMinutes != null)
-                  ('$remainingTimeMinutes', 'min', 'Chegada estimada'),
+              if (_travelPanelExpanded &&
+                  (distanceToDestinationMeters != null ||
+                      remainingTimeMinutes != null)) ...[
+                const SizedBox(height: MotoSpace.s3),
+                MotoMetrics(
+                  items: [
+                    if (distanceToDestinationMeters != null)
+                      (
+                        (distanceToDestinationMeters / 1000).toStringAsFixed(1),
+                        'km',
+                        'Distância',
+                      ),
+                    if (remainingTimeMinutes != null)
+                      ('$remainingTimeMinutes', 'min', 'Chegada estimada'),
+                  ],
+                ),
               ],
-            ),
-          ],
-          if (showCancelButton) ...[
-            const SizedBox(height: MotoSpace.s4),
-            MotoButton(
-              label: 'Cancelar viagem',
-              variant: MotoButtonVariant.danger,
-              large: false,
-              onPressed: _cancelTravel,
-            ),
-          ],
-        ],
+              if (_travelPanelExpanded && extraAction != null) ...[
+                const SizedBox(height: MotoSpace.s3),
+                extraAction,
+              ],
+              if (_travelPanelExpanded && showCancelButton) ...[
+                const SizedBox(height: MotoSpace.s4),
+                MotoButton(
+                  label: 'Cancelar viagem',
+                  variant: MotoButtonVariant.danger,
+                  large: false,
+                  onPressed: _cancelTravel,
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -479,6 +783,24 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
     final hour = local.hour.toString().padLeft(2, '0');
     final minute = local.minute.toString().padLeft(2, '0');
     return '$hour:$minute';
+  }
+
+  /// Abre o chat temporário da viagem (spec pickup-chat-call).
+  Future<void> _openChat() async {
+    final session = Modular.get<ChatSession>();
+    session.setChatOpen(true);
+    try {
+      await Modular.to.pushNamed(
+        '/chat/',
+        arguments: {
+          'travelId': widget.travelId,
+          'title': 'Chat com o motorista',
+        },
+      );
+    } finally {
+      session.setChatOpen(false);
+      unawaited(session.refresh());
+    }
   }
 
   Widget _buildAcceptedState(
@@ -491,16 +813,27 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
     int? remainingTimeMinutes,
     String? routePolyline,
     DateTime? requestedAt,
+    PickupProximity pickupProximity = PickupProximity.none,
   }) {
+    final (title, titleIcon) = switch (pickupProximity) {
+      PickupProximity.arrived => ('Motorista chegou!', Icons.place),
+      PickupProximity.nearby => ('Motorista próximo!', Icons.near_me),
+      PickupProximity.none => ('Motorista a caminho!', Icons.check_circle),
+    };
     final infoSheet = _buildInfoSheet(
-      title: 'Motorista a caminho!',
-      titleIcon: Icons.check_circle,
+      title: title,
+      titleIcon: titleIcon,
       titleColor: context.moto.success,
       driver: driver,
       requestedAt: requestedAt,
       distanceToDestinationMeters: distanceToDestinationMeters,
       remainingTimeMinutes: remainingTimeMinutes,
       showCancelButton: true,
+      extraAction: ChatActionButton(
+        session: Modular.get<ChatSession>(),
+        onPressed: _openChat,
+        label: 'Chat com o motorista',
+      ),
     );
 
     return _buildWithMap(
@@ -513,7 +846,7 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
     );
   }
 
-  Widget _buildCancelledState(String? reason) {
+  Widget _buildCancelledState(String? reason, String? cancelledByRole) {
     return MotoCanvas(
       child: Center(
         child: Padding(
@@ -527,10 +860,16 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
                 'Viagem cancelada',
                 style: Theme.of(context).textTheme.headlineSmall,
               ),
+              const SizedBox(height: 8),
+              Text(
+                _cancelledByMessage(cancelledByRole),
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
               if (reason != null) ...[
                 const SizedBox(height: 8),
                 Text(
-                  reason,
+                  'Motivo: $reason',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
@@ -548,6 +887,13 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
       ),
     );
   }
+
+  String _cancelledByMessage(String? role) => switch (role) {
+    'Driver' => 'A viagem foi cancelada pelo motorista.',
+    'Passenger' => 'A viagem foi cancelada pelo passageiro.',
+    'Administrator' => 'A viagem foi cancelada pelo administrador.',
+    _ => 'A viagem foi cancelada.',
+  };
 
   Widget _buildCompletedState() {
     return MotoCanvas(
@@ -597,6 +943,7 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
       requestedAt: requestedAt,
       distanceToDestinationMeters: distanceToDestinationMeters,
       remainingTimeMinutes: remainingTimeMinutes,
+      showCancelButton: true,
     );
 
     return _buildWithMap(
@@ -645,29 +992,70 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
   }
 
   Future<void> _cancelTravel() async {
-    final confirmed = await showDialog<bool>(
+    var value = '';
+    final reason = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Cancelar viagem'),
-        content: const Text('Deseja realmente cancelar esta viagem?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Não'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Sim, cancelar'),
-          ),
-        ],
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          return AlertDialog(
+            scrollable: true,
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 24,
+              vertical: 24,
+            ),
+            title: const Text('Cancelar viagem'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Informe o motivo do cancelamento. Esta informação será registrada no histórico da viagem.',
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  autofocus: true,
+                  minLines: 2,
+                  maxLines: 4,
+                  maxLength: 300,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: const InputDecoration(
+                    labelText: 'Motivo do cancelamento',
+                    hintText: 'Descreva o motivo...',
+                    alignLabelWithHint: true,
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: (text) => setDialogState(
+                    () => value = text.trim(),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Voltar'),
+              ),
+              TextButton(
+                onPressed: value.isEmpty
+                    ? null
+                    : () => Navigator.of(ctx).pop(value),
+                style: TextButton.styleFrom(
+                  foregroundColor: Theme.of(ctx).colorScheme.error,
+                  disabledForegroundColor: Colors.grey.shade500,
+                ),
+                child: const Text('Confirmar cancelamento'),
+              ),
+            ],
+          );
+        },
       ),
     );
 
-    if (confirmed != true || !mounted) return;
+    if (reason == null || reason.isEmpty || !mounted) return;
 
     BlocProvider.of<TravelTrackingBloc>(
       context,
-    ).add(CancelTravel(widget.travelId));
+    ).add(CancelTravel(widget.travelId, reason));
   }
 
   String _resolveImageUrl(String url) {
@@ -701,6 +1089,8 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
     _orderCancelledSub?.cancel();
     _driverLocationSub?.cancel();
     _distanceUpdateSub?.cancel();
+    _driverNearbySub?.cancel();
+    _driverArrivedSub?.cancel();
 
     final token = await AuthStorage().getToken();
     _authToken = token;
@@ -722,8 +1112,9 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
     // if the backend emits an event between connect() and listen(), the
     // broadcast stream would drop it since it has no buffer.
     _orderAcceptedSub = signalR.onOrderAccepted.listen((data) {
-      if (data['travelId'] == widget.travelId)
+      if (data['travelId'] == widget.travelId) {
         bloc.add(TravelOrderAccepted(data));
+      }
     });
     _travelStartedSub = signalR.onTravelStarted.listen((data) {
       if (data['travelId'] == widget.travelId) bloc.add(TravelStarted(data));
@@ -740,11 +1131,22 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
       }
     });
     _driverLocationSub = signalR.onDriverLocationUpdated.listen((data) {
-      if (data['travelId'] == widget.travelId)
+      if (data['travelId'] == widget.travelId) {
         bloc.add(DriverLocationUpdated(data));
+      }
     });
     _distanceUpdateSub = signalR.onDistanceUpdate.listen((data) {
       if (data['travelId'] == widget.travelId) bloc.add(DistanceUpdated(data));
+    });
+    _driverNearbySub = signalR.onDriverNearby.listen((data) {
+      if (data['travelId'] == widget.travelId) {
+        bloc.add(DriverProximityAlerted(data));
+      }
+    });
+    _driverArrivedSub = signalR.onDriverArrived.listen((data) {
+      if (data['travelId'] == widget.travelId) {
+        bloc.add(DriverProximityAlerted(data));
+      }
     });
 
     try {
@@ -760,23 +1162,13 @@ class _TravelTrackingPageState extends State<TravelTrackingPage>
       // Fallback: polling will handle updates
     }
 
-    print(
-      '[DIAG] about to dispatch LoadTravel, mounted=$mounted, pageHash=$hashCode',
-    );
     if (mounted) {
       try {
         final bloc2 = BlocProvider.of<TravelTrackingBloc>(context);
-        print(
-          '[DIAG] dispatching LoadTravel travelId=${widget.travelId} to bloc hash=${bloc2.hashCode} isClosed=${bloc2.isClosed}',
-        );
         bloc2.add(LoadTravel(widget.travelId));
-      } catch (e, st) {
-        print('[DIAG] EXCEPTION dispatching LoadTravel: $e\n$st');
+      } catch (_) {
+        debugPrint('Não foi possível atualizar o acompanhamento da viagem.');
       }
-    } else {
-      print(
-        '[DIAG] NOT mounted, skipping LoadTravel dispatch entirely! pageHash=$hashCode',
-      );
     }
   }
 

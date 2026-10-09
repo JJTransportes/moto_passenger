@@ -6,6 +6,8 @@ import 'package:flutter_modular/flutter_modular.dart';
 import 'package:moto_passenger/core/auth/auth_storage.dart';
 import 'package:moto_passenger/core/config/app_config.dart';
 import 'package:moto_passenger/core/network/signalr_service.dart';
+import 'package:moto_passenger/core/network/response_data.dart';
+import 'package:moto_passenger/core/location/background_location_service.dart';
 import 'package:moto_passenger/design_system/design_system.dart';
 import 'package:moto_passenger/modules/new_travel/data/datasources/new_travel_datasource.dart';
 
@@ -61,8 +63,8 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
   String? _contactedDriverName;
   String? _contactedDriverPhotoUrl;
   DateTime? _contactedExpiresAt; // UTC
-  DateTime? _contactedReceivedAt; // UTC, momento local de recebimento do evento
   Timer? _countdownTimer;
+  static const _driverOfferDuration = Duration(seconds: 40);
   final ValueNotifier<DateTime> _countdownNow = ValueNotifier(
     DateTime.now().toUtc(),
   );
@@ -75,6 +77,12 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
     _initSignalR();
     _startPolling();
     _pollOnce();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        Modular.get<PassengerBackgroundLocationService>()
+            .requestPermissionAndStart(context);
+      }
+    });
 
     // Update elapsed time every second
     _elapsedTimer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -93,6 +101,8 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
       _pollTimer?.cancel();
       Modular.get<SignalRService>().disconnectAll();
     } else if (state == AppLifecycleState.resumed) {
+      Modular.get<PassengerBackgroundLocationService>()
+          .requestPermissionAndStart(context);
       _initSignalR();
       _pollOnce();
       _startPolling();
@@ -111,14 +121,13 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
       final response = await dio.get('/api/travels/active');
       if (!mounted) return;
 
-      final data = response.data as Map<String, dynamic>?;
+      final data = responseDataAsMap(response.data);
       if (data == null || data['orderId'] != widget.orderId) {
         await _pollOrderStatus(dio);
         return;
       }
 
-      final status = data['status'] as String?;
-      print('[DIAG] _pollOnce got status=$status travelId=${data['travelId']}');
+      final status = data['status']?.toString();
       if (status == 'Accepted' || status == 'InProgress') {
         _onOrderAccepted({
           'orderId': widget.orderId,
@@ -144,8 +153,8 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
       final response = await dio.get('/api/travels/orders/${widget.orderId}');
       if (!mounted) return;
 
-      final data = response.data as Map<String, dynamic>?;
-      final status = (data?['status'] as String?)?.toLowerCase();
+      final data = responseDataAsMap(response.data);
+      final status = data?['status']?.toString().toLowerCase();
       if (status == 'cancelled') {
         _onOrderCancelled({
           'orderId': widget.orderId,
@@ -165,6 +174,15 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
             'driverName': driverName,
             'driverPhotoUrl': data?['contactedDriverPhotoUrl'],
             'expiresAt': expiresAt,
+          });
+        } else if (_contactedDriverName != null && mounted) {
+          // A oferta anterior expirou e o pedido voltou para a fila. Remove o
+          // motorista antigo e volta ao estado claro de espera.
+          _countdownTimer?.cancel();
+          setState(() {
+            _contactedDriverName = null;
+            _contactedDriverPhotoUrl = null;
+            _contactedExpiresAt = null;
           });
         }
       } else if (status == 'accepted' || status == 'inprogress') {
@@ -232,11 +250,15 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
     )?.toUtc();
     if (expiresAt == null || !mounted) return;
 
+    final driverName = event['driverName'] as String?;
+    final isSameOffer =
+        _contactedExpiresAt == expiresAt && _contactedDriverName == driverName;
+    if (isSameOffer) return;
+
     setState(() {
-      _contactedDriverName = event['driverName'] as String?;
+      _contactedDriverName = driverName;
       _contactedDriverPhotoUrl = event['driverPhotoUrl'] as String?;
       _contactedExpiresAt = expiresAt;
-      _contactedReceivedAt = DateTime.now().toUtc();
     });
 
     _countdownTimer?.cancel();
@@ -261,11 +283,10 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
 
   double _progressFractionAt(DateTime now) {
     final expiresAt = _contactedExpiresAt;
-    final receivedAt = _contactedReceivedAt;
-    if (expiresAt == null || receivedAt == null) return 0;
-    final total = expiresAt.difference(receivedAt).inMilliseconds;
-    if (total <= 0) return 0;
-    return (_remainingAt(now).inMilliseconds / total).clamp(0.0, 1.0);
+    if (expiresAt == null) return 0;
+    return (_remainingAt(now).inMilliseconds /
+            _driverOfferDuration.inMilliseconds)
+        .clamp(0.0, 1.0);
   }
 
   String _resolveImageUrl(String url) {
@@ -286,11 +307,13 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
     _orderCancelledHandled = true;
     _pollTimer?.cancel();
     _countdownTimer?.cancel();
+    unawaited(Modular.get<PassengerBackgroundLocationService>().stop());
 
     final reason = event['reason'] as String?;
 
-    if (reason == 'no_drivers_available' && mounted) {
-      _showNoDriversDialog();
+    if ((reason == 'no_drivers_available' || reason == 'queue_timeout') &&
+        mounted) {
+      _showNoDriversDialog(queueExpired: reason == 'queue_timeout');
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -303,15 +326,22 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
     }
   }
 
-  void _showNoDriversDialog() {
+  void _showNoDriversDialog({bool queueExpired = false}) {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        title: const Text('Nenhum motorista foi encontrado'),
-        content: const Text(
-          'Nenhum motorista foi encontrado no momento para atender sua viagem. '
-          'Tente novamente em alguns instantes.',
+        title: Text(
+          queueExpired
+              ? 'Tempo de espera encerrado'
+              : 'Nenhum motorista foi encontrado',
+        ),
+        content: Text(
+          queueExpired
+              ? 'Aguardamos por 5 minutos, mas nenhum motorista ficou disponível. '
+                    'Você pode solicitar uma nova viagem quando desejar.'
+              : 'Nenhum motorista foi encontrado no momento para atender sua viagem. '
+                    'Tente novamente em alguns instantes.',
         ),
         actions: [
           TextButton(
@@ -326,7 +356,7 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
               Navigator.of(ctx).pop();
               Modular.to.navigate('/home');
             },
-            child: const Text('Ir para Home'),
+            child: const Text('Ir para a tela inicial'),
           ),
         ],
       ),
@@ -334,17 +364,11 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
   }
 
   void _onOrderAccepted(Map<String, dynamic> event) {
-    print(
-      '[DIAG] _onOrderAccepted called, event=$event, alreadyHandled=$_orderAcceptedHandled, mounted=$mounted',
-    );
     if (_orderAcceptedHandled) return;
     if (event['orderId'] == widget.orderId) {
       final travelId = event['travelId'] as String?;
       if (travelId != null && mounted) {
         _orderAcceptedHandled = true;
-        print(
-          '[DIAG] navigating to /new-travel/tracking travelId=$travelId orderId=${widget.orderId}',
-        );
         // Achado: `Navigator.of(context).pushReplacementNamed(...)` é o
         // Navigator imperativo puro do Flutter — num app com flutter_modular
         // (Router API declarativo), isso NÃO passa os `arguments` pelo canal
@@ -388,28 +412,37 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
 
     if (confirmed != true || !mounted) return;
 
-    // Interrompe os observadores antes de cancelar. Caso o backend publique o
-    // OrderCancelled enquanto o POST ainda está em curso, ele não pode abrir
-    // um segundo fluxo de saída por cima deste.
+    // Interrompe temporariamente os observadores para não processar duas
+    // saídas simultâneas enquanto o backend confirma o cancelamento.
     _orderCancelledHandled = true;
     _pollTimer?.cancel();
     _countdownTimer?.cancel();
     setState(() => _isCancelling = true);
 
     try {
-      // A decisão de sair da tela não pode depender indefinidamente de uma
-      // conexão que travou. O backend continua recebendo o cancelamento quando
-      // possível; após este limite o usuário volta ao início e não fica preso.
       await Modular.get<INewTravelDatasource>()
           .cancelOrder(widget.orderId)
           .timeout(const Duration(seconds: 8));
-    } catch (_) {
-      // O pedido pode já ter sido finalizado pelo último motorista ou a rede
-      // pode ter falhado. Em ambos os casos a tela de espera deve encerrar.
-    }
-
-    if (mounted) {
+      if (!mounted) return;
+      await Modular.get<PassengerBackgroundLocationService>().stop();
       Modular.to.navigate('/home');
+    } catch (_) {
+      // Nunca abandona a tela sem a confirmação do servidor: caso contrário
+      // o pedido pode continuar pendente e ser aceito sem o passageiro saber.
+      if (!mounted) return;
+      _orderCancelledHandled = false;
+      setState(() => _isCancelling = false);
+      _startPolling();
+      await _pollOnce();
+      if (!mounted || _orderCancelledHandled || _orderAcceptedHandled) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Não foi possível confirmar o cancelamento. Verifique sua conexão e tente novamente.',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
@@ -466,7 +499,7 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
         const MotoSonar(),
         const SizedBox(height: 32),
         Text(
-          'Pedido enviado!',
+          'Você está aguardando um motorista',
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
@@ -475,7 +508,7 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
         ),
         const SizedBox(height: 8),
         Text(
-          'Aguardando um motorista aceitar sua viagem...',
+          'Sua solicitação está na fila e será enviada assim que um motorista estiver disponível.',
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 16,
@@ -486,7 +519,7 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
         ValueListenableBuilder<int>(
           valueListenable: _elapsedSeconds,
           builder: (context, seconds, _) => Text(
-            'Aguardando ha ${seconds}s',
+            'Aguardando há ${seconds}s',
             style: TextStyle(
               fontSize: 14,
               color: context.moto.textTertiary,
@@ -536,7 +569,9 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
         ValueListenableBuilder<DateTime>(
           valueListenable: _countdownNow,
           builder: (context, now, _) {
-            final remainingSeconds = _remainingAt(now).inSeconds;
+            final remainingMilliseconds = _remainingAt(now).inMilliseconds;
+            final remainingSeconds =
+                (remainingMilliseconds / Duration.millisecondsPerSecond).ceil();
             return Column(
               children: [
                 ClipRRect(

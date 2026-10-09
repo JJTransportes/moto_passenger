@@ -81,17 +81,23 @@ class TravelTrackingRepository implements ITravelTrackingRepository {
       travelId: data['travelId'] as String,
       orderId: data['orderId'] as String,
       status: status,
-      createdAt: DateTime.tryParse(data['createdAt']?.toString() ?? '') ??
+      createdAt:
+          DateTime.tryParse(data['createdAt']?.toString() ?? '') ??
           DateTime.now(),
       startedAt: DateTime.tryParse(data['startedAt']?.toString() ?? ''),
       finishedAt: DateTime.tryParse(data['finishedAt']?.toString() ?? ''),
       cancelledAt: DateTime.tryParse(data['cancelledAt']?.toString() ?? ''),
       cancellationReason: data['cancellationReason'] as String?,
+      cancelledByRole: data['cancelledByRole'] as String?,
+      cancelledByName: data['cancelledByName'] as String?,
       driverId: driverId,
       driver: driver,
       destinationLatitude: destLat,
       destinationLongitude: destLng,
       routePolyline: routePolyline,
+      pickupProximity: PickupProximity.parse(
+        data['pickupProximity'] as String?,
+      ),
     );
   }
 

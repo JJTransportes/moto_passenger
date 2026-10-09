@@ -15,8 +15,7 @@ class RegistrationRepository implements IRegistrationRepository {
     try {
       final rawList = await _datasource.getPublicPartitions();
       final partitions = rawList
-          .map((json) =>
-              PublicPartitionModel.fromJson(json).toEntity())
+          .map((json) => PublicPartitionModel.fromJson(json).toEntity())
           .toList();
       return Success(partitions);
     } on Exception catch (e) {

@@ -65,12 +65,17 @@ class Schema {
     });
   }
 
-  static Future<void> onUpgrade(Database db, int oldVersion,
-      int newVersion) async {
+  static Future<void> onUpgrade(
+    Database db,
+    int oldVersion,
+    int newVersion,
+  ) async {
     // Migration 1→2: add refresh_token column to auth table
     if (oldVersion < 2) {
       try {
-        await db.execute('ALTER TABLE auth ADD COLUMN refresh_token TEXT DEFAULT \'\'');
+        await db.execute(
+          'ALTER TABLE auth ADD COLUMN refresh_token TEXT DEFAULT \'\'',
+        );
       } catch (_) {
         // Column may already exist — ignore
       }

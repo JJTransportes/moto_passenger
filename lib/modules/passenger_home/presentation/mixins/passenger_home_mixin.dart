@@ -19,7 +19,9 @@ mixin PassengerHomeMixin on State<PassengerHomePage> {
     List<TravelSummaryEntity> lastTravels,
   ) => RefreshIndicator(
     onRefresh: () async {
-      BlocProvider.of<PassengerHomeBloc>(context).add(const RefreshPassengerHome());
+      BlocProvider.of<PassengerHomeBloc>(
+        context,
+      ).add(const RefreshPassengerHome());
     },
     child: SingleChildScrollView(
       physics: const AlwaysScrollableScrollPhysics(),
@@ -46,7 +48,9 @@ mixin PassengerHomeMixin on State<PassengerHomePage> {
                   },
                 );
                 if (mounted) {
-                  BlocProvider.of<PassengerHomeBloc>(context).add(const RefreshPassengerHome());
+                  BlocProvider.of<PassengerHomeBloc>(
+                    context,
+                  ).add(const RefreshPassengerHome());
                 }
               },
             ),
@@ -78,7 +82,10 @@ mixin PassengerHomeMixin on State<PassengerHomePage> {
                   padding: const EdgeInsets.all(32),
                   child: Text(
                     'Erro ao carregar. Toque para tentar novamente.',
-                    style: TextStyle(color: context.moto.textSecondary, fontSize: 16),
+                    style: TextStyle(
+                      color: context.moto.textSecondary,
+                      fontSize: 16,
+                    ),
                     textAlign: TextAlign.center,
                   ),
                 ),
@@ -90,13 +97,17 @@ mixin PassengerHomeMixin on State<PassengerHomePage> {
     ),
   );
 
-  FloatingActionButton homeFab({bool hasActiveTravel = false}) => FloatingActionButton(
+  FloatingActionButton homeFab({
+    bool hasActiveTravel = false,
+  }) => FloatingActionButton(
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(
         MediaQuery.sizeOf(context).height * 0.1,
       ),
     ),
-    backgroundColor: hasActiveTravel ? context.moto.textDisabled : context.moto.accent,
+    backgroundColor: hasActiveTravel
+        ? context.moto.textDisabled
+        : context.moto.accent,
     onPressed: hasActiveTravel
         ? null
         : () async {
@@ -106,7 +117,9 @@ mixin PassengerHomeMixin on State<PassengerHomePage> {
             // manual.
             await Modular.to.pushNamed('/new-travel');
             if (mounted) {
-              BlocProvider.of<PassengerHomeBloc>(context).add(const RefreshPassengerHome());
+              BlocProvider.of<PassengerHomeBloc>(
+                context,
+              ).add(const RefreshPassengerHome());
             }
           },
     child: Icon(Icons.add, color: context.moto.textOnAccent),

@@ -1,5 +1,19 @@
 enum TravelStatus { pending, accepted, inProgress, completed, cancelled }
 
+/// Proximidade do motorista ao embarque (viagem em `Accepted`). O backend manda
+/// `None`, `Nearby` ou `Arrived`; qualquer outro valor vira [none].
+enum PickupProximity {
+  none,
+  nearby,
+  arrived;
+
+  static PickupProximity parse(String? value) => switch (value) {
+    'Nearby' => PickupProximity.nearby,
+    'Arrived' => PickupProximity.arrived,
+    _ => PickupProximity.none,
+  };
+}
+
 class TravelTrackingEntity {
   final String travelId;
   final String orderId;
@@ -9,11 +23,14 @@ class TravelTrackingEntity {
   final DateTime? finishedAt;
   final DateTime? cancelledAt;
   final String? cancellationReason;
+  final String? cancelledByRole;
+  final String? cancelledByName;
   final String? driverId;
   final DriverInfoEntity? driver;
   final double? destinationLatitude;
   final double? destinationLongitude;
   final String? routePolyline;
+  final PickupProximity pickupProximity;
 
   const TravelTrackingEntity({
     required this.travelId,
@@ -24,11 +41,14 @@ class TravelTrackingEntity {
     this.finishedAt,
     this.cancelledAt,
     this.cancellationReason,
+    this.cancelledByRole,
+    this.cancelledByName,
     this.driverId,
     this.driver,
     this.destinationLatitude,
     this.destinationLongitude,
     this.routePolyline,
+    this.pickupProximity = PickupProximity.none,
   });
 }
 

@@ -5,11 +5,12 @@ import 'package:moto_passenger/modules/auth/domain/usecases/i_request_password_r
 part 'password_recovery_event.dart';
 part 'password_recovery_state.dart';
 
-class PasswordRecoveryBloc extends Bloc<PasswordRecoveryEvent, PasswordRecoveryState> {
+class PasswordRecoveryBloc
+    extends Bloc<PasswordRecoveryEvent, PasswordRecoveryState> {
   final IRequestPasswordResetUsecase _requestPasswordResetUsecase;
 
   PasswordRecoveryBloc(this._requestPasswordResetUsecase)
-      : super(const PasswordRecoveryInitial()) {
+    : super(const PasswordRecoveryInitial()) {
     on<RequestCodeSubmitted>(_onRequestCodeSubmitted);
   }
 
@@ -33,7 +34,8 @@ class PasswordRecoveryBloc extends Bloc<PasswordRecoveryEvent, PasswordRecoveryS
           // 403: conta ainda não aprovada pelo GlobalAdmin. Ver
           // BACKEND_CHANGES_TODO.md.
           ForbiddenException() => error.message,
-          _ => 'Erro ao enviar o código. Verifique sua conexão e tente novamente.',
+          _ =>
+            'Erro ao enviar o código. Verifique sua conexão e tente novamente.',
         };
         emit(PasswordRecoveryError(message));
       },

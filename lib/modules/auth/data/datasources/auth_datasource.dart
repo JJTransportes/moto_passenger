@@ -61,10 +61,13 @@ class AuthDatasource implements IAuthDatasource {
 
   @override
   Future<void> registerDeviceToken(String playerId, String platform) async {
-    await _dio.post('/api/notifications/register-device', data: {
-      'playerId': playerId,
-      'platform': platform,
-    });
+    await _dio.post(
+      '/api/notifications/register-device',
+      data: {
+        'playerId': playerId,
+        'platform': platform,
+      },
+    );
   }
 
   @override
@@ -161,7 +164,8 @@ class AuthDatasource implements IAuthDatasource {
     switch (e.response?.statusCode) {
       case 400:
         return ValidationException(
-          serverMessage ?? 'Código inválido ou senha não atende aos requisitos.',
+          serverMessage ??
+              'Código inválido ou senha não atende aos requisitos.',
         );
       case 409:
         return ConflictException(

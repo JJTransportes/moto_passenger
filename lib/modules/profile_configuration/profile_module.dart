@@ -42,7 +42,10 @@ class ProfileModule extends Module {
       '/',
       child: (_) => BlocProvider.value(
         value: Modular.get<ProfileBloc>(),
-        child: const ProfilePage(),
+        child: ProfilePage(
+          requirePhone:
+              (Modular.args.data as Map?)?['requirePhone'] as bool? ?? false,
+        ),
       ),
     );
     r.module(

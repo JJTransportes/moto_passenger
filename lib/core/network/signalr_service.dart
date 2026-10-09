@@ -11,28 +11,71 @@ class SignalRService {
   Map<String, dynamic>? _lastDriverContacted;
   Map<String, dynamic>? get lastDriverContacted => _lastDriverContacted;
 
-  final _newOrderController = StreamController<Map<String, dynamic>>.broadcast();
-  final _driverContactedController = StreamController<Map<String, dynamic>>.broadcast();
-  final _orderAcceptedController = StreamController<Map<String, dynamic>>.broadcast();
-  final _orderCancelledController = StreamController<Map<String, dynamic>>.broadcast();
-  final _travelStartedController = StreamController<Map<String, dynamic>>.broadcast();
-  final _travelCompletedController = StreamController<Map<String, dynamic>>.broadcast();
-  final _travelCancelledController = StreamController<Map<String, dynamic>>.broadcast();
-  final _driverLocationController = StreamController<Map<String, dynamic>>.broadcast();
-  final _distanceUpdateController = StreamController<Map<String, dynamic>>.broadcast();
+  final _newOrderController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  final _driverContactedController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  final _orderAcceptedController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  final _orderCancelledController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  final _travelStartedController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  final _travelCompletedController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  final _travelCancelledController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  final _driverLocationController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  final _distanceUpdateController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  final _driverNearbyController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  final _driverArrivedController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  final _chatMessageController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  final _chatTypingController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  final _chatClosedController =
+      StreamController<Map<String, dynamic>>.broadcast();
   final _reconnectingController = StreamController<void>.broadcast();
   final _reconnectedController = StreamController<void>.broadcast();
   final _closedController = StreamController<void>.broadcast();
 
   Stream<Map<String, dynamic>> get onNewOrder => _newOrderController.stream;
-  Stream<Map<String, dynamic>> get onDriverContacted => _driverContactedController.stream;
-  Stream<Map<String, dynamic>> get onOrderAccepted => _orderAcceptedController.stream;
-  Stream<Map<String, dynamic>> get onOrderCancelled => _orderCancelledController.stream;
-  Stream<Map<String, dynamic>> get onTravelStarted => _travelStartedController.stream;
-  Stream<Map<String, dynamic>> get onTravelCompleted => _travelCompletedController.stream;
-  Stream<Map<String, dynamic>> get onTravelCancelled => _travelCancelledController.stream;
-  Stream<Map<String, dynamic>> get onDriverLocationUpdated => _driverLocationController.stream;
-  Stream<Map<String, dynamic>> get onDistanceUpdate => _distanceUpdateController.stream;
+  Stream<Map<String, dynamic>> get onDriverContacted =>
+      _driverContactedController.stream;
+  Stream<Map<String, dynamic>> get onOrderAccepted =>
+      _orderAcceptedController.stream;
+  Stream<Map<String, dynamic>> get onOrderCancelled =>
+      _orderCancelledController.stream;
+  Stream<Map<String, dynamic>> get onTravelStarted =>
+      _travelStartedController.stream;
+  Stream<Map<String, dynamic>> get onTravelCompleted =>
+      _travelCompletedController.stream;
+  Stream<Map<String, dynamic>> get onTravelCancelled =>
+      _travelCancelledController.stream;
+  Stream<Map<String, dynamic>> get onDriverLocationUpdated =>
+      _driverLocationController.stream;
+  Stream<Map<String, dynamic>> get onDistanceUpdate =>
+      _distanceUpdateController.stream;
+  Stream<Map<String, dynamic>> get onDriverNearby =>
+      _driverNearbyController.stream;
+  Stream<Map<String, dynamic>> get onDriverArrived =>
+      _driverArrivedController.stream;
+  Stream<Map<String, dynamic>> get onChatMessageReceived =>
+      _chatMessageController.stream;
+  Stream<Map<String, dynamic>> get onChatTyping => _chatTypingController.stream;
+
+  Future<void> sendChatTyping(String travelId, bool isTyping) async {
+    await _connections['travel-management']?.invoke(
+      'SendChatTyping',
+      args: [travelId, isTyping],
+    );
+  }
+
+  Stream<Map<String, dynamic>> get onChatClosed => _chatClosedController.stream;
   Stream<void> get onReconnecting => _reconnectingController.stream;
   Stream<void> get onReconnected => _reconnectedController.stream;
   Stream<void> get onClosed => _closedController.stream;
@@ -47,16 +90,23 @@ class SignalRService {
   /// já ter conectado) derrube uma conexão em uso e cause perda de eventos
   /// na troca. Se a conexão existente não estiver mais `Connected`, é
   /// recriada normalmente.
-  Future<void> connect(String hubName, String hubUrl, String accessToken) async {
+  Future<void> connect(
+    String hubName,
+    String hubUrl,
+    String accessToken,
+  ) async {
     if (isConnected(hubName)) return;
 
     await _connections[hubName]?.stop();
     _connections.remove(hubName);
 
     final connection = HubConnectionBuilder()
-        .withUrl(hubUrl, options: HttpConnectionOptions(
-          accessTokenFactory: () async => accessToken,
-        ))
+        .withUrl(
+          hubUrl,
+          options: HttpConnectionOptions(
+            accessTokenFactory: () async => accessToken,
+          ),
+        )
         .withAutomaticReconnect()
         .build();
 
@@ -154,6 +204,32 @@ class SignalRService {
             _distanceUpdateController.add(args.first as Map<String, dynamic>);
           }
         });
+        connection.on('DriverNearby', (args) {
+          if (args != null && args.isNotEmpty) {
+            _driverNearbyController.add(args.first as Map<String, dynamic>);
+          }
+        });
+        connection.on('DriverArrived', (args) {
+          if (args != null && args.isNotEmpty) {
+            _driverArrivedController.add(args.first as Map<String, dynamic>);
+          }
+        });
+        // Spec pickup-chat-call: chat temporário (só em Accepted), sem push.
+        connection.on('ChatMessageReceived', (args) {
+          if (args != null && args.isNotEmpty) {
+            _chatMessageController.add(args.first as Map<String, dynamic>);
+          }
+        });
+        connection.on('ChatTyping', (args) {
+          if (args != null && args.isNotEmpty) {
+            _chatTypingController.add(args.first as Map<String, dynamic>);
+          }
+        });
+        connection.on('ChatClosed', (args) {
+          if (args != null && args.isNotEmpty) {
+            _chatClosedController.add(args.first as Map<String, dynamic>);
+          }
+        });
         break;
     }
   }
@@ -183,6 +259,11 @@ class SignalRService {
     _travelCancelledController.close();
     _driverLocationController.close();
     _distanceUpdateController.close();
+    _driverNearbyController.close();
+    _driverArrivedController.close();
+    _chatMessageController.close();
+    _chatTypingController.close();
+    _chatClosedController.close();
     _reconnectingController.close();
     _reconnectedController.close();
     _closedController.close();

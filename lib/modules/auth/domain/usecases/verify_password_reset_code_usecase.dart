@@ -2,7 +2,8 @@ import 'package:moto_passenger/modules/auth/domain/repositories/i_auth_repositor
 import 'package:moto_passenger/modules/auth/domain/usecases/i_verify_password_reset_code_usecase.dart';
 import 'package:result_dart/result_dart.dart';
 
-class VerifyPasswordResetCodeUsecase implements IVerifyPasswordResetCodeUsecase {
+class VerifyPasswordResetCodeUsecase
+    implements IVerifyPasswordResetCodeUsecase {
   final IAuthRepository _repository;
 
   VerifyPasswordResetCodeUsecase(this._repository);
