@@ -175,6 +175,15 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
             'driverPhotoUrl': data?['contactedDriverPhotoUrl'],
             'expiresAt': expiresAt,
           });
+        } else if (_contactedDriverName != null && mounted) {
+          // A oferta anterior expirou e o pedido voltou para a fila. Remove o
+          // motorista antigo e volta ao estado claro de espera.
+          _countdownTimer?.cancel();
+          setState(() {
+            _contactedDriverName = null;
+            _contactedDriverPhotoUrl = null;
+            _contactedExpiresAt = null;
+          });
         }
       } else if (status == 'accepted' || status == 'inprogress') {
         final travelId = data?['travelId'];
@@ -302,8 +311,9 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
 
     final reason = event['reason'] as String?;
 
-    if (reason == 'no_drivers_available' && mounted) {
-      _showNoDriversDialog();
+    if ((reason == 'no_drivers_available' || reason == 'queue_timeout') &&
+        mounted) {
+      _showNoDriversDialog(queueExpired: reason == 'queue_timeout');
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -316,15 +326,22 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
     }
   }
 
-  void _showNoDriversDialog() {
+  void _showNoDriversDialog({bool queueExpired = false}) {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        title: const Text('Nenhum motorista foi encontrado'),
-        content: const Text(
-          'Nenhum motorista foi encontrado no momento para atender sua viagem. '
-          'Tente novamente em alguns instantes.',
+        title: Text(
+          queueExpired
+              ? 'Tempo de espera encerrado'
+              : 'Nenhum motorista foi encontrado',
+        ),
+        content: Text(
+          queueExpired
+              ? 'Aguardamos por 5 minutos, mas nenhum motorista ficou disponível. '
+                    'Você pode solicitar uma nova viagem quando desejar.'
+              : 'Nenhum motorista foi encontrado no momento para atender sua viagem. '
+                    'Tente novamente em alguns instantes.',
         ),
         actions: [
           TextButton(
@@ -482,7 +499,7 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
         const MotoSonar(),
         const SizedBox(height: 32),
         Text(
-          'Pedido enviado!',
+          'Você está aguardando um motorista',
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
@@ -491,7 +508,7 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
         ),
         const SizedBox(height: 8),
         Text(
-          'Aguardando um motorista aceitar sua viagem...',
+          'Sua solicitação está na fila e será enviada assim que um motorista estiver disponível.',
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 16,
@@ -502,7 +519,7 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
         ValueListenableBuilder<int>(
           valueListenable: _elapsedSeconds,
           builder: (context, seconds, _) => Text(
-            'Aguardando ha ${seconds}s',
+            'Aguardando há ${seconds}s',
             style: TextStyle(
               fontSize: 14,
               color: context.moto.textTertiary,
