@@ -45,7 +45,10 @@ class LocationService {
       // a última posição conhecida em vez de deixar a tela travada para sempre.
       final lastKnown = await Geolocator.getLastKnownPosition();
       if (lastKnown != null) {
-        return LocationResult(position: lastKnown, status: LocationStatus.granted);
+        return LocationResult(
+          position: lastKnown,
+          status: LocationStatus.granted,
+        );
       }
       return const LocationResult(status: LocationStatus.timeout);
     }

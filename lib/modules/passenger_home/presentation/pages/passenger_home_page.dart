@@ -5,10 +5,13 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_modular/flutter_modular.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:moto_passenger/core/auth/auth_storage.dart';
+import 'package:moto_passenger/core/config/app_config.dart';
 import 'package:moto_passenger/core/location/location_service.dart';
 import 'package:moto_passenger/core/navigation/route_observer.dart';
+import 'package:moto_passenger/core/network/signalr_service.dart';
+import 'package:moto_passenger/core/notifications/home_entry.dart';
+import 'package:moto_passenger/core/notifications/pending_notification_router.dart';
 import 'package:moto_passenger/modules/passenger_home/presentation/blocs/passenger_home_bloc.dart';
 import 'package:moto_passenger/modules/passenger_home/presentation/blocs/passenger_home_event.dart';
 import 'package:moto_passenger/modules/passenger_home/presentation/blocs/passenger_home_state.dart';
@@ -24,13 +27,10 @@ class PassengerHomePage extends StatefulWidget {
 class _PassengerHomePageState extends State<PassengerHomePage>
     with PassengerHomeMixin, RouteAware, WidgetsBindingObserver {
   Timer? _passengerPositionTimer;
-  Position? _lastReportedPosition;
-  bool _isRouteVisible = true;
   bool _isAppActive = true;
   bool _positionUpdateInFlight = false;
 
-  static const _positionInterval = Duration(seconds: 30);
-  static const _minimumDisplacementMeters = 20.0;
+  static const _positionInterval = Duration(seconds: 10);
 
   @override
   Widget build(BuildContext context) {
@@ -68,7 +68,15 @@ class _PassengerHomePageState extends State<PassengerHomePage>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     BlocProvider.of<PassengerHomeBloc>(context).add(const LoadPassengerHome());
+    _ensureSessionHubConnected();
     _startPositionReporting(sendImmediately: true);
+
+    // Push (spec passenger-push-notifications): a tela inicial é onde a sessão fica
+    // pronta; abre o toque guardado enquanto ela não estava (cold start ou login
+    // depois de sessão expirada). Depois do primeiro quadro, para poder navegar.
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => onHomeEntered(() => Modular.get<PendingNotificationRouter>()),
+    );
   }
 
   @override
@@ -95,29 +103,54 @@ class _PassengerHomePageState extends State<PassengerHomePage>
     BlocProvider.of<PassengerHomeBloc>(
       context,
     ).add(const RefreshPassengerHome());
-    _isRouteVisible = true;
     _startPositionReporting(sendImmediately: true);
   }
 
   @override
   void didPushNext() {
-    _isRouteVisible = false;
-    _passengerPositionTimer?.cancel();
+    // Keep reporting while another app page is above Home (for example while
+    // requesting or tracking a trip). Reporting stops when the app itself is
+    // backgrounded or this state is disposed.
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _isAppActive = state == AppLifecycleState.resumed;
-    if (_isAppActive && _isRouteVisible) {
+    if (_isAppActive) {
+      _ensureSessionHubConnected();
       _startPositionReporting(sendImmediately: true);
     } else {
       _passengerPositionTimer?.cancel();
     }
   }
 
+  Future<void> _ensureSessionHubConnected() async {
+    try {
+      final authStorage = Modular.get<AuthStorage>();
+      final token = await authStorage.getToken();
+      if (token == null || token.isEmpty) return;
+
+      final signalR = Modular.get<SignalRService>();
+      if (signalR.isConnected('travel-orders')) return;
+
+      await signalR.connect(
+        'travel-orders',
+        '${AppConfig.getBaseUrl()}/hubs/travel-orders',
+        token,
+      );
+    } catch (error, stackTrace) {
+      // A Home continua funcional via HTTP. A próxima retomada do app tenta
+      // restabelecer o canal que recebe SessionRevoked do painel.
+      log(
+        'Falha ao conectar canal de sessão: $error',
+        stackTrace: stackTrace,
+      );
+    }
+  }
+
   void _startPositionReporting({bool sendImmediately = false}) {
     _passengerPositionTimer?.cancel();
-    if (!_isAppActive || !_isRouteVisible) return;
+    if (!_isAppActive) return;
 
     if (sendImmediately) {
       _updatePassengerPosition();
@@ -138,21 +171,9 @@ class _PassengerHomePageState extends State<PassengerHomePage>
       final position = await localtionService.getCurrentPosition();
       final userId = await authStorage.getUserId();
 
-      if (!mounted || !_isAppActive || !_isRouteVisible) return;
+      if (!mounted || !_isAppActive) return;
       final current = position.position;
       if (!position.isGranted || current == null || userId == null) return;
-
-      final previous = _lastReportedPosition;
-      if (previous != null &&
-          Geolocator.distanceBetween(
-                previous.latitude,
-                previous.longitude,
-                current.latitude,
-                current.longitude,
-              ) <
-              _minimumDisplacementMeters) {
-        return;
-      }
 
       final response = await dio.post(
         '/api/positions/passengers/$userId',
@@ -162,7 +183,6 @@ class _PassengerHomePageState extends State<PassengerHomePage>
         },
       );
 
-      _lastReportedPosition = current;
       log('${response.statusCode}');
     } on DioException catch (e) {
       log(e.message ?? "");

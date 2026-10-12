@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:developer';
 
 import 'package:dio/dio.dart';
+import 'package:moto_passenger/core/errors/exceptions.dart';
 import 'package:moto_passenger/core/maps/i_places_autocomplete_service.dart';
 
 class PlaceDetail {
@@ -27,7 +28,10 @@ class PlacesAutocompleteService implements IPlacesAutocompleteService {
   @override
   Future<PlaceDetail> getPlaceDetails(String placeId) async {
     try {
-      final response = await _dio.get('/api/addresses/place-details', queryParameters: {'placeId': placeId});
+      final response = await _dio.get(
+        '/api/addresses/place-details',
+        queryParameters: {'placeId': placeId},
+      );
       final data = response.data as Map<String, dynamic>;
       return PlaceDetail(
         placeId: data['placeId'] as String,
@@ -35,8 +39,29 @@ class PlacesAutocompleteService implements IPlacesAutocompleteService {
         longitude: (data['longitude'] as num).toDouble(),
         formattedAddress: data['formattedAddress'] as String,
       );
-    } on DioException catch (e) {
-      throw Exception(e.message ?? 'Erro ao obter detalhes do endereço');
+    } on DioException {
+      throw const NetworkException(
+        'Não foi possível consultar o endereço. Tente novamente.',
+      );
+    }
+  }
+
+  @override
+  Future<PlaceSuggestion> getAddressByCoordinates({
+    required double latitude,
+    required double longitude,
+  }) async {
+    try {
+      final response = await _dio.post(
+        '/api/routes/address',
+        data: {'latitude': latitude, 'longitude': longitude},
+      );
+      final data = response.data as Map<String, dynamic>;
+      return PlaceSuggestion.fromMap(data);
+    } on DioException {
+      throw const NetworkException(
+        'Não foi possível identificar o endereço. Tente novamente.',
+      );
     }
   }
 
@@ -73,8 +98,10 @@ class PlacesAutocompleteService implements IPlacesAutocompleteService {
         timeMinutes: (data['averageTimeBetweenPointsInMinutes'] as num).toInt(),
         encodedPolyline: (data['encodedPolyline'] as String?) ?? '',
       );
-    } on DioException catch (e) {
-      throw Exception(e.message ?? 'Erro ao calcular rota');
+    } on DioException {
+      throw const NetworkException(
+        'Não foi possível calcular a rota. Tente novamente.',
+      );
     }
   }
 
@@ -90,18 +117,22 @@ class PlacesAutocompleteService implements IPlacesAutocompleteService {
       }).toList();
 
       return suggestions;
-    } on DioException catch (e) {
-      throw Exception(e.message ?? 'Erro ao buscar endereços');
+    } on DioException {
+      throw const NetworkException(
+        'Não foi possível buscar endereços. Tente novamente.',
+      );
     }
   }
 }
 
 class PlaceSuggestion {
+  final String? name;
   final String address;
   final double latitude;
   final double longitude;
 
   const PlaceSuggestion({
+    this.name,
     required this.address,
     required this.latitude,
     required this.longitude,
@@ -109,6 +140,7 @@ class PlaceSuggestion {
 
   factory PlaceSuggestion.fromMap(Map<String, dynamic> map) {
     return PlaceSuggestion(
+      name: map['name'] as String?,
       address: map['address'] as String,
       latitude: (map['latitude'] as num).toDouble(),
       longitude: (map['longitude'] as num).toDouble(),
