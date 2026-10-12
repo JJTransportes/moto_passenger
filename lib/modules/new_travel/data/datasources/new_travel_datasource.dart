@@ -3,7 +3,9 @@ import 'package:moto_passenger/core/errors/exceptions.dart';
 
 abstract class INewTravelDatasource {
   Future<Map<String, dynamic>> createOrder(Map<String, dynamic> request);
-  Future<Map<String, dynamic>> createPriorityOrder(Map<String, dynamic> request);
+  Future<Map<String, dynamic>> createPriorityOrder(
+    Map<String, dynamic> request,
+  );
   Future<Map<String, dynamic>?> getLatestOrder();
   Future<void> cancelOrder(String orderId);
 }
@@ -29,7 +31,15 @@ class NewTravelDatasource implements INewTravelDatasource {
   @override
   Future<Map<String, dynamic>> createOrder(Map<String, dynamic> request) async {
     try {
-      final response = await _dio.post('/api/travels/orders', data: request);
+      // Trata o 404 de "sem motoristas" como resposta normal. Assim esse
+      // cenário de negócio não depende da cadeia de interceptadores de erro
+      // do Dio para chegar ao Bloc.
+      final response = await _dio.post(
+        '/api/travels/orders',
+        data: request,
+        options: Options(validateStatus: _acceptNoDriversResponse),
+      );
+      _throwIfNoDriversAvailable(response.statusCode, response.data);
       return response.data as Map<String, dynamic>;
     } on DioException catch (e) {
       if (e.response?.statusCode == 404 && e.response?.data is Map) {
@@ -37,7 +47,8 @@ class NewTravelDatasource implements INewTravelDatasource {
         if (body['type'] == 'no_drivers_available') {
           throw NoDriversAvailableException(
             partitionAcronym: body['partitionAcronym'] as String? ?? '',
-            message: body['message'] as String? ?? 'Nenhum motorista disponível',
+            message:
+                body['message'] as String? ?? 'Nenhum motorista disponível',
           );
         }
       }
@@ -55,14 +66,21 @@ class NewTravelDatasource implements INewTravelDatasource {
       if ((e.response?.statusCode ?? 0) >= 500) {
         throw const ServerException();
       }
-      throw Exception(e.message ?? 'Erro ao criar viagem');
+      throw _mapNetworkFallback(e, 'Erro ao criar viagem');
     }
   }
 
   @override
-  Future<Map<String, dynamic>> createPriorityOrder(Map<String, dynamic> request) async {
+  Future<Map<String, dynamic>> createPriorityOrder(
+    Map<String, dynamic> request,
+  ) async {
     try {
-      final response = await _dio.post('/api/travels/priority-orders', data: request);
+      final response = await _dio.post(
+        '/api/travels/priority-orders',
+        data: request,
+        options: Options(validateStatus: _acceptNoDriversResponse),
+      );
+      _throwIfNoDriversAvailable(response.statusCode, response.data);
       return response.data as Map<String, dynamic>;
     } on DioException catch (e) {
       if (e.response?.statusCode == 404 && e.response?.data is Map) {
@@ -70,7 +88,8 @@ class NewTravelDatasource implements INewTravelDatasource {
         if (body['type'] == 'no_drivers_available') {
           throw NoDriversAvailableException(
             partitionAcronym: body['partitionAcronym'] as String? ?? '',
-            message: body['message'] as String? ?? 'Nenhum motorista disponível',
+            message:
+                body['message'] as String? ?? 'Nenhum motorista disponível',
           );
         }
       }
@@ -88,7 +107,7 @@ class NewTravelDatasource implements INewTravelDatasource {
       if ((e.response?.statusCode ?? 0) >= 500) {
         throw const ServerException();
       }
-      throw Exception(e.message ?? 'Erro ao criar viagem');
+      throw _mapNetworkFallback(e, 'Erro ao criar viagem');
     }
   }
 
@@ -102,7 +121,7 @@ class NewTravelDatasource implements INewTravelDatasource {
       if (e.response?.statusCode == 404 || e.response?.statusCode == 204) {
         return null;
       }
-      throw Exception(e.message ?? 'Erro ao verificar pedidos pendentes');
+      throw _mapNetworkFallback(e, 'Erro ao verificar pedidos pendentes');
     }
   }
 
@@ -114,7 +133,7 @@ class NewTravelDatasource implements INewTravelDatasource {
       if (e.response?.statusCode == 404) {
         throw Exception('Pedido não encontrado ou já foi processado');
       }
-      throw Exception(e.message ?? 'Erro ao cancelar pedido');
+      throw _mapNetworkFallback(e, 'Erro ao cancelar pedido');
     }
   }
 
@@ -124,5 +143,35 @@ class NewTravelDatasource implements INewTravelDatasource {
       return data['error'] as String;
     }
     return null;
+  }
+
+  static bool _acceptNoDriversResponse(int? status) =>
+      status != null && (status < 400 || status == 404);
+
+  void _throwIfNoDriversAvailable(int? statusCode, dynamic data) {
+    if (statusCode != 404 || data is! Map) return;
+    final body = Map<String, dynamic>.from(data);
+    if (body['type'] != 'no_drivers_available') return;
+
+    throw NoDriversAvailableException(
+      partitionAcronym: body['partitionAcronym'] as String? ?? '',
+      message: body['message'] as String? ?? 'Nenhum motorista disponível',
+    );
+  }
+
+  // PSG-10: sem resposta HTTP nenhuma (timeout, sem internet, DNS/conexão
+  // recusada) o código caía num `Exception(e.message)` cru — geralmente a
+  // string técnica do Dio (`DioException [connection error]: ...`), exibida
+  // direto pro passageiro. Mapeia pra `NetworkException`, com mensagem em
+  // português, igual ao padrão já usado nos outros datasources do app.
+  Exception _mapNetworkFallback(DioException e, String fallbackMessage) {
+    if (e.response == null ||
+        e.type == DioExceptionType.connectionTimeout ||
+        e.type == DioExceptionType.receiveTimeout ||
+        e.type == DioExceptionType.sendTimeout ||
+        e.type == DioExceptionType.connectionError) {
+      return const NetworkException();
+    }
+    return Exception(e.message ?? fallbackMessage);
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:moto_passenger/core/auth/sign_out_service.dart';
+import 'package:moto_passenger/design_system/design_system.dart';
 import 'package:moto_passenger/core/errors/exceptions.dart';
 import 'package:moto_passenger/core/network/signalr_service.dart';
 import 'package:moto_passenger/modules/delete_account/presentation/blocs/delete_account_bloc.dart';
@@ -34,17 +35,19 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: Colors.red,
+        backgroundColor: context.moto.danger,
         behavior: SnackBarBehavior.floating,
       ),
     );
   }
 
   String _resolveErrorMessage(Exception error) {
-    if (error is UnauthorizedException) return error.toString();
-    if (error is ValidationException) return error.toString();
-    if (error is NetworkException) return error.toString();
-    if (error is ServerException) return error.toString();
+    if (error is UnauthorizedException) return error.message;
+    if (error is ValidationException) return error.message;
+    if (error is NetworkException) return error.message;
+    if (error is ServerException) {
+      return 'Não foi possível concluir agora. Tente novamente.';
+    }
     return 'Erro inesperado. Tente novamente.';
   }
 
@@ -55,15 +58,13 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Excluir conta'),
-          backgroundColor: Colors.white,
-          foregroundColor: const Color(0xFF4E4E4E),
+          foregroundColor: context.moto.textSecondary,
           elevation: 0,
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () => Navigator.of(context).pop(),
           ),
         ),
-        backgroundColor: Colors.white,
         body: BlocConsumer<DeleteAccountBloc, DeleteAccountState>(
           listener: (context, state) {
             if (state is DeleteAccountSuccess) {
@@ -71,10 +72,12 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
             }
             if (state is DeleteAccountError) {
               final exception = switch (state.type) {
-                DeleteAccountErrorType.invalidPassword =>
-                  UnauthorizedException(state.message),
-                DeleteAccountErrorType.activeTravels =>
-                  ValidationException(state.message),
+                DeleteAccountErrorType.invalidPassword => UnauthorizedException(
+                  state.message,
+                ),
+                DeleteAccountErrorType.activeTravels => ValidationException(
+                  state.message,
+                ),
                 DeleteAccountErrorType.other => Exception(state.message),
               };
               _showError(exception);
@@ -96,27 +99,31 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Row(
+        Row(
           children: [
-            Icon(Icons.warning_amber_rounded, color: Colors.red, size: 32),
-            SizedBox(width: 12),
+            Icon(
+              Icons.warning_amber_rounded,
+              color: context.moto.danger,
+              size: 32,
+            ),
+            const SizedBox(width: 12),
             Expanded(
               child: Text(
                 'Tem certeza que deseja excluir sua conta?',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 18,
-                  color: Colors.red,
+                  color: context.moto.danger,
                 ),
               ),
             ),
           ],
         ),
         const SizedBox(height: 24),
-        const Text(
+        Text(
           'Esta ação é irreversível e todos os seus dados, incluindo '
           'histórico de viagens, serão perdidos.',
-          style: TextStyle(fontSize: 16, color: Color(0xFF4E4E4E)),
+          style: TextStyle(fontSize: 16, color: context.moto.textSecondary),
         ),
         const SizedBox(height: 32),
         SizedBox(
@@ -124,21 +131,21 @@ class _DeleteAccountPageState extends State<DeleteAccountPage> {
           child: ElevatedButton(
             onPressed: isLoading ? null : _onContinueTapped,
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-              disabledBackgroundColor: Colors.grey.shade300,
+              backgroundColor: context.moto.danger,
+              foregroundColor: context.moto.textOnAccent,
+              disabledBackgroundColor: context.moto.borderDefault,
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
               ),
             ),
             child: isLoading
-                ? const SizedBox(
+                ? SizedBox(
                     width: 22,
                     height: 22,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: Colors.white,
+                      color: context.moto.textOnAccent,
                     ),
                   )
                 : const Text(

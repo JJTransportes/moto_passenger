@@ -27,7 +27,9 @@ class PassengerHomeRepository implements IPassengerHomeRepository {
       final entity = TravelSummaryEntity(
         travelId: result['travelId'] as String,
         status: result['status'] as String? ?? 'Pending',
-        createdAt: DateTime.tryParse(result['createdAt']?.toString() ?? '') ?? DateTime.now(),
+        createdAt:
+            DateTime.tryParse(result['createdAt']?.toString() ?? '') ??
+            DateTime.now(),
       );
       return Success([entity]);
     } on Exception catch (e) {
