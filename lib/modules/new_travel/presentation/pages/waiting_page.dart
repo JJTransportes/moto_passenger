@@ -24,9 +24,10 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
   StreamSubscription? _acceptedSub;
   StreamSubscription? _cancelledSub;
   StreamSubscription? _driverContactedSub;
-  final _startTime = DateTime.now();
+  DateTime _queueStartedAtUtc = DateTime.now().toUtc();
   Timer? _elapsedTimer;
   final ValueNotifier<int> _elapsedSeconds = ValueNotifier(0);
+  static const _maximumQueueWait = Duration(minutes: 5);
   bool _isCancelling = false;
 
   // PSG-08: WaitingPage dependia só de SignalR — se o evento OrderAccepted
@@ -86,7 +87,10 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
 
     // Update elapsed time every second
     _elapsedTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      _elapsedSeconds.value = DateTime.now().difference(_startTime).inSeconds;
+      _elapsedSeconds.value = DateTime.now()
+          .toUtc()
+          .difference(_queueStartedAtUtc)
+          .inSeconds;
     });
   }
 
@@ -154,6 +158,7 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
       if (!mounted) return;
 
       final data = responseDataAsMap(response.data);
+      _syncQueueStart(data?['createdAt']);
       final status = data?['status']?.toString().toLowerCase();
       if (status == 'cancelled') {
         _onOrderCancelled({
@@ -197,6 +202,17 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
     } on DioException {
       // Best-effort: o próximo ciclo e o SignalR continuam como fallback.
     }
+  }
+
+  void _syncQueueStart(Object? rawCreatedAt) {
+    if (rawCreatedAt == null) return;
+    final parsed = DateTime.tryParse(rawCreatedAt.toString());
+    if (parsed == null) return;
+    final createdAtUtc = parsed.toUtc();
+    if (createdAtUtc == _queueStartedAtUtc) return;
+    _queueStartedAtUtc = createdAtUtc;
+    final elapsed = DateTime.now().toUtc().difference(createdAtUtc).inSeconds;
+    _elapsedSeconds.value = elapsed < 0 ? 0 : elapsed;
   }
 
   Future<void> _initSignalR() async {
@@ -516,16 +532,7 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
           ),
         ),
         const SizedBox(height: 24),
-        ValueListenableBuilder<int>(
-          valueListenable: _elapsedSeconds,
-          builder: (context, seconds, _) => Text(
-            'Aguardando há ${seconds}s',
-            style: TextStyle(
-              fontSize: 14,
-              color: context.moto.textTertiary,
-            ),
-          ),
-        ),
+        _buildQueueCountdown(),
         const SizedBox(height: 48),
         _buildCancelButton(),
       ],
@@ -565,6 +572,8 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
             color: context.moto.textPrimary,
           ),
         ),
+        const SizedBox(height: 16),
+        _buildQueueCountdown(),
         const SizedBox(height: 24),
         ValueListenableBuilder<DateTime>(
           valueListenable: _countdownNow,
@@ -598,6 +607,45 @@ class _WaitingPageState extends State<WaitingPage> with WidgetsBindingObserver {
         const SizedBox(height: 32),
         _buildCancelButton(),
       ],
+    );
+  }
+
+  Widget _buildQueueCountdown() {
+    return ValueListenableBuilder<int>(
+      valueListenable: _elapsedSeconds,
+      builder: (context, elapsedSeconds, _) {
+        final remaining = (_maximumQueueWait.inSeconds - elapsedSeconds).clamp(
+          0,
+          _maximumQueueWait.inSeconds,
+        );
+        final minutes = remaining ~/ 60;
+        final seconds = remaining % 60;
+        final formatted =
+            '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+        return Column(
+          children: [
+            Text(
+              'A busca permanecerá ativa por até 5 minutos.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                color: context.moto.textTertiary,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Tempo restante: $formatted',
+              semanticsLabel:
+                  'Tempo restante da busca: $minutes minutos e $seconds segundos',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: context.moto.textPrimary,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 

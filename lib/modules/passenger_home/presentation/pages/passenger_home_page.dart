@@ -6,8 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:moto_passenger/core/auth/auth_storage.dart';
+import 'package:moto_passenger/core/config/app_config.dart';
 import 'package:moto_passenger/core/location/location_service.dart';
 import 'package:moto_passenger/core/navigation/route_observer.dart';
+import 'package:moto_passenger/core/network/signalr_service.dart';
 import 'package:moto_passenger/core/notifications/home_entry.dart';
 import 'package:moto_passenger/core/notifications/pending_notification_router.dart';
 import 'package:moto_passenger/modules/passenger_home/presentation/blocs/passenger_home_bloc.dart';
@@ -66,6 +68,7 @@ class _PassengerHomePageState extends State<PassengerHomePage>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     BlocProvider.of<PassengerHomeBloc>(context).add(const LoadPassengerHome());
+    _ensureSessionHubConnected();
     _startPositionReporting(sendImmediately: true);
 
     // Push (spec passenger-push-notifications): a tela inicial é onde a sessão fica
@@ -114,9 +117,34 @@ class _PassengerHomePageState extends State<PassengerHomePage>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _isAppActive = state == AppLifecycleState.resumed;
     if (_isAppActive) {
+      _ensureSessionHubConnected();
       _startPositionReporting(sendImmediately: true);
     } else {
       _passengerPositionTimer?.cancel();
+    }
+  }
+
+  Future<void> _ensureSessionHubConnected() async {
+    try {
+      final authStorage = Modular.get<AuthStorage>();
+      final token = await authStorage.getToken();
+      if (token == null || token.isEmpty) return;
+
+      final signalR = Modular.get<SignalRService>();
+      if (signalR.isConnected('travel-orders')) return;
+
+      await signalR.connect(
+        'travel-orders',
+        '${AppConfig.getBaseUrl()}/hubs/travel-orders',
+        token,
+      );
+    } catch (error, stackTrace) {
+      // A Home continua funcional via HTTP. A próxima retomada do app tenta
+      // restabelecer o canal que recebe SessionRevoked do painel.
+      log(
+        'Falha ao conectar canal de sessão: $error',
+        stackTrace: stackTrace,
+      );
     }
   }
 

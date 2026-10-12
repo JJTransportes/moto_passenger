@@ -238,7 +238,8 @@ class _ProfilePageState extends State<ProfilePage> {
     if (!_validate()) return;
 
     final newEmail = _emailController.text.trim();
-    final emailChanged = newEmail != (_originalEmail ?? '');
+    final emailChanged =
+        newEmail.toLowerCase() != (_originalEmail ?? '').trim().toLowerCase();
 
     final password = await showConfirmPasswordDialog(
       context,
@@ -415,9 +416,7 @@ class _ProfilePageState extends State<ProfilePage> {
             switch (state) {
               case ProfileSaveSuccess():
                 if (_pendingEmailChange) {
-                  Modular.get<SignalRService>().disconnectAll().whenComplete(
-                    () => Modular.get<SignOutService>().signOut(),
-                  );
+                  _forceLogoutAfterEmailChange();
                   return;
                 }
                 setState(() {
@@ -517,6 +516,19 @@ class _ProfilePageState extends State<ProfilePage> {
           },
         ),
       ),
+    );
+  }
+
+  Future<void> _forceLogoutAfterEmailChange() async {
+    // Resolve both services before the first await. SignalR shutdown may cause
+    // this route to be rebuilt/unmounted, but clearing the authenticated
+    // session and navigating to login must always complete.
+    final signalR = Modular.get<SignalRService>();
+    final signOutService = Modular.get<SignOutService>();
+    _pendingEmailChange = false;
+    await signalR.disconnectAll();
+    await signOutService.signOut(
+      message: 'E-mail atualizado! Faça login novamente.',
     );
   }
 

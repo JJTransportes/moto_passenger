@@ -42,6 +42,8 @@ class SignalRService {
   final _reconnectingController = StreamController<void>.broadcast();
   final _reconnectedController = StreamController<void>.broadcast();
   final _closedController = StreamController<void>.broadcast();
+  final _sessionRevokedController =
+      StreamController<Map<String, dynamic>>.broadcast();
 
   Stream<Map<String, dynamic>> get onNewOrder => _newOrderController.stream;
   Stream<Map<String, dynamic>> get onDriverContacted =>
@@ -79,6 +81,8 @@ class SignalRService {
   Stream<void> get onReconnecting => _reconnectingController.stream;
   Stream<void> get onReconnected => _reconnectedController.stream;
   Stream<void> get onClosed => _closedController.stream;
+  Stream<Map<String, dynamic>> get onSessionRevoked =>
+      _sessionRevokedController.stream;
 
   /// Se já existe uma conexão viva (`Connected`) para [hubName].
   bool isConnected(String hubName) =>
@@ -152,6 +156,11 @@ class SignalRService {
   }
 
   void _registerHubHandlers(HubConnection connection, String hubName) {
+    connection.on('SessionRevoked', (args) {
+      if (args != null && args.isNotEmpty) {
+        _sessionRevokedController.add(args.first as Map<String, dynamic>);
+      }
+    });
     switch (hubName) {
       case 'travel-orders':
         connection.on('NewOrder', (args) {
@@ -267,5 +276,6 @@ class SignalRService {
     _reconnectingController.close();
     _reconnectedController.close();
     _closedController.close();
+    _sessionRevokedController.close();
   }
 }
