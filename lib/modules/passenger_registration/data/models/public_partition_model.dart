@@ -43,9 +43,9 @@ class PublicPartitionModel {
       partitionId: json['partitionId'] as String,
       name: json['name'] as String,
       acronym: json['acronym'] as String,
-      departments: (json['departments'] as List<dynamic>?)
-              ?.map(
-                  (d) => DepartmentModel.fromJson(d as Map<String, dynamic>))
+      departments:
+          (json['departments'] as List<dynamic>?)
+              ?.map((d) => DepartmentModel.fromJson(d as Map<String, dynamic>))
               .toList() ??
           [],
     );

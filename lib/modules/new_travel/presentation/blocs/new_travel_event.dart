@@ -21,6 +21,19 @@ class SelectPlace extends NewTravelEvent {
   const SelectPlace({required this.suggestion});
 }
 
+class SelectOriginPlace extends NewTravelEvent {
+  final PlaceSuggestion suggestion;
+
+  const SelectOriginPlace({required this.suggestion});
+}
+
+class SetOriginOnMap extends NewTravelEvent {
+  final double latitude;
+  final double longitude;
+
+  const SetOriginOnMap({required this.latitude, required this.longitude});
+}
+
 class CalculateRoute extends NewTravelEvent {
   final double latitude;
   final double longitude;

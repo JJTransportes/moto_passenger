@@ -31,7 +31,10 @@ class PassengerHomeBloc extends Bloc<PassengerHomeEvent, PassengerHomeState> {
     on<RefreshPassengerHome>(_onRefresh);
   }
 
-  Future<void> _onLoad(LoadPassengerHome event, Emitter<PassengerHomeState> emit) async {
+  Future<void> _onLoad(
+    LoadPassengerHome event,
+    Emitter<PassengerHomeState> emit,
+  ) async {
     emit(const PassengerHomeLoading());
 
     // ── Step 1: Try local cache ────────────────────────────────
@@ -46,7 +49,11 @@ class PassengerHomeBloc extends Bloc<PassengerHomeEvent, PassengerHomeState> {
       if (cachedTravels.isNotEmpty || cachedActive != null) {
         emit(
           PassengerHomeLoaded(
-            profile: const PassengerProfileEntity(id: '', fullName: '', email: ''),
+            profile: const PassengerProfileEntity(
+              id: '',
+              fullName: '',
+              email: '',
+            ),
             currentTravel: cachedActive?.toEntity(),
             lastTravels: cachedTravels.map((t) => t.toEntity()).toList(),
           ),
@@ -70,9 +77,14 @@ class PassengerHomeBloc extends Bloc<PassengerHomeEvent, PassengerHomeState> {
     final activeResult = await _getActiveTravel();
     final lastTravelsResult = await _getLastTravels();
 
-    final TravelSummaryEntity? activeTravel = activeResult.isSuccess() && activeResult.getOrThrow().isNotEmpty ? activeResult.getOrThrow().first : null;
+    final TravelSummaryEntity? activeTravel =
+        activeResult.isSuccess() && activeResult.getOrThrow().isNotEmpty
+        ? activeResult.getOrThrow().first
+        : null;
 
-    final lastTravels = lastTravelsResult.isSuccess() ? lastTravelsResult.getOrThrow() : <TravelSummaryEntity>[];
+    final lastTravels = lastTravelsResult.isSuccess()
+        ? lastTravelsResult.getOrThrow()
+        : <TravelSummaryEntity>[];
 
     // Save travels to cache
     await _travelLocal.saveActiveTravel(activeTravel);
@@ -87,7 +99,10 @@ class PassengerHomeBloc extends Bloc<PassengerHomeEvent, PassengerHomeState> {
     );
   }
 
-  Future<void> _onRefresh(RefreshPassengerHome event, Emitter<PassengerHomeState> emit) async {
+  Future<void> _onRefresh(
+    RefreshPassengerHome event,
+    Emitter<PassengerHomeState> emit,
+  ) async {
     final oldState = state;
     if (oldState is! PassengerHomeLoaded) {
       emit(const PassengerHomeLoading());
@@ -111,9 +126,14 @@ class PassengerHomeBloc extends Bloc<PassengerHomeEvent, PassengerHomeState> {
     final activeResult = await _getActiveTravel();
     final lastTravelsResult = await _getLastTravels();
 
-    final TravelSummaryEntity? activeTravel = activeResult.isSuccess() && activeResult.getOrThrow().isNotEmpty ? activeResult.getOrThrow().first : null;
+    final TravelSummaryEntity? activeTravel =
+        activeResult.isSuccess() && activeResult.getOrThrow().isNotEmpty
+        ? activeResult.getOrThrow().first
+        : null;
 
-    final lastTravels = lastTravelsResult.isSuccess() ? lastTravelsResult.getOrThrow() : oldState.lastTravels;
+    final lastTravels = lastTravelsResult.isSuccess()
+        ? lastTravelsResult.getOrThrow()
+        : oldState.lastTravels;
 
     // Save travels to cache
     await _travelLocal.saveActiveTravel(activeTravel);

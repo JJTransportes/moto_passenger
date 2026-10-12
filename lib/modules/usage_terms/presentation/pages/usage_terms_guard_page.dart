@@ -50,9 +50,9 @@ class _UsageTermsGuardPageState extends State<UsageTermsGuardPage> {
                 action: SnackBarAction(
                   label: 'Tentar novamente',
                   onPressed: () {
-                    context
-                        .read<UsageTermsBloc>()
-                        .add(const CheckAcceptanceStatus());
+                    context.read<UsageTermsBloc>().add(
+                      const CheckAcceptanceStatus(),
+                    );
                   },
                 ),
               ),
@@ -84,10 +84,10 @@ class _UsageTermsGuardPageState extends State<UsageTermsGuardPage> {
       );
     }
 
-    if(state is UsageTermsError) {
+    if (state is UsageTermsError) {
       final message = state.message;
 
-      if(message.toLowerCase().contains('credenciais')){
+      if (message.toLowerCase().contains('credenciais')) {
         Modular.to.navigate('/login');
       }
     }

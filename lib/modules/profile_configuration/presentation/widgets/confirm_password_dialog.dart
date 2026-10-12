@@ -7,7 +7,8 @@ Future<String?> showConfirmPasswordDialog(
 }) {
   return showDialog<String>(
     context: context,
-    builder: (context) => _ConfirmPasswordDialog(showLogoutWarning: showLogoutWarning),
+    builder: (context) =>
+        _ConfirmPasswordDialog(showLogoutWarning: showLogoutWarning),
   );
 }
 
@@ -47,12 +48,17 @@ class _ConfirmPasswordDialogState extends State<_ConfirmPasswordDialog> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Digite sua senha atual para confirmar a alteração do perfil.'),
+          const Text(
+            'Digite sua senha atual para confirmar a alteração do perfil.',
+          ),
           if (widget.showLogoutWarning) ...[
             const SizedBox(height: 12),
             Text(
               'Você será desconectado após salvar, pois seu e-mail de acesso vai mudar.',
-              style: TextStyle(color: context.moto.danger, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                color: context.moto.danger,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
           const SizedBox(height: 16),

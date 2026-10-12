@@ -308,6 +308,66 @@ void main() {
     );
   });
 
+  group('seleção manual do embarque', () {
+    blocTest<NewTravelBloc, NewTravelState>(
+      'aceita um ponto escolhido diretamente no mapa',
+      build: () {
+        when(
+          () => placesService.getAddressByCoordinates(
+            latitude: -23.51,
+            longitude: -46.62,
+          ),
+        ).thenAnswer(
+          (_) async => const PlaceSuggestion(
+            address: 'Rua escolhida, 123',
+            latitude: -23.51,
+            longitude: -46.62,
+          ),
+        );
+        return buildBloc();
+      },
+      act: (bloc) => bloc.add(
+        const SetOriginOnMap(latitude: -23.51, longitude: -46.62),
+      ),
+      expect: () => [
+        isA<NewTravelOriginSelected>()
+            .having(
+              (state) => state.position,
+              'position',
+              const LatLng(-23.51, -46.62),
+            )
+            .having(
+              (state) => state.address,
+              'address',
+              'Rua escolhida, 123',
+            ),
+      ],
+    );
+
+    blocTest<NewTravelBloc, NewTravelState>(
+      'aceita um endereço pesquisado como ponto de embarque',
+      build: buildBloc,
+      act: (bloc) => bloc.add(
+        const SelectOriginPlace(
+          suggestion: PlaceSuggestion(
+            address: 'Praça Central, 10',
+            latitude: -23.52,
+            longitude: -46.63,
+          ),
+        ),
+      ),
+      expect: () => [
+        isA<NewTravelOriginSelected>()
+            .having((state) => state.address, 'address', 'Praça Central, 10')
+            .having(
+              (state) => state.position,
+              'position',
+              const LatLng(-23.52, -46.63),
+            ),
+      ],
+    );
+  });
+
   group('ConfirmTravel', () {
     blocTest<NewTravelBloc, NewTravelState>(
       'cria o pedido normal com sucesso',

@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:moto_passenger/core/errors/exceptions.dart';
+import 'package:moto_passenger/core/errors/user_error_message.dart';
 import 'package:moto_passenger/modules/delete_account/domain/usecases/delete_account_usecase.dart';
 import 'package:moto_passenger/modules/delete_account/presentation/blocs/delete_account_event.dart';
 import 'package:moto_passenger/modules/delete_account/presentation/blocs/delete_account_state.dart';
@@ -37,7 +38,7 @@ class DeleteAccountBloc extends Bloc<DeleteAccountEvent, DeleteAccountState> {
     } on Exception catch (e) {
       emit(
         DeleteAccountError(
-          message: e.toString(),
+          message: userErrorMessage(e),
           type: DeleteAccountErrorType.other,
         ),
       );
