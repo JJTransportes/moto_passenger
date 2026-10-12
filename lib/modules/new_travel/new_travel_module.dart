@@ -4,6 +4,7 @@ import 'package:moto_passenger/core/auth/auth_storage.dart';
 import 'package:moto_passenger/core/location/location_service.dart';
 import 'package:moto_passenger/core/maps/i_places_autocomplete_service.dart';
 import 'package:moto_passenger/core/network/signalr_service.dart';
+import 'package:moto_passenger/modules/chat/chat_module.dart';
 import 'package:moto_passenger/modules/common_module.dart';
 import 'package:moto_passenger/modules/new_travel/data/datasources/new_travel_datasource.dart';
 import 'package:moto_passenger/modules/new_travel/data/datasources/travel_tracking_datasource.dart';
@@ -18,14 +19,25 @@ import 'package:moto_passenger/modules/new_travel/presentation/pages/waiting_pag
 class NewTravelModule extends Module {
   @override
   List<Module> get imports => [
-        CommonModule(),
-      ];
+    CommonModule(),
+    ChatModule(),
+  ];
 
   @override
   void binds(i) {
     i.add<INewTravelDatasource>(NewTravelDatasource.new);
     i.add<NewTravelRepository>(NewTravelRepository.new);
-    i.addSingleton<NewTravelBloc>(
+    // Eram `addSingleton` — mas cada viagem precisa de estado zerado (bloc
+    // parte de `NewTravelCheckingPending`/`TravelTrackingInitial`). Como
+    // `/new-travel` fica "vivo" na pilha durante toda a viagem (waiting →
+    // tracking usa pushReplacementNamed, mas o `NewTravelPage` de baixo
+    // nunca sai da pilha), o Modular não descartava o singleton entre
+    // corridas seguidas na mesma sessão do app — a segunda corrida herdava
+    // estado (inclusive guardas como "nunca regredir de InProgress") da
+    // corrida anterior, travando a tela em loading até um evento de SignalR
+    // que ignora esses guards (TravelStarted/TravelCompleted) forçar a saída
+    // do estado preso. `.add` cria uma instância nova a cada resolução.
+    i.add<NewTravelBloc>(
       () => NewTravelBloc(
         Modular.get<NewTravelRepository>(),
         Modular.get<LocationService>(),
@@ -36,7 +48,7 @@ class NewTravelModule extends Module {
     );
     i.add<ITravelTrackingDatasource>(TravelTrackingDatasource.new);
     i.add<ITravelTrackingRepository>(TravelTrackingRepository.new);
-    i.addSingleton<TravelTrackingBloc>(TravelTrackingBloc.new);
+    i.add<TravelTrackingBloc>(TravelTrackingBloc.new);
   }
 
   @override
@@ -53,7 +65,10 @@ class NewTravelModule extends Module {
       child: (_) {
         final args = Modular.args.data as Map<String, dynamic>;
         return BlocProvider<TravelTrackingBloc>(
-          create: (_) => Modular.get<TravelTrackingBloc>(),
+          create: (_) {
+            final b = Modular.get<TravelTrackingBloc>();
+            return b;
+          },
           child: TravelTrackingPage(
             travelId: args['travelId'] as String,
             orderId: args['orderId'] as String?,

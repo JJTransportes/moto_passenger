@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:moto_passenger/core/auth/sign_out_service.dart';
-import 'package:moto_passenger/core/theme/app_theme.dart';
+import 'package:moto_passenger/design_system/design_system.dart';
 import 'package:moto_passenger/modules/passenger_home/domain/entities/passenger_profile_entity.dart';
 import 'package:moto_passenger/modules/passenger_home/domain/entities/travel_summary_entity.dart';
 import 'package:moto_passenger/modules/passenger_home/presentation/blocs/passenger_home_bloc.dart';
@@ -19,7 +19,9 @@ mixin PassengerHomeMixin on State<PassengerHomePage> {
     List<TravelSummaryEntity> lastTravels,
   ) => RefreshIndicator(
     onRefresh: () async {
-      BlocProvider.of<PassengerHomeBloc>(context).add(const RefreshPassengerHome());
+      BlocProvider.of<PassengerHomeBloc>(
+        context,
+      ).add(const RefreshPassengerHome());
     },
     child: SingleChildScrollView(
       physics: const AlwaysScrollableScrollPhysics(),
@@ -46,7 +48,9 @@ mixin PassengerHomeMixin on State<PassengerHomePage> {
                   },
                 );
                 if (mounted) {
-                  BlocProvider.of<PassengerHomeBloc>(context).add(const RefreshPassengerHome());
+                  BlocProvider.of<PassengerHomeBloc>(
+                    context,
+                  ).add(const RefreshPassengerHome());
                 }
               },
             ),
@@ -61,7 +65,6 @@ mixin PassengerHomeMixin on State<PassengerHomePage> {
   Widget defaultState() => const SizedBox.shrink();
 
   Widget failureState(String message) => Scaffold(
-    backgroundColor: AppColors.white,
     body: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: SafeArea(
@@ -73,13 +76,16 @@ mixin PassengerHomeMixin on State<PassengerHomePage> {
               onSettings: () => Modular.to.pushNamed('/profile'),
               onAvatarTap: () => Modular.to.pushNamed('/profile'),
             ),
-            const Expanded(
+            Expanded(
               child: Center(
                 child: Padding(
-                  padding: EdgeInsets.all(32),
+                  padding: const EdgeInsets.all(32),
                   child: Text(
                     'Erro ao carregar. Toque para tentar novamente.',
-                    style: TextStyle(color: Colors.grey, fontSize: 16),
+                    style: TextStyle(
+                      color: context.moto.textSecondary,
+                      fontSize: 16,
+                    ),
                     textAlign: TextAlign.center,
                   ),
                 ),
@@ -91,13 +97,17 @@ mixin PassengerHomeMixin on State<PassengerHomePage> {
     ),
   );
 
-  FloatingActionButton homeFab({bool hasActiveTravel = false}) => FloatingActionButton(
+  FloatingActionButton homeFab({
+    bool hasActiveTravel = false,
+  }) => FloatingActionButton(
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(
         MediaQuery.sizeOf(context).height * 0.1,
       ),
     ),
-    backgroundColor: hasActiveTravel ? Colors.grey : AppColors.primary,
+    backgroundColor: hasActiveTravel
+        ? context.moto.textDisabled
+        : context.moto.accent,
     onPressed: hasActiveTravel
         ? null
         : () async {
@@ -107,10 +117,12 @@ mixin PassengerHomeMixin on State<PassengerHomePage> {
             // manual.
             await Modular.to.pushNamed('/new-travel');
             if (mounted) {
-              BlocProvider.of<PassengerHomeBloc>(context).add(const RefreshPassengerHome());
+              BlocProvider.of<PassengerHomeBloc>(
+                context,
+              ).add(const RefreshPassengerHome());
             }
           },
-    child: const Icon(Icons.add, color: Colors.white),
+    child: Icon(Icons.add, color: context.moto.textOnAccent),
   );
 
   Widget loadedState(
@@ -124,7 +136,6 @@ mixin PassengerHomeMixin on State<PassengerHomePage> {
   );
 
   Widget loadingState() => Scaffold(
-    backgroundColor: AppColors.white,
     body: SafeArea(
       child: Column(
         children: [

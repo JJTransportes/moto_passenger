@@ -9,7 +9,8 @@ class LoadTravel extends TravelTrackingEvent {
 
 class CancelTravel extends TravelTrackingEvent {
   final String travelId;
-  const CancelTravel(this.travelId);
+  final String reason;
+  const CancelTravel(this.travelId, this.reason);
 }
 
 class TravelOrderAccepted extends TravelTrackingEvent {
@@ -45,4 +46,19 @@ class DriverLocationUpdated extends TravelTrackingEvent {
 class DistanceUpdated extends TravelTrackingEvent {
   final Map<String, dynamic> data;
   const DistanceUpdated(this.data);
+}
+
+/// PSG-08: disparado quando o app vai para background — para o timer de
+/// polling (SignalR também some nesse período) até o app voltar ao
+/// foreground e a página disparar um novo [LoadTravel], que já reinicia o
+/// polling e força um refresh do estado mais atual.
+class PollingPaused extends TravelTrackingEvent {
+  const PollingPaused();
+}
+
+/// `DriverNearby` / `DriverArrived` do hub `travel-management` (spec
+/// pickup-arrival-alerts). `data` = `{travelId, kind: "Nearby"|"Arrived", occurredAt}`.
+class DriverProximityAlerted extends TravelTrackingEvent {
+  final Map<String, dynamic> data;
+  const DriverProximityAlerted(this.data);
 }

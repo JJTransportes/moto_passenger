@@ -17,8 +17,10 @@ class PassengerHomeDatasource implements IPassengerHomeDatasource {
       final data = response.data as Map<String, dynamic>;
       // Backend retorna path relativo (ex: /api/files/{id}) — resolver com baseUrl
       var photoUrl = data['photoUrl'] as String?;
-      if (photoUrl != null && photoUrl.isNotEmpty &&
-          !photoUrl.startsWith('http://') && !photoUrl.startsWith('https://')) {
+      if (photoUrl != null &&
+          photoUrl.isNotEmpty &&
+          !photoUrl.startsWith('http://') &&
+          !photoUrl.startsWith('https://')) {
         data['photoUrl'] = '${AppConfig.getBaseUrl()}$photoUrl';
       }
       return PassengerProfileModel.fromJson(data);
@@ -42,7 +44,9 @@ class PassengerHomeDatasource implements IPassengerHomeDatasource {
           'pageSize': pageSize,
         },
       );
-      return PaginatedTravelListModel.fromJson(response.data as Map<String, dynamic>);
+      return PaginatedTravelListModel.fromJson(
+        response.data as Map<String, dynamic>,
+      );
     } on DioException catch (e) {
       throw _mapException(e);
     }

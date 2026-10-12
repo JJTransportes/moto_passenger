@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_modular/flutter_modular.dart' hide ModularWatchExtension;
+import 'package:flutter_modular/flutter_modular.dart'
+    hide ModularWatchExtension;
 import 'package:google_fonts/google_fonts.dart';
-import 'package:moto_passenger/core/theme/app_theme.dart';
 import 'package:moto_passenger/core/utils/validators.dart' as validators;
+import 'package:moto_passenger/design_system/design_system.dart';
 import 'package:moto_passenger/modules/auth/presentation/blocs/password_recovery_bloc.dart';
 import 'package:moto_passenger/widgets/app_button.dart';
 import 'package:moto_passenger/widgets/app_text_field.dart';
@@ -76,7 +77,6 @@ class _PasswordRecoveryPageState extends State<PasswordRecoveryPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.white,
       body: SafeArea(
         child: BlocConsumer<PasswordRecoveryBloc, PasswordRecoveryState>(
           listener: (context, state) {
@@ -115,7 +115,7 @@ class _PasswordRecoveryPageState extends State<PasswordRecoveryPage> {
                         style: GoogleFonts.inter(
                           fontSize: 14,
                           fontWeight: FontWeight.w400,
-                          color: Colors.black,
+                          color: context.moto.textPrimary,
                         ),
                         textAlign: TextAlign.center,
                       ),
@@ -146,7 +146,7 @@ class _PasswordRecoveryPageState extends State<PasswordRecoveryPage> {
                           style: GoogleFonts.inter(
                             fontSize: 13,
                             fontWeight: FontWeight.w400,
-                            color: Colors.red,
+                            color: context.moto.danger,
                           ),
                         ),
                       ],
@@ -155,7 +155,9 @@ class _PasswordRecoveryPageState extends State<PasswordRecoveryPage> {
                   AppButton(
                     label: 'Enviar',
                     loading: isLoading,
-                    onPressed: _isFormFilled && _emailServerError == null ? _submit : null,
+                    onPressed: _isFormFilled && _emailServerError == null
+                        ? _submit
+                        : null,
                   ),
                 ],
               ),

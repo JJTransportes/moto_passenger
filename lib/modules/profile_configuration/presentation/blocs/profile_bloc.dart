@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:moto_passenger/core/errors/user_error_message.dart';
 import 'package:moto_passenger/modules/profile_configuration/domain/entities/profile_entity.dart';
 import 'package:moto_passenger/modules/profile_configuration/domain/entities/update_profile_request.dart';
 import 'package:moto_passenger/modules/profile_configuration/domain/usecases/i_get_profile_usecase.dart';
@@ -38,7 +39,7 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
 
     result.fold(
       (profile) => emit(ProfileLoaded(profile)),
-      (error) => emit(ProfileError(error.toString())),
+      (error) => emit(ProfileError(userErrorMessage(error))),
     );
   }
 
@@ -47,21 +48,27 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     Emitter<ProfileState> emit,
   ) async {
     final currentState = state;
-    if (currentState is! ProfileLoaded && currentState is! ProfileSaveError) {
+    if (currentState is! ProfileLoaded &&
+        currentState is! ProfileSaveSuccess &&
+        currentState is! ProfileSaveError &&
+        currentState is! ProfilePhotoUpdated &&
+        currentState is! ProfilePhotoRemoved &&
+        currentState is! ProfilePhotoError) {
       return;
     }
 
-    final profile = (currentState is ProfileLoaded)
-        ? currentState.profile
-        : (currentState as ProfileSaveError).profile;
+    final profile = _extractProfile(currentState);
 
     emit(ProfileSaving(profile));
 
-    final result = await _updateProfileUsecase.call(event.userId, event.request);
+    final result = await _updateProfileUsecase.call(
+      event.userId,
+      event.request,
+    );
 
     result.fold(
       (updatedProfile) => emit(ProfileSaveSuccess(updatedProfile)),
-      (error) => emit(ProfileSaveError(profile, error.toString())),
+      (error) => emit(ProfileSaveError(profile, userErrorMessage(error))),
     );
   }
 
@@ -83,7 +90,10 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
 
     emit(ProfilePhotoUploading(profile));
 
-    final result = await _uploadPhotoUsecase.call(event.userId, event.imageFile);
+    final result = await _uploadPhotoUsecase.call(
+      event.userId,
+      event.imageFile,
+    );
 
     result.fold(
       (photoUrl) => emit(
@@ -91,7 +101,7 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
           profile.copyWith(photoUrl: photoUrl),
         ),
       ),
-      (error) => emit(ProfilePhotoError(profile, error.toString())),
+      (error) => emit(ProfilePhotoError(profile, userErrorMessage(error))),
     );
   }
 
@@ -117,7 +127,7 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
       (_) => emit(
         ProfilePhotoRemoved(profile.copyWith(clearPhotoUrl: true)),
       ),
-      (error) => emit(ProfilePhotoError(profile, error.toString())),
+      (error) => emit(ProfilePhotoError(profile, userErrorMessage(error))),
     );
   }
 
