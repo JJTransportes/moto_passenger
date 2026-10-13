@@ -10,6 +10,7 @@ import 'package:moto_passenger/core/navigation/app_messenger.dart';
 import 'package:moto_passenger/core/location/background_location_service.dart';
 import 'package:moto_passenger/core/notifications/i_push_notification_service.dart';
 import 'package:moto_passenger/core/notifications/session_readiness.dart';
+import 'package:moto_passenger/modules/auth/data/datasources/i_auth_datasource.dart';
 
 class SignOutService {
   final AuthStorage _authStorage;
@@ -17,6 +18,7 @@ class SignOutService {
   final ProfileLocalRepository _profileLocal;
   final TravelLocalRepository _travelLocal;
   final IPushNotificationService _push;
+  final IAuthDatasource _authDatasource;
   final Duration _pushTimeout;
 
   SignOutService(
@@ -24,7 +26,8 @@ class SignOutService {
     this._authLocal,
     this._profileLocal,
     this._travelLocal,
-    this._push, {
+    this._push,
+    this._authDatasource, {
     Duration pushTimeout = const Duration(seconds: 3),
   }) : _pushTimeout = pushTimeout;
 
@@ -43,6 +46,13 @@ class SignOutService {
     // A partir daqui um toque em notificação deve ser guardado, não navegar.
     SessionReadiness.reset();
 
+    // Device binding: libera a sessão no backend (device=NULL nos tokens ativos)
+    // para que outro tipo de dispositivo possa logar. Roda ANTES de limpar o
+    // storage, pois usa o access token salvo. Best-effort: falha ou demora nunca
+    // impede a saída. /api/auth/* é ignorado pelo AuthErrorInterceptor, então
+    // não há loop de refresh.
+    await _releaseDeviceBinding();
+
     await Future.wait([
       _stopBackgroundLocation(),
       _authStorage.clear(),
@@ -54,6 +64,20 @@ class SignOutService {
     Modular.to.navigate('/login');
     if (message != null) {
       showGlobalSnackBar(message);
+    }
+  }
+
+  Future<void> _releaseDeviceBinding() async {
+    try {
+      final token = await _authStorage.getToken();
+      if (token == null || token.isEmpty) return;
+      await _authDatasource.signOut().timeout(_pushTimeout);
+    } catch (e) {
+      log(
+        '[AUTH] Backend sign-out failed (${e.runtimeType}).',
+        name: 'auth',
+        level: 900,
+      );
     }
   }
 
