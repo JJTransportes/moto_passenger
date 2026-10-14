@@ -28,12 +28,16 @@ class _MandatoryLocationGateState extends State<MandatoryLocationGate>
     with WidgetsBindingObserver {
   PassengerBackgroundLocationPermission? _status;
   bool _checking = true;
+  bool _disclosureAccepted = false;
+  bool _disclosureDeclined = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _check(request: true);
+    // Primeiro apenas consulta o estado. A permissão do Android só pode ser
+    // solicitada depois que o usuário visualizar e aceitar o aviso destacado.
+    _check();
   }
 
   @override
@@ -99,6 +103,14 @@ class _MandatoryLocationGateState extends State<MandatoryLocationGate>
     }
   }
 
+  Future<void> _acceptDisclosure() async {
+    setState(() {
+      _disclosureAccepted = true;
+      _disclosureDeclined = false;
+    });
+    await _check(request: true);
+  }
+
   @override
   Widget build(BuildContext context) {
     final blocked =
@@ -107,6 +119,12 @@ class _MandatoryLocationGateState extends State<MandatoryLocationGate>
 
     final gpsDisabled =
         _status == PassengerBackgroundLocationPermission.serviceDisabled;
+    final showDisclosure =
+        blocked &&
+        !gpsDisabled &&
+        !_checking &&
+        !_disclosureAccepted &&
+        !_disclosureDeclined;
     // O Navigator entregue pelo MaterialApp nunca pode ser removido durante
     // uma checagem de lifecycle. Ao voltar do background, um push pode navegar
     // no mesmo frame; substituir [widget.child] por outra árvore fazia o
@@ -124,47 +142,124 @@ class _MandatoryLocationGateState extends State<MandatoryLocationGate>
                   constraints: const BoxConstraints(maxWidth: 440),
                   child: Padding(
                     padding: const EdgeInsets.all(28),
-                    child: _checking
-                        ? const CircularProgressIndicator()
-                        : Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.location_on_rounded,
-                                size: 72,
-                                color: Color(0xFF246BFD),
-                              ),
-                              const SizedBox(height: 24),
-                              Text(
-                                gpsDisabled
-                                    ? 'Ative a localização'
-                                    : 'Localização obrigatória',
-                                textAlign: TextAlign.center,
-                                style: Theme.of(
-                                  context,
-                                ).textTheme.headlineSmall,
-                              ),
-                              const SizedBox(height: 12),
-                              Text(
-                                gpsDisabled
-                                    ? 'O GPS precisa permanecer ligado para usar o Motô.'
-                                    : 'Para usar o Motô e manter o acompanhamento durante a corrida, permita a localização o tempo todo e as notificações.',
-                                textAlign: TextAlign.center,
-                                style: Theme.of(context).textTheme.bodyLarge,
-                              ),
-                              const SizedBox(height: 28),
-                              FilledButton.icon(
-                                onPressed: _openRequiredSetting,
-                                icon: const Icon(Icons.settings),
-                                label: const Text('Abrir configurações'),
-                              ),
-                              const SizedBox(height: 12),
-                              TextButton(
-                                onPressed: () => _check(request: true),
-                                child: const Text('Verificar novamente'),
-                              ),
-                            ],
-                          ),
+                    child: SingleChildScrollView(
+                      child: _checking
+                          ? const CircularProgressIndicator()
+                          : showDisclosure
+                          ? Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.location_on_rounded,
+                                  size: 72,
+                                  color: Color(0xFF246BFD),
+                                ),
+                                const SizedBox(height: 24),
+                                Text(
+                                  'Uso da localização',
+                                  textAlign: TextAlign.center,
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.headlineSmall,
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'O Motô coleta sua localização para permitir a busca por motorista e o acompanhamento da corrida, inclusive quando o aplicativo está fechado ou não está em uso.',
+                                  textAlign: TextAlign.center,
+                                  style: Theme.of(context).textTheme.bodyLarge,
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'A localização é utilizada somente para prestar o serviço da corrida e pode ser alterada nas configurações do aparelho.',
+                                  textAlign: TextAlign.center,
+                                  style: Theme.of(context).textTheme.bodyMedium,
+                                ),
+                                const SizedBox(height: 28),
+                                FilledButton(
+                                  onPressed: _acceptDisclosure,
+                                  child: const Text('Continuar'),
+                                ),
+                                const SizedBox(height: 12),
+                                TextButton(
+                                  onPressed: () => setState(
+                                    () => _disclosureDeclined = true,
+                                  ),
+                                  child: const Text('Agora não'),
+                                ),
+                              ],
+                            )
+                          : _disclosureDeclined
+                          ? Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.location_off_rounded,
+                                  size: 72,
+                                  color: Color(0xFF246BFD),
+                                ),
+                                const SizedBox(height: 24),
+                                Text(
+                                  'Localização necessária',
+                                  textAlign: TextAlign.center,
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.headlineSmall,
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'Sem essa autorização não é possível solicitar e acompanhar uma corrida no Motô.',
+                                  textAlign: TextAlign.center,
+                                  style: Theme.of(context).textTheme.bodyLarge,
+                                ),
+                                const SizedBox(height: 28),
+                                FilledButton(
+                                  onPressed: () => setState(
+                                    () => _disclosureDeclined = false,
+                                  ),
+                                  child: const Text('Rever autorização'),
+                                ),
+                              ],
+                            )
+                          : Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.location_on_rounded,
+                                  size: 72,
+                                  color: Color(0xFF246BFD),
+                                ),
+                                const SizedBox(height: 24),
+                                Text(
+                                  gpsDisabled
+                                      ? 'Ative a localização'
+                                      : 'Localização obrigatória',
+                                  textAlign: TextAlign.center,
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.headlineSmall,
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  gpsDisabled
+                                      ? 'O GPS precisa permanecer ligado para usar o Motô.'
+                                      : 'Para usar o Motô e manter o acompanhamento durante a corrida, permita a localização o tempo todo e as notificações.',
+                                  textAlign: TextAlign.center,
+                                  style: Theme.of(context).textTheme.bodyLarge,
+                                ),
+                                const SizedBox(height: 28),
+                                FilledButton.icon(
+                                  onPressed: _openRequiredSetting,
+                                  icon: const Icon(Icons.settings),
+                                  label: const Text('Abrir configurações'),
+                                ),
+                                const SizedBox(height: 12),
+                                TextButton(
+                                  onPressed: () => _check(request: true),
+                                  child: const Text('Verificar novamente'),
+                                ),
+                              ],
+                            ),
+                    ),
                   ),
                 ),
               ),
