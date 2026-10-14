@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_modular/flutter_modular.dart' hide ModularWatchExtension;
+import 'package:flutter_modular/flutter_modular.dart'
+    hide ModularWatchExtension;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:moto_passenger/core/utils/password_policy_validator.dart';
 import 'package:moto_passenger/design_system/design_system.dart';
@@ -67,8 +68,8 @@ class _PasswordResetPageState extends State<PasswordResetPage> {
 
     setState(() => _localError = null);
     context.read<PasswordResetBloc>().add(
-          ResetConfirmSubmitted(newPassword: password),
-        );
+      ResetConfirmSubmitted(newPassword: password),
+    );
   }
 
   @override
@@ -93,7 +94,10 @@ class _PasswordResetPageState extends State<PasswordResetPage> {
             return BlocBuilder<PasswordPolicyCubit, PasswordPolicy>(
               builder: (context, policy) {
                 return SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 36),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 36,
+                    vertical: 36,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -166,9 +170,11 @@ class _PasswordResetPageState extends State<PasswordResetPage> {
                       AppButton(
                         label: 'Confirmar',
                         loading: isLoading,
-                        onPressed: _passwordController.text.isNotEmpty &&
+                        onPressed:
+                            _passwordController.text.isNotEmpty &&
                                 _confirmController.text.isNotEmpty &&
-                                _passwordController.text == _confirmController.text &&
+                                _passwordController.text ==
+                                    _confirmController.text &&
                                 unmetPasswordRequirements(
                                   _passwordController.text,
                                   policy,

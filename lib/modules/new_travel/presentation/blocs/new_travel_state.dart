@@ -21,6 +21,16 @@ class NewTravelLocationLoaded extends NewTravelState {
   const NewTravelLocationLoaded({required this.position});
 }
 
+class NewTravelOriginSelected extends NewTravelState {
+  final LatLng position;
+  final String address;
+
+  const NewTravelOriginSelected({
+    required this.position,
+    required this.address,
+  });
+}
+
 class NewTravelLocationError extends NewTravelState {
   final String message;
   final LocationStatus status;

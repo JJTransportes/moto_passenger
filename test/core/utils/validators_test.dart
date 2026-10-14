@@ -59,4 +59,17 @@ void main() {
       );
     });
   });
+
+  group('validatePhone', () {
+    test('aceita celular e telefone fixo brasileiros válidos', () {
+      expect(validatePhone('(11) 99876-5432'), isNull);
+      expect(validatePhone('(61) 3456-7890'), isNull);
+    });
+
+    test('rejeita DDD, prefixo e sequências inválidos', () {
+      expect(validatePhone('(10) 99876-5432'), isNotNull);
+      expect(validatePhone('(11) 19876-5432'), isNotNull);
+      expect(validatePhone('(11) 1111-1111'), isNotNull);
+    });
+  });
 }

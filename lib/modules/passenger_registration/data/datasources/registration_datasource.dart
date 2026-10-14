@@ -36,11 +36,15 @@ class RegistrationDatasource implements IRegistrationDatasource {
     switch (e.response?.statusCode) {
       case 400:
         return ValidationException(
-          _extractErrorMessage(e) ?? 'Dados inválidos. Verifique as informações.',
+          _extractErrorMessage(e) ??
+              'Dados inválidos. Verifique as informações.',
         );
       case 409:
         return ConflictException(
-          _extractErrorMessage(e) ?? 'Este e-mail ou CPF já está cadastrado.',
+          _extractErrorMessage(e) ??
+              (_extractErrorField(e) == 'phone'
+                  ? 'Este telefone já está cadastrado.'
+                  : 'Este e-mail ou CPF já está cadastrado.'),
         );
       case var code when code != null && code >= 500:
         return const ServerException();
@@ -65,5 +69,12 @@ class RegistrationDatasource implements IRegistrationDatasource {
       return data['error'] as String;
     }
     return null;
+  }
+
+  String? _extractErrorField(DioException e) {
+    final data = e.response?.data;
+    return data is Map && data['field'] is String
+        ? data['field'] as String
+        : null;
   }
 }

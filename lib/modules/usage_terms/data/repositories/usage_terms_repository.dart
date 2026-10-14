@@ -30,12 +30,14 @@ class UsageTermsRepository implements IUsageTermsRepository {
     try {
       final json = await _datasource.getActiveTerms();
       final subTerms = (json['subTerms'] as List<dynamic>? ?? [])
-          .map((st) => SubTermEntity(
-                subTermId: st['subTermId'] as String,
-                title: st['title'] as String,
-                content: st['content'] as String,
-                sortOrder: st['sortOrder'] as int? ?? 0,
-              ))
+          .map(
+            (st) => SubTermEntity(
+              subTermId: st['subTermId'] as String,
+              title: st['title'] as String,
+              content: st['content'] as String,
+              sortOrder: st['sortOrder'] as int? ?? 0,
+            ),
+          )
           .toList();
       final entity = UsageTermEntity(
         usageTermId: json['usageTermId'] as String,

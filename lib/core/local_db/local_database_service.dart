@@ -23,8 +23,10 @@ class LocalDatabaseService {
 
   static Database get instance {
     if (_db == null) {
-      throw StateError('LocalDatabaseService not initialized. '
-          'Call LocalDatabaseService.init() before accessing the database.');
+      throw StateError(
+        'LocalDatabaseService not initialized. '
+        'Call LocalDatabaseService.init() before accessing the database.',
+      );
     }
     return _db!;
   }

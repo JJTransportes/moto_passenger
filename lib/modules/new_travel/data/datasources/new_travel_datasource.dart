@@ -3,7 +3,9 @@ import 'package:moto_passenger/core/errors/exceptions.dart';
 
 abstract class INewTravelDatasource {
   Future<Map<String, dynamic>> createOrder(Map<String, dynamic> request);
-  Future<Map<String, dynamic>> createPriorityOrder(Map<String, dynamic> request);
+  Future<Map<String, dynamic>> createPriorityOrder(
+    Map<String, dynamic> request,
+  );
   Future<Map<String, dynamic>?> getLatestOrder();
   Future<void> cancelOrder(String orderId);
 }
@@ -45,7 +47,8 @@ class NewTravelDatasource implements INewTravelDatasource {
         if (body['type'] == 'no_drivers_available') {
           throw NoDriversAvailableException(
             partitionAcronym: body['partitionAcronym'] as String? ?? '',
-            message: body['message'] as String? ?? 'Nenhum motorista disponível',
+            message:
+                body['message'] as String? ?? 'Nenhum motorista disponível',
           );
         }
       }
@@ -68,7 +71,9 @@ class NewTravelDatasource implements INewTravelDatasource {
   }
 
   @override
-  Future<Map<String, dynamic>> createPriorityOrder(Map<String, dynamic> request) async {
+  Future<Map<String, dynamic>> createPriorityOrder(
+    Map<String, dynamic> request,
+  ) async {
     try {
       final response = await _dio.post(
         '/api/travels/priority-orders',
@@ -83,7 +88,8 @@ class NewTravelDatasource implements INewTravelDatasource {
         if (body['type'] == 'no_drivers_available') {
           throw NoDriversAvailableException(
             partitionAcronym: body['partitionAcronym'] as String? ?? '',
-            message: body['message'] as String? ?? 'Nenhum motorista disponível',
+            message:
+                body['message'] as String? ?? 'Nenhum motorista disponível',
           );
         }
       }

@@ -56,7 +56,9 @@ class AuthLocalRepository {
 
   Future<void> _ensureRefreshTokenColumn(db) async {
     try {
-      await db.execute('ALTER TABLE auth ADD COLUMN refresh_token TEXT DEFAULT \'\'');
+      await db.execute(
+        'ALTER TABLE auth ADD COLUMN refresh_token TEXT DEFAULT \'\'',
+      );
     } catch (_) {
       // Column already exists — ignore
     }

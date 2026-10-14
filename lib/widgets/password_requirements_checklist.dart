@@ -43,7 +43,9 @@ class PasswordRequirementsChecklist extends StatelessWidget {
                 Icon(
                   requirement.met ? Icons.check_circle : Icons.circle_outlined,
                   size: 14,
-                  color: requirement.met ? context.moto.success : context.moto.textTertiary,
+                  color: requirement.met
+                      ? context.moto.success
+                      : context.moto.textTertiary,
                 ),
                 const SizedBox(width: 6),
                 Expanded(
