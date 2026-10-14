@@ -40,7 +40,9 @@ class _ProfileImageDisplayState extends State<ProfileImageDisplay> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.photoUrl != null && widget.photoUrl!.isNotEmpty && _authHeaders != null) {
+    if (widget.photoUrl != null &&
+        widget.photoUrl!.isNotEmpty &&
+        _authHeaders != null) {
       return CircleAvatar(
         radius: widget.radius,
         backgroundImage: NetworkImage(widget.photoUrl!, headers: _authHeaders),

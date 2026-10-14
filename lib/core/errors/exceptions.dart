@@ -21,28 +21,36 @@ class ValidationException implements Exception {
 
 class RateLimitedException implements Exception {
   final String message;
-  const RateLimitedException([this.message = 'Muitas tentativas. Tente novamente mais tarde.']);
+  const RateLimitedException([
+    this.message = 'Muitas tentativas. Tente novamente mais tarde.',
+  ]);
   @override
   String toString() => message;
 }
 
 class NetworkException implements Exception {
   final String message;
-  const NetworkException([this.message = 'Erro de conexão. Verifique sua internet.']);
+  const NetworkException([
+    this.message = 'Erro de conexão. Verifique sua internet.',
+  ]);
   @override
   String toString() => message;
 }
 
 class ServerException implements Exception {
   final String message;
-  const ServerException([this.message = 'Erro interno do servidor. Tente novamente.']);
+  const ServerException([
+    this.message = 'Não foi possível concluir agora. Tente novamente.',
+  ]);
   @override
   String toString() => message;
 }
 
 class ConflictException implements Exception {
   final String message;
-  const ConflictException([this.message = 'Conflito ao processar a solicitação.']);
+  const ConflictException([
+    this.message = 'Conflito ao processar a solicitação.',
+  ]);
   @override
   String toString() => message;
 }
@@ -50,7 +58,8 @@ class ConflictException implements Exception {
 class DeviceConflictException implements Exception {
   final String message;
   const DeviceConflictException([
-    this.message = 'Sessão ativa em outro tipo de dispositivo. Faça logout no outro aparelho antes de entrar.',
+    this.message =
+        'Sessão ativa em outro tipo de dispositivo. Faça logout no outro aparelho antes de entrar.',
   ]);
   @override
   String toString() => message;

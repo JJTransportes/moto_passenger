@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:moto_passenger/core/auth/auth_storage.dart';
+import 'package:moto_passenger/core/errors/user_error_message.dart';
 import 'package:moto_passenger/core/local_db/repositories/auth_local_repository.dart';
 import 'package:moto_passenger/modules/auth/domain/entities/user_entity.dart';
 import 'package:moto_passenger/modules/auth/domain/usecases/i_login_usecase.dart';
@@ -12,7 +13,8 @@ class LoginBloc extends Bloc<LoginEvent, LoginState> {
   final AuthStorage _authStorage;
   final AuthLocalRepository _authLocal;
 
-  LoginBloc(this._loginUsecase, this._authStorage, this._authLocal) : super(const LoginInitial()) {
+  LoginBloc(this._loginUsecase, this._authStorage, this._authLocal)
+    : super(const LoginInitial()) {
     on<LoginSubmitted>(_onLoginSubmitted);
   }
 
@@ -39,7 +41,7 @@ class LoginBloc extends Bloc<LoginEvent, LoginState> {
       );
       emit(LoginSuccess(user));
     } else {
-      emit(LoginFailure(result.exceptionOrNull()!.toString()));
+      emit(LoginFailure(userErrorMessage(result.exceptionOrNull())));
     }
   }
 }

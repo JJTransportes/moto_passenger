@@ -10,8 +10,10 @@ class PasswordVerifyCodeBloc
   final IVerifyPasswordResetCodeUsecase _verifyPasswordResetCodeUsecase;
   final String email;
 
-  PasswordVerifyCodeBloc(this._verifyPasswordResetCodeUsecase, {required this.email})
-      : super(const PasswordVerifyCodeInitial()) {
+  PasswordVerifyCodeBloc(
+    this._verifyPasswordResetCodeUsecase, {
+    required this.email,
+  }) : super(const PasswordVerifyCodeInitial()) {
     on<CodeSubmitted>(_onCodeSubmitted);
   }
 
@@ -36,9 +38,9 @@ class PasswordVerifyCodeBloc
           RateLimitedException() => (error.message, true),
           ValidationException() => (error.message, false),
           _ => (
-              'Erro ao verificar o código. Verifique sua conexão e tente novamente.',
-              false,
-            ),
+            'Erro ao verificar o código. Verifique sua conexão e tente novamente.',
+            false,
+          ),
         };
         emit(PasswordVerifyCodeError(message, requestNewCode: requestNewCode));
       },
