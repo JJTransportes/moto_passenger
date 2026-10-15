@@ -5,8 +5,9 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:moto_passenger/core/location/background_location_service.dart';
 
-/// Impede o uso do app Android sem as permissões necessárias para manter a
-/// localização do passageiro durante todo o fluxo da corrida.
+/// Impede o uso do app (Android e iOS) sem as permissões necessárias para
+/// manter a localização do passageiro durante todo o fluxo da corrida:
+/// localização em "Sempre" (e, no Android, as notificações do serviço).
 class MandatoryLocationGate extends StatefulWidget {
   final Widget child;
   final Future<PassengerBackgroundLocationPermission> Function(bool request)?
@@ -51,8 +52,15 @@ class _MandatoryLocationGateState extends State<MandatoryLocationGate>
     if (state == AppLifecycleState.resumed) _check();
   }
 
+  /// O bloqueio vale no Android e no iOS. `isAndroid` existe só para os testes
+  /// forçarem a plataforma.
+  bool get _enforced =>
+      widget.isAndroid ?? (Platform.isAndroid || Platform.isIOS);
+
+  bool get _isIOS => !(widget.isAndroid ?? false) && Platform.isIOS;
+
   Future<void> _check({bool request = false}) async {
-    if (!(widget.isAndroid ?? Platform.isAndroid)) {
+    if (!_enforced) {
       if (mounted) setState(() => _checking = false);
       return;
     }
@@ -75,6 +83,9 @@ class _MandatoryLocationGateState extends State<MandatoryLocationGate>
       } else if (location != LocationPermission.always) {
         status =
             PassengerBackgroundLocationPermission.backgroundLocationRequired;
+      } else if (_isIOS) {
+        // No iOS não há serviço em primeiro plano com notificação própria.
+        status = PassengerBackgroundLocationPermission.granted;
       } else {
         var notification =
             await FlutterForegroundTask.checkNotificationPermission();
@@ -114,7 +125,7 @@ class _MandatoryLocationGateState extends State<MandatoryLocationGate>
   @override
   Widget build(BuildContext context) {
     final blocked =
-        (widget.isAndroid ?? Platform.isAndroid) &&
+        _enforced &&
         (_checking || _status != PassengerBackgroundLocationPermission.granted);
 
     final gpsDisabled =
@@ -242,6 +253,8 @@ class _MandatoryLocationGateState extends State<MandatoryLocationGate>
                                 Text(
                                   gpsDisabled
                                       ? 'O GPS precisa permanecer ligado para usar o Motô.'
+                                      : _isIOS
+                                      ? 'Para usar o Motô e manter o acompanhamento durante a corrida, abra as configurações, toque em Localização e escolha "Sempre".'
                                       : 'Para usar o Motô e manter o acompanhamento durante a corrida, permita a localização o tempo todo e as notificações.',
                                   textAlign: TextAlign.center,
                                   style: Theme.of(context).textTheme.bodyLarge,
