@@ -8,7 +8,6 @@ import 'package:moto_passenger/app/app_module.dart';
 import 'package:moto_passenger/app/app_widget.dart';
 import 'package:moto_passenger/core/config/app_config.dart';
 import 'package:moto_passenger/core/local_db/local_database_service.dart';
-import 'package:moto_passenger/core/location/location_service.dart';
 import 'package:moto_passenger/core/location/background_location_service.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
@@ -21,8 +20,6 @@ Future<void> main() async {
 
   FlutterForegroundTask.initCommunicationPort();
   PassengerBackgroundLocationService.initialize();
-
-  await LocationService.requestPermissionIfNeeded();
 
   final app = ModularApp(module: AppModule(), child: const AppWidget());
   const sentryDsnFromBuild = String.fromEnvironment('SENTRY_DSN');
