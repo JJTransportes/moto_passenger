@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
@@ -104,4 +105,23 @@ void main() {
       ),
     ).called(1);
   });
+
+  test(
+    'sessão inválida: signOut pendente não prende a requisição na fila',
+    () async {
+      when(
+        () => datasource.refreshToken('refresh'),
+      ).thenThrow(const ValidationException('Token expirado.'));
+      // Simula um signOut que nunca termina (chamada de rede presa na própria
+      // fila do interceptor, parada da localização, etc.).
+      when(
+        () => signOut.signOut(message: any(named: 'message')),
+      ).thenAnswer((_) => Completer<void>().future);
+
+      await expectLater(
+        buildDio().get('/protected').timeout(const Duration(seconds: 3)),
+        throwsA(isA<DioException>()),
+      );
+    },
+  );
 }

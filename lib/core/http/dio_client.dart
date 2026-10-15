@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_modular/flutter_modular.dart';
@@ -116,9 +118,9 @@ class AuthErrorInterceptor extends QueuedInterceptor {
 
     final refreshOutcome = await _tryRefreshToken();
     if (refreshOutcome == _RefreshOutcome.invalidSession) {
-      await Modular.get<SignOutService>().signOut(
-        message: 'Sua sessão expirou, faça login novamente.',
-      );
+      // Sem await: o signOut chama o backend pelo mesmo Dio, cujo 401 entra na
+      // fila deste interceptor; esperar aqui travaria a requisição (deadlock).
+      unawaited(_signOutExpiredSession());
       handler.next(err);
       return;
     }
@@ -152,6 +154,16 @@ class AuthErrorInterceptor extends QueuedInterceptor {
       // Retry itself failed (e.g. still unauthorized, or a network error) —
       // surface the original error to the caller instead of masking it.
       handler.next(err);
+    }
+  }
+
+  Future<void> _signOutExpiredSession() async {
+    try {
+      await Modular.get<SignOutService>().signOut(
+        message: 'Sua sessão expirou, faça login novamente.',
+      );
+    } catch (_) {
+      // A saída é best-effort: não pode lançar para fora do interceptor.
     }
   }
 
