@@ -42,7 +42,21 @@ class SignOutService {
   /// novamente."), it is shown as a [SnackBar] right after navigating —
   /// used by the auth interceptor when a silent token refresh fails during
   /// normal app usage, so the user understands *why* they were logged out.
-  Future<void> signOut({String? message}) async {
+  ///
+  /// Reentrante: uma chamada durante outra em andamento reaproveita a mesma
+  /// execução (o 401 das chamadas feitas aqui dispara o tratamento de sessão
+  /// inválida, que chama [signOut] de novo).
+  Future<void> signOut({String? message}) {
+    final running = _running;
+    if (running != null) return running;
+    final future = _performSignOut(message: message);
+    _running = future;
+    return future.whenComplete(() => _running = null);
+  }
+
+  Future<void>? _running;
+
+  Future<void> _performSignOut({String? message}) async {
     // A partir daqui um toque em notificação deve ser guardado, não navegar.
     SessionReadiness.reset();
 
@@ -83,7 +97,9 @@ class SignOutService {
 
   Future<void> _stopBackgroundLocation() async {
     try {
-      await Modular.get<PassengerBackgroundLocationService>().stop();
+      await Modular.get<PassengerBackgroundLocationService>().stop().timeout(
+        _pushTimeout,
+      );
     } catch (_) {
       // O binding pode não existir em testes unitários isolados.
     }
