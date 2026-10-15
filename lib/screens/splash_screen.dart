@@ -1,9 +1,7 @@
 import 'dart:async';
 import 'dart:developer';
-import 'dart:io' show Platform;
 
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:moto_passenger/core/auth/auth_storage.dart';
@@ -12,7 +10,6 @@ import 'package:moto_passenger/core/config/app_config.dart';
 import 'package:moto_passenger/core/errors/exceptions.dart';
 import 'package:moto_passenger/core/local_db/repositories/auth_local_repository.dart';
 import 'package:moto_passenger/core/local_db/repositories/travel_local_repository.dart';
-import 'package:moto_passenger/core/location/location_service.dart';
 import 'package:moto_passenger/core/notifications/i_push_notification_service.dart';
 import 'package:moto_passenger/core/notifications/deep_link_holder.dart';
 import 'package:moto_passenger/core/notifications/notification_channel_service.dart';
@@ -49,16 +46,6 @@ class _SplashScreenState extends State<SplashScreen> {
   /// falha aqui só é registrada.
   void _initPush() {
     unawaited(() async {
-      // No iOS ninguém mais pede a localização (o aviso do Android não roda
-      // aqui): sem este pedido o iOS nem lista a opção nos ajustes do app. Vem
-      // antes do push para os diálogos do sistema não se sobreporem.
-      if (!kIsWeb && Platform.isIOS) {
-        await LocationService.requestPermissionIfNeeded().timeout(
-          const Duration(seconds: 15),
-          onTimeout: () {},
-        );
-      }
-
       // O canal do Android com o som do Moto precisa existir antes de o OneSignal inicializar e
       // de chegar a primeira notificação (spec push-notification-sounds). Falha só é registrada.
       try {
