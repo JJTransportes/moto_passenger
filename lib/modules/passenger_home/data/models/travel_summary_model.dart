@@ -72,8 +72,7 @@ class PaginatedTravelListModel {
   factory PaginatedTravelListModel.fromJson(Map<String, dynamic> json) {
     return PaginatedTravelListModel(
       items: (json['items'] as List)
-          .map((e) =>
-              TravelSummaryModel.fromJson(e as Map<String, dynamic>))
+          .map((e) => TravelSummaryModel.fromJson(e as Map<String, dynamic>))
           .toList(),
       page: json['page'] as int,
       pageSize: json['pageSize'] as int,

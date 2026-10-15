@@ -15,7 +15,9 @@ class CurrentTravelCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isEmAndamento = travel.status == 'InProgress';
-    final tripStatus = isEmAndamento ? TripStatus.emAndamento : TripStatus.aceita;
+    final tripStatus = isEmAndamento
+        ? TripStatus.emAndamento
+        : TripStatus.aceita;
 
     return GestureDetector(
       onTap: onTap,
@@ -27,10 +29,17 @@ class CurrentTravelCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                const MotoTile(icon: Icons.directions_car, accent: true, size: 40),
+                const MotoTile(
+                  icon: Icons.directions_car,
+                  accent: true,
+                  size: 40,
+                ),
                 const SizedBox(width: MotoSpace.s3),
                 Expanded(
-                  child: Text('Viagem atual', style: Theme.of(context).textTheme.titleMedium),
+                  child: Text(
+                    'Viagem atual',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                 ),
                 MotoStatusBadge.trip(tripStatus),
               ],
@@ -39,9 +48,16 @@ class CurrentTravelCard extends StatelessWidget {
               const SizedBox(height: MotoSpace.s2),
               Row(
                 children: [
-                  Icon(Icons.person, color: context.moto.textTertiary, size: 18),
+                  Icon(
+                    Icons.person,
+                    color: context.moto.textTertiary,
+                    size: 18,
+                  ),
                   const SizedBox(width: MotoSpace.s2),
-                  Text(travel.driverName!, style: Theme.of(context).textTheme.bodyMedium),
+                  Text(
+                    travel.driverName!,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
                 ],
               ),
             ],

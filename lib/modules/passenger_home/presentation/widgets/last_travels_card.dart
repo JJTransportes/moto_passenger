@@ -19,7 +19,10 @@ class LastTravelsCard extends StatelessWidget {
         padding: const EdgeInsets.all(MotoSpace.s4),
         child: ListView(
           children: [
-            Text('Últimas viagens', style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              'Últimas viagens',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             const SizedBox(height: MotoSpace.s3),
             if (travels.isEmpty)
               Padding(

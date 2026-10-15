@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:moto_passenger/core/errors/exceptions.dart';
+import 'package:moto_passenger/core/notifications/i_push_notification_service.dart';
 import 'package:moto_passenger/modules/auth/data/datasources/i_auth_datasource.dart';
 import 'package:moto_passenger/modules/auth/data/models/sign_in_response_model.dart';
 import 'package:moto_passenger/modules/auth/data/repositories/auth_repository.dart';
@@ -13,7 +14,7 @@ void main() {
 
   setUp(() {
     mockDatasource = MockAuthDatasource();
-    repository = AuthRepository(mockDatasource);
+    repository = AuthRepository(mockDatasource, _QuietPush());
   });
 
   group('signIn', () {
@@ -73,3 +74,18 @@ void main() {
 }
 
 class MockAuthDatasource extends Mock implements IAuthDatasource {}
+
+/// Push que não faz nada: estes testes são do contrato do login, não do push.
+class _QuietPush implements IPushNotificationService {
+  @override
+  Future<void> initialize(String appId) async {}
+
+  @override
+  Future<bool> requestPermission() async => false;
+
+  @override
+  Future<void> identify(String userId) async {}
+
+  @override
+  Future<void> clear() async {}
+}
