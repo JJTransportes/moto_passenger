@@ -49,13 +49,18 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Este aplicativo utiliza sua localização, inclusive com o app em segundo plano, para acompanhar a corrida em andamento.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Este aplicativo utiliza sua localização para fornecer aos motoristas o ponto de partida das corridas.</string>
 	<key>IosMapsApiKey</key>
 	<string>$(IOS_MAPS_API_KEY)</string>
 	<key>UIBackgroundModes</key>
 	<array>
+		<string>location</string>
 		<string>remote-notification</string>
 	</array>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>
